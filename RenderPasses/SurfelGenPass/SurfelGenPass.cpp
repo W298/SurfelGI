@@ -1,30 +1,3 @@
-/***************************************************************************
- # Copyright (c) 2015-23, NVIDIA CORPORATION. All rights reserved.
- #
- # Redistribution and use in source and binary forms, with or without
- # modification, are permitted provided that the following conditions
- # are met:
- #  * Redistributions of source code must retain the above copyright
- #    notice, this list of conditions and the following disclaimer.
- #  * Redistributions in binary form must reproduce the above copyright
- #    notice, this list of conditions and the following disclaimer in the
- #    documentation and/or other materials provided with the distribution.
- #  * Neither the name of NVIDIA CORPORATION nor the names of its
- #    contributors may be used to endorse or promote products derived
- #    from this software without specific prior written permission.
- #
- # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS "AS IS" AND ANY
- # EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- # IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- # PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
- # CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- # EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- # PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
- # PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
- # OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- **************************************************************************/
 #include "SurfelGenPass.h"
 
 extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
@@ -32,7 +5,16 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
     registry.registerClass<RenderPass, SurfelGenPass>();
 }
 
-SurfelGenPass::SurfelGenPass(ref<Device> pDevice, const Properties& props) : RenderPass(pDevice) {}
+SurfelGenPass::SurfelGenPass(ref<Device> pDevice, const Properties& props) : RenderPass(pDevice)
+{
+    // Check device feature support.
+    mpDevice = pDevice;
+    if (!mpDevice->isShaderModelSupported(ShaderModel::SM6_5))
+        FALCOR_THROW("SceneDebugger requires Shader Model 6.5 support.");
+
+    DefineList defines;
+    mpSurfelGenPass = ComputePass::create(mpDevice, "RenderPasses/SurfelGenPass/SurfelGenPass.cs.slang", "csMain", defines);
+}
 
 Properties SurfelGenPass::getProperties() const
 {
@@ -43,15 +25,40 @@ RenderPassReflection SurfelGenPass::reflect(const CompileData& compileData)
 {
     // Define the required resources here
     RenderPassReflection reflector;
-    // reflector.addOutput("dst");
-    // reflector.addInput("src");
+
+    reflector.addInput("depth", "depth buffer")
+        .format(ResourceFormat::D32Float)
+        .bindFlags(ResourceBindFlags::ShaderResource);
+    reflector.addInput("raster", "raster data")
+        .format(ResourceFormat::RGBA32Float)
+        .bindFlags(ResourceBindFlags::ShaderResource);
+
+    reflector.addOutput("output", "output texture")
+        .format(ResourceFormat::RGBA32Float)
+        .bindFlags(ResourceBindFlags::UnorderedAccess);
+
     return reflector;
 }
 
 void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& renderData)
 {
-    // renderData holds the requested resources
-    // auto& pTexture = renderData.getTexture("src");
+    const auto& pDepth = renderData.getTexture("depth");
+    const auto& pRaster = renderData.getTexture("raster");
+    const auto& pOutput = renderData.getTexture("output");
+
+    FALCOR_ASSERT(pDepth && pRaster && pOutput);
+
+    const uint2 resolution = uint2(pRaster->getWidth(), pRaster->getHeight());
+
+    auto var = mpSurfelGenPass->getRootVar();
+    var["PerFrameCB"]["gResolution"] = resolution;
+    var["PerFrameCB"]["gInvResolution"] = float2(1.0f / resolution.x, 1.0f / resolution.y);
+
+    var["gDepth"] = pDepth;
+    var["gRaster"] = pRaster;
+    var["gOutput"] = pOutput;
+
+    mpSurfelGenPass->execute(pRenderContext, uint3(resolution, 1));
 }
 
 void SurfelGenPass::renderUI(Gui::Widgets& widget) {}
