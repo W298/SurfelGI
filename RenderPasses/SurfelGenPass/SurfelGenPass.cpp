@@ -5,15 +5,13 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
     registry.registerClass<RenderPass, SurfelGenPass>();
 }
 
-SurfelGenPass::SurfelGenPass(ref<Device> pDevice, const Properties& props) : RenderPass(pDevice)
+SurfelGenPass::SurfelGenPass(ref<Device> pDevice, const Properties& props)
+    : RenderPass(pDevice)
 {
     // Check device feature support.
     mpDevice = pDevice;
     if (!mpDevice->isShaderModelSupported(ShaderModel::SM6_5))
         FALCOR_THROW("SceneDebugger requires Shader Model 6.5 support.");
-
-    DefineList defines;
-    mpSurfelGenPass = ComputePass::create(mpDevice, "RenderPasses/SurfelGenPass/SurfelGenPass.cs.slang", "csMain", defines);
 }
 
 Properties SurfelGenPass::getProperties() const
@@ -27,17 +25,21 @@ RenderPassReflection SurfelGenPass::reflect(const CompileData& compileData)
     RenderPassReflection reflector;
 
     reflector.addInput("depth", "depth buffer")
-        .format(ResourceFormat::D32Float)
-        .bindFlags(ResourceBindFlags::ShaderResource);
+             .format(ResourceFormat::D32Float)
+             .bindFlags(ResourceBindFlags::ShaderResource);
     reflector.addInput("raster", "raster data")
-        .format(ResourceFormat::RGBA32Float)
-        .bindFlags(ResourceBindFlags::ShaderResource);
+             .format(ResourceFormat::RGBA32Float)
+             .bindFlags(ResourceBindFlags::ShaderResource);
 
     reflector.addOutput("output", "output texture")
-        .format(ResourceFormat::RGBA32Float)
-        .bindFlags(ResourceBindFlags::UnorderedAccess);
+             .format(ResourceFormat::RGBA32Float)
+             .bindFlags(ResourceBindFlags::UnorderedAccess);
 
     return reflector;
+}
+
+void SurfelGenPass::compile(RenderContext* pRenderContext, const CompileData& compileData)
+{
 }
 
 void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& renderData)
@@ -50,15 +52,35 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
 
     const uint2 resolution = uint2(pRaster->getWidth(), pRaster->getHeight());
 
-    auto var = mpSurfelGenPass->getRootVar();
-    var["PerFrameCB"]["gResolution"] = resolution;
-    var["PerFrameCB"]["gInvResolution"] = float2(1.0f / resolution.x, 1.0f / resolution.y);
+    if (mpSurfelGenPass)
+    {
+        auto var = mpSurfelGenPass->getRootVar();
+        var["PerFrameCB"]["gResolution"] = resolution;
+        var["PerFrameCB"]["gInvResolution"] = float2(1.0f / resolution.x, 1.0f / resolution.y);
+        var["PerFrameCB"]["gInvViewProj"] = mpScene->getCamera()->getInvViewProjMatrix();
 
-    var["gDepth"] = pDepth;
-    var["gRaster"] = pRaster;
-    var["gOutput"] = pOutput;
+        var["gDepth"] = pDepth;
+        var["gRaster"] = pRaster;
+        var["gOutput"] = pOutput;
 
-    mpSurfelGenPass->execute(pRenderContext, uint3(resolution, 1));
+        mpSurfelGenPass->execute(pRenderContext, uint3(resolution, 1));
+    }
 }
 
-void SurfelGenPass::renderUI(Gui::Widgets& widget) {}
+void SurfelGenPass::renderUI(Gui::Widgets& widget)
+{
+}
+
+void SurfelGenPass::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
+{
+    mpScene = pScene;
+
+    if (mpScene)
+    {
+        ProgramDesc desc;
+        desc.addShaderLibrary("RenderPasses/SurfelGenPass/SurfelGenPass.cs.slang")
+            .csEntry("csMain");
+
+        mpSurfelGenPass = ComputePass::create(mpDevice, desc, mpScene->getSceneDefines());
+    }
+}

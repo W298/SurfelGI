@@ -5,7 +5,8 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
     registry.registerClass<RenderPass, DirectIlluminationPass>();
 }
 
-DirectIlluminationPass::DirectIlluminationPass(ref<Device> pDevice, const Properties& props) : RenderPass(pDevice)
+DirectIlluminationPass::DirectIlluminationPass(ref<Device> pDevice, const Properties& props)
+    : RenderPass(pDevice)
 {
     // Check device feature support.
     mpDevice = pDevice;
@@ -38,13 +39,17 @@ RenderPassReflection DirectIlluminationPass::reflect(const CompileData& compileD
     RenderPassReflection reflector;
 
     reflector.addOutput("depth", "depth buffer")
-        .format(ResourceFormat::D32Float)
-        .bindFlags(ResourceBindFlags::DepthStencil);
+             .format(ResourceFormat::D32Float)
+             .bindFlags(ResourceBindFlags::DepthStencil);
 
     reflector.addOutput("output", "output texture")
-        .format(ResourceFormat::RGBA32Float);
+             .format(ResourceFormat::RGBA32Float);
 
     return reflector;
+}
+
+void DirectIlluminationPass::compile(RenderContext* pRenderContext, const CompileData& compileData)
+{
 }
 
 void DirectIlluminationPass::execute(RenderContext* pRenderContext, const RenderData& renderData)
@@ -52,8 +57,7 @@ void DirectIlluminationPass::execute(RenderContext* pRenderContext, const Render
     const auto& pDepth = renderData.getTexture("depth");
     const auto& pOutput = renderData.getTexture("output");
 
-    FALCOR_ASSERT(pDepth);
-    FALCOR_ASSERT(pOutput);
+    FALCOR_ASSERT(pDepth && pOutput);
 
     mpFbo->attachColorTarget(pOutput, 0);
     mpFbo->attachDepthStencilTarget(pDepth);
@@ -65,9 +69,6 @@ void DirectIlluminationPass::execute(RenderContext* pRenderContext, const Render
 
     if (mpScene)
     {
-        auto var = mpVars->getRootVar();
-        var["PerFrameCB"]["gColor"] = mColor;
-
         mpScene->rasterize(pRenderContext, mpState.get(), mpVars.get(), mpRasterState, mpRasterState);
     }
 }
@@ -86,7 +87,7 @@ void DirectIlluminationPass::setScene(RenderContext* pRenderContext, const ref<S
     {
         ProgramDesc desc;
         desc.addShaderModules(mpScene->getShaderModules());
-        desc.addShaderLibrary("RenderPasses/DirectIlluminationPass/DirectIllumination.slang")
+        desc.addShaderLibrary("RenderPasses/DirectIlluminationPass/DirectIlluminationPass.3d.slang")
             .vsEntry("vsMain")
             .psEntry("psMain");
         desc.addTypeConformances(mpScene->getTypeConformances());
