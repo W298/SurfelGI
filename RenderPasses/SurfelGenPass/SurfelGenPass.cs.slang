@@ -3,6 +3,7 @@ cbuffer PerFrameCB
     uint2 gResolution;
     float2 gInvResolution;
     float4x4 gInvViewProj;
+    uint2 gTileSize;
 }
 
 Texture2D<float32_t> gDepth;
@@ -19,20 +20,18 @@ float3 getWorldPos(float2 uv, float32_t depth)
 }
 
 [numthreads(16, 16, 1)]
-void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupId: SV_GroupID)
+void csMain(uint3 dispatchThreadId: SV_DispatchThreadID)
 {
-    // float2 groupUV = groupId.xy * (gInvResolution * 16.0f);
-
-    uint2 pixelPos = dispatchThreadId.xy;
-    float2 uv = pixelPos * gInvResolution;
-    float32_t depth = gDepth[pixelPos];
+    uint2 rightTopPixelPos = dispatchThreadId.xy * gTileSize;
+    float2 uv = rightTopPixelPos * gInvResolution;
+    float32_t depth = gDepth[rightTopPixelPos];
 
     if (depth == 1)
     {
-        gOutput[pixelPos] = float4(0, 0, 0, 1);
+        gOutput[rightTopPixelPos] = float4(0, 0, 0, 1);
         return;
     }
 
     float3 worldPos = getWorldPos(uv, depth);
-    gOutput[pixelPos] = float4(worldPos, 1);
+    gOutput[rightTopPixelPos] = float4(worldPos, 1);
 }

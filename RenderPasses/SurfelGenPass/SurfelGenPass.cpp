@@ -1,5 +1,10 @@
 #include "SurfelGenPass.h"
 
+namespace
+{
+const uint2 kTileSize = uint2(16, 16);
+} // namespace
+
 extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
 {
     registry.registerClass<RenderPass, SurfelGenPass>();
@@ -58,12 +63,13 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
         var["PerFrameCB"]["gResolution"] = resolution;
         var["PerFrameCB"]["gInvResolution"] = float2(1.0f / resolution.x, 1.0f / resolution.y);
         var["PerFrameCB"]["gInvViewProj"] = mpScene->getCamera()->getInvViewProjMatrix();
+        var["PerFrameCB"]["gTileSize"] = kTileSize;
 
         var["gDepth"] = pDepth;
         var["gRaster"] = pRaster;
         var["gOutput"] = pOutput;
 
-        mpSurfelGenPass->execute(pRenderContext, uint3(resolution, 1));
+        mpSurfelGenPass->execute(pRenderContext, uint3(resolution / kTileSize, 1));
     }
 }
 
