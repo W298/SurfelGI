@@ -5,8 +5,7 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
     registry.registerClass<RenderPass, DirectIlluminationPass>();
 }
 
-DirectIlluminationPass::DirectIlluminationPass(ref<Device> pDevice, const Properties& props)
-    : RenderPass(pDevice)
+DirectIlluminationPass::DirectIlluminationPass(ref<Device> pDevice, const Properties& props) : RenderPass(pDevice)
 {
     // Check device feature support.
     mpDevice = pDevice;
@@ -28,54 +27,43 @@ DirectIlluminationPass::DirectIlluminationPass(ref<Device> pDevice, const Proper
     mpFbo = Fbo::create(mpDevice);
 }
 
-Properties DirectIlluminationPass::getProperties() const
-{
-    return {};
-}
-
 RenderPassReflection DirectIlluminationPass::reflect(const CompileData& compileData)
 {
     // Define the required resources here
     RenderPassReflection reflector;
 
     reflector.addOutput("depth", "depth buffer")
-             .format(ResourceFormat::D32Float)
-             .bindFlags(ResourceBindFlags::DepthStencil);
+        .format(ResourceFormat::D32Float)
+        .bindFlags(ResourceBindFlags::DepthStencil);
 
-    reflector.addOutput("output", "output texture")
-             .format(ResourceFormat::RGBA32Float);
+    reflector.addOutput("normal", "normal texture")
+        .format(ResourceFormat::RGBA32Float)
+        .bindFlags(ResourceBindFlags::UnorderedAccess);
+
+    reflector.addOutput("raster", "raster texture").format(ResourceFormat::RGBA32Float);
 
     return reflector;
-}
-
-void DirectIlluminationPass::compile(RenderContext* pRenderContext, const CompileData& compileData)
-{
 }
 
 void DirectIlluminationPass::execute(RenderContext* pRenderContext, const RenderData& renderData)
 {
     const auto& pDepth = renderData.getTexture("depth");
-    const auto& pOutput = renderData.getTexture("output");
+    const auto& pNormal = renderData.getTexture("normal");
+    const auto& pOutput = renderData.getTexture("raster");
 
-    FALCOR_ASSERT(pDepth && pOutput);
+    FALCOR_ASSERT(pDepth && pNormal && pOutput);
 
     mpFbo->attachColorTarget(pOutput, 0);
     mpFbo->attachDepthStencilTarget(pDepth);
 
     pRenderContext->clearDsv(pDepth->getDSV().get(), 1.f, 0);
+    pRenderContext->clearUAV(pNormal->getUAV().get(), float4(0));
     pRenderContext->clearFbo(mpFbo.get(), float4(0), 1.f, 0, FboAttachmentType::Color);
 
     mpState->setFbo(mpFbo);
 
     if (mpScene)
-    {
         mpScene->rasterize(pRenderContext, mpState.get(), mpVars.get(), mpRasterState, mpRasterState);
-    }
-}
-
-void DirectIlluminationPass::renderUI(Gui::Widgets& widget)
-{
-    widget.rgbaColor("Color", mColor);
 }
 
 void DirectIlluminationPass::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)

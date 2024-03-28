@@ -1,20 +1,21 @@
 #pragma once
 #include "Falcor.h"
 #include "RenderGraph/RenderPass.h"
+#include "../RenderPasses/Surfel/SurfelBase.h"
 
 using namespace Falcor;
 
-class DirectIlluminationPass : public RenderPass
+class SurfelCoveragePass : public RenderPass
 {
 public:
-    FALCOR_PLUGIN_CLASS(DirectIlluminationPass, "DirectIlluminationPass", "Direct illumination pass");
+    FALCOR_PLUGIN_CLASS(SurfelCoveragePass, "SurfelCoveragePass", "Surfel coverage pass");
 
-    static ref<DirectIlluminationPass> create(ref<Device> pDevice, const Properties& props)
+    static ref<SurfelCoveragePass> create(ref<Device> pDevice, const Properties& props)
     {
-        return make_ref<DirectIlluminationPass>(pDevice, props);
+        return make_ref<SurfelCoveragePass>(pDevice, props);
     }
 
-    DirectIlluminationPass(ref<Device> pDevice, const Properties& props);
+    SurfelCoveragePass(ref<Device> pDevice, const Properties& props);
 
     virtual Properties getProperties() const override { return {}; }
     virtual RenderPassReflection reflect(const CompileData& compileData) override;
@@ -26,10 +27,8 @@ public:
     virtual bool onKeyEvent(const KeyboardEvent& keyEvent) override { return false; }
 
 private:
+    void createSurfelBuffer(Dictionary& dict);
+
     ref<Scene> mpScene;
-    ref<GraphicsState> mpState;
-    ref<Program> mpProgram;
-    ref<ProgramVars> mpVars;
-    ref<Fbo> mpFbo;
-    ref<RasterizerState> mpRasterState;
+    ref<ComputePass> mpComputePass;
 };
