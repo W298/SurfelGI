@@ -22,7 +22,7 @@ RenderPassReflection SurfelCoveragePass::reflect(const CompileData& compileData)
 
     // Output
     reflector.addOutput("coverage", "coverage texture")
-        .format(ResourceFormat::R16Uint)
+        .format(ResourceFormat::R32Uint)
         .bindFlags(ResourceBindFlags::UnorderedAccess)
         .texture2D(1920 / 16, 1080 / 16);
 
@@ -48,7 +48,6 @@ void SurfelCoveragePass::execute(RenderContext* pRenderContext, const RenderData
         if (!dict.keyExists("surfelBuffer"))
             createSurfelBuffer(dict);
 
-        var["CB"]["gResolution"] = resolution;
         var["CB"]["gInvResolution"] = float2(1.0f / resolution.x, 1.0f / resolution.y);
         var["CB"]["gInvViewProj"] = mpScene->getCamera()->getInvViewProjMatrix();
         var["CB"]["gTileSize"] = kTileSize;
@@ -62,7 +61,7 @@ void SurfelCoveragePass::execute(RenderContext* pRenderContext, const RenderData
         var["gCoverage"] = pCoverage;
 
         pRenderContext->clearUAV(pCoverage->getUAV().get(), uint4(0));
-        mpComputePass->execute(pRenderContext, uint3(resolution / kTileSize, 1));
+        mpComputePass->execute(pRenderContext, uint3(resolution, 1));
     }
 }
 
@@ -83,6 +82,7 @@ void SurfelCoveragePass::createSurfelBuffer(Dictionary& dict)
     const ref<Buffer> buffer = mpDevice->createStructuredBuffer(
         sizeof(Surfel), kSurfelLimit, ResourceBindFlags::UnorderedAccess, MemoryType::DeviceLocal, nullptr, false
     );
+
 
     Surfel testSurfelAry[] = {
         {float3(0, 0, 0), float3(0, 1, 0), true},

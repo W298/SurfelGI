@@ -2,7 +2,6 @@ import RenderPasses.Surfel.SurfelTypes;
 
 cbuffer CB
 {
-    uint2 gResolution;
     float2 gInvResolution;
     float4x4 gInvViewProj;
     uint2 gTileSize;
@@ -14,7 +13,7 @@ cbuffer CB
 
 Texture2D<float32_t> gDepth;
 Texture2D<float4> gNormal;
-Texture2D<uint16_t> gCoverage;
+Texture2D<uint> gCoverage;
 Texture2D<float4> gRaster;
 
 RWTexture2D<float4> gOutput;
@@ -36,22 +35,16 @@ float3 unProject(uint2 pixel, float32_t depth)
 [numthreads(16, 16, 1)]
 void csMain(uint3 dispatchThreadId: SV_DispatchThreadID)
 {
-    uint2 rightTopPixel = dispatchThreadId.xy * gTileSize;
+    uint2 tilePixel = dispatchThreadId.xy / gTileSize;
+    uint2 targetPixel = dispatchThreadId.xy;
 
-    Surfel surfel = gSurfelBuffer[0];
+    uint coverageData = gCoverage[tilePixel];
+    float coverage = f16tof32((coverageData & 0xFFFF0000) >> 16);
+    uint x = (coverageData & 0x000000F0) >> 4;
+    uint y = (coverageData & 0x0000000F) >> 0;
 
-    [unroll]
-    for (uint x = 0; x < 16; x++)
-    {
-        for (uint y = 0; y < 16; y++)
-        {
-            uint2 targetPixel = rightTopPixel + uint2(x, y);
-            float32_t depth = gDepth[targetPixel];
-
-            if (gCoverage[dispatchThreadId.xy] == 1)
-                gOutput[targetPixel] = float4(1, 0, 0, 1);
-            else
-                gOutput[targetPixel] = gRaster[targetPixel];
-        }
-    }
+    if (coverageData != 0)
+        gOutput[targetPixel] = float4(coverage, x / 16.f, y / 16.f, 1);
+    else
+        gOutput[targetPixel] = gRaster[targetPixel];
 }

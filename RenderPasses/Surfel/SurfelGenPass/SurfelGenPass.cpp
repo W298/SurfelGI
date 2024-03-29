@@ -20,7 +20,7 @@ RenderPassReflection SurfelGenPass::reflect(const CompileData& compileData)
         .format(ResourceFormat::RGBA32Float)
         .bindFlags(ResourceBindFlags::ShaderResource);
     reflector.addInput("coverage", "coverage texture")
-        .format(ResourceFormat::R16Uint)
+        .format(ResourceFormat::R32Uint)
         .bindFlags(ResourceBindFlags::ShaderResource)
         .texture2D(1920 / 16, 1080 / 16);
     reflector.addInput("raster", "raster texture")
@@ -53,7 +53,6 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
         auto var = mpComputePass->getRootVar();
         auto& dict = renderData.getDictionary();
 
-        var["CB"]["gResolution"] = resolution;
         var["CB"]["gInvResolution"] = float2(1.0f / resolution.x, 1.0f / resolution.y);
         var["CB"]["gInvViewProj"] = mpScene->getCamera()->getInvViewProjMatrix();
         var["CB"]["gTileSize"] = kTileSize;
@@ -69,7 +68,7 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
         var["gOutput"] = pOutput;
 
         pRenderContext->clearUAV(pOutput->getUAV().get(), float4(0, 0, 0, 1));
-        mpComputePass->execute(pRenderContext, uint3(resolution / kTileSize, 1));
+        mpComputePass->execute(pRenderContext, uint3(resolution, 1));
     }
 }
 
