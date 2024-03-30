@@ -1,3 +1,5 @@
+#pragma once
+
 struct Surfel
 {
     float3 position;

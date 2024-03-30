@@ -48,12 +48,14 @@ void SurfelCoveragePass::execute(RenderContext* pRenderContext, const RenderData
         if (!dict.keyExists("surfelBuffer"))
             createSurfelBuffer(dict);
 
-        var["CB"]["gInvResolution"] = float2(1.0f / resolution.x, 1.0f / resolution.y);
+        var["CB"]["gInvResolution"] = float2(1.f / resolution.x, 1.f / resolution.y);
         var["CB"]["gInvViewProj"] = mpScene->getCamera()->getInvViewProjMatrix();
         var["CB"]["gTileSize"] = kTileSize;
         var["CB"]["gSurfelLimit"] = kSurfelLimit;
         var["CB"]["gSurfelRadius"] = kSurfelRadius;
-        var["CB"]["gSurfelBuffer"] = dict.getValue<ref<Buffer>>("surfelBuffer");
+
+        var["gSurfelBuffer"] = dict.getValue<ref<Buffer>>("surfelBuffer");
+        var["gSurfelStatus"] = dict.getValue<ref<Buffer>>("surfelStatus");
 
         var["gDepth"] = pDepth;
         var["gNormal"] = pNormal;
@@ -71,6 +73,9 @@ void SurfelCoveragePass::setScene(RenderContext* pRenderContext, const ref<Scene
 
     if (mpScene)
     {
+        mpScene->getCamera()->setPosition(float3(-0.2447, 0.2664, 0.4022));
+        mpScene->getCamera()->setTarget(float3(0.1015, -0.0460, -0.4825));
+
         ProgramDesc desc;
         desc.addShaderLibrary("RenderPasses/Surfel/SurfelCoveragePass/SurfelCoveragePass.cs.slang").csEntry("csMain");
         mpComputePass = ComputePass::create(mpDevice, desc, mpScene->getSceneDefines());
@@ -79,16 +84,12 @@ void SurfelCoveragePass::setScene(RenderContext* pRenderContext, const ref<Scene
 
 void SurfelCoveragePass::createSurfelBuffer(Dictionary& dict)
 {
-    const ref<Buffer> buffer = mpDevice->createStructuredBuffer(
+    const ref<Buffer> surfelBuffer = mpDevice->createStructuredBuffer(
         sizeof(Surfel), kSurfelLimit, ResourceBindFlags::UnorderedAccess, MemoryType::DeviceLocal, nullptr, false
     );
 
+    const ref<Buffer> surfelStatus = mpDevice->createBuffer(sizeof(uint32_t));
 
-    Surfel testSurfelAry[] = {
-        {float3(0, 0, 0), float3(0, 1, 0), true},
-        {float3(0.02f, 0, 0.02f), float3(0, 1, 0), true},
-    };
-    buffer->setBlob(&testSurfelAry, 0, sizeof(Surfel) * 2);
-
-    dict["surfelBuffer"] = buffer;
+    dict["surfelBuffer"] = surfelBuffer;
+    dict["surfelStatus"] = surfelStatus;
 }

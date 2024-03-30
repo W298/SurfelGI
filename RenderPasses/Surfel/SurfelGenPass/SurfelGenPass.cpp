@@ -23,9 +23,6 @@ RenderPassReflection SurfelGenPass::reflect(const CompileData& compileData)
         .format(ResourceFormat::R32Uint)
         .bindFlags(ResourceBindFlags::ShaderResource)
         .texture2D(1920 / 16, 1080 / 16);
-    reflector.addInput("raster", "raster texture")
-        .format(ResourceFormat::RGBA32Float)
-        .bindFlags(ResourceBindFlags::ShaderResource);
 
     // Output
     reflector.addOutput("output", "output texture")
@@ -40,34 +37,35 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
     const auto& pDepth = renderData.getTexture("depth");
     const auto& pNormal = renderData.getTexture("normal");
     const auto& pCoverage = renderData.getTexture("coverage");
-    const auto& pRaster = renderData.getTexture("raster");
 
     const auto& pOutput = renderData.getTexture("output");
 
-    FALCOR_ASSERT(pDepth && pRaster && pCoverage && pOutput);
+    FALCOR_ASSERT(pDepth && pNormal && pCoverage && pOutput);
 
-    const uint2 resolution = uint2(pRaster->getWidth(), pRaster->getHeight());
+    const uint2 resolution = uint2(pDepth->getWidth(), pDepth->getHeight());
 
     if (mpComputePass)
     {
         auto var = mpComputePass->getRootVar();
         auto& dict = renderData.getDictionary();
 
-        var["CB"]["gInvResolution"] = float2(1.0f / resolution.x, 1.0f / resolution.y);
+        var["CB"]["gNearFar"] = float2(mpScene->getCamera()->getNearPlane(), mpScene->getCamera()->getFarPlane());
+        var["CB"]["gInvResolution"] = float2(1.f / resolution.x, 1.f / resolution.y);
         var["CB"]["gInvViewProj"] = mpScene->getCamera()->getInvViewProjMatrix();
         var["CB"]["gTileSize"] = kTileSize;
         var["CB"]["gSurfelLimit"] = kSurfelLimit;
         var["CB"]["gSurfelRadius"] = kSurfelRadius;
-        var["CB"]["gSurfelBuffer"] = dict.getValue<ref<Buffer>>("surfelBuffer");
+
+        var["gSurfelBuffer"] = dict.getValue<ref<Buffer>>("surfelBuffer");
+        var["gSurfelStatus"] = dict.getValue<ref<Buffer>>("surfelStatus");
 
         var["gDepth"] = pDepth;
         var["gNormal"] = pNormal;
         var["gCoverage"] = pCoverage;
-        var["gRaster"] = pRaster;
 
         var["gOutput"] = pOutput;
 
-        pRenderContext->clearUAV(pOutput->getUAV().get(), float4(0, 0, 0, 1));
+        pRenderContext->clearUAV(pOutput->getUAV().get(), float4(0));
         mpComputePass->execute(pRenderContext, uint3(resolution, 1));
     }
 }

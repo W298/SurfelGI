@@ -1,4 +1,5 @@
 import RenderPasses.Surfel.SurfelTypes;
+import RenderPasses.Surfel.SurfelUtil;
 
 cbuffer CB
 {
@@ -7,28 +8,15 @@ cbuffer CB
     uint2 gTileSize;
     uint32_t gSurfelLimit;
     float gSurfelRadius;
-
-    RWStructuredBuffer<Surfel> gSurfelBuffer;
 }
 
-Texture2D<float32_t> gDepth;
+RWStructuredBuffer<Surfel> gSurfelBuffer;
+RWByteAddressBuffer gSurfelStatus;
+
+Texture2D<float> gDepth;
 Texture2D<float4> gNormal;
 
 RWTexture2D<uint> gCoverage;
-
-float3 unProject(float2 uv, float32_t depth)
-{
-    float x = uv.x * 2 - 1;
-    float y = (1 - uv.y) * 2 - 1;
-    float4 pos = mul(gInvViewProj, float4(x, y, depth, 1));
-
-    return pos.xyz / pos.w;
-}
-
-float3 unProject(uint2 pixel, float32_t depth)
-{
-    return unProject(pixel * gInvResolution, depth);
-}
 
 groupshared uint groupShareMinCoverage;
 
@@ -41,16 +29,16 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex : SV_Gr
     }
     GroupMemoryBarrierWithGroupSync();
 
-    uint2 tilePixel = dispatchThreadId.xy / gTileSize;
-    uint2 targetPixel = dispatchThreadId.xy;
+    uint2 tilePos = dispatchThreadId.xy / gTileSize;
+    uint2 pixelPos = dispatchThreadId.xy;
 
-    float32_t depth = gDepth[targetPixel];
+    float depth = gDepth[pixelPos];
     if (depth == 1)
         return;
 
-    float3 unProjectedPos = unProject(targetPixel, depth);
+    float3 unProjectedPos = unProject(pixelPos * gInvResolution, depth, gInvViewProj);
 
-    float coverage = 0.h;
+    float coverage = 0.f;
     for (uint s = 0; s < gSurfelLimit; s++)
     {
         Surfel surfel = gSurfelBuffer[s];
@@ -65,11 +53,11 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex : SV_Gr
         {
             float3 normal = normalize(surfel.normal);
 
-            float dotN = dot(gNormal[targetPixel].xyz, normal);
+            float dotN = dot(gNormal[pixelPos].xyz, normal);
             if (dotN > 0)
             {
                 float dist = sqrt(dist2);
-                float contribution = 1.h;
+                float contribution = 1.f;
 
                 contribution *= saturate(dotN);
                 contribution *= saturate(1 - dist / gSurfelRadius);
@@ -88,5 +76,5 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex : SV_Gr
 
     GroupMemoryBarrierWithGroupSync();
 
-    gCoverage[tilePixel] = groupShareMinCoverage;
+    gCoverage[tilePos] = groupShareMinCoverage;
 }

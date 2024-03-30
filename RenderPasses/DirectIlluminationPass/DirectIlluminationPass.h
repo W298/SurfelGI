@@ -31,5 +31,6 @@ private:
     ref<Program> mpProgram;
     ref<ProgramVars> mpVars;
     ref<Fbo> mpFbo;
+    ref<Texture> mpDepth;
     ref<RasterizerState> mpRasterState;
 };

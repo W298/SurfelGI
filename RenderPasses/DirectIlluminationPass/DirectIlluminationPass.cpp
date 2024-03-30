@@ -16,29 +16,26 @@ DirectIlluminationPass::DirectIlluminationPass(ref<Device> pDevice, const Proper
     mpState = GraphicsState::create(mpDevice);
 
     // Set rasterizer function.
-    RasterizerState::Desc wireframeDesc;
-    wireframeDesc.setFillMode(RasterizerState::FillMode::Solid);
-    wireframeDesc.setCullMode(RasterizerState::CullMode::Back);
-    mpRasterState = RasterizerState::create(wireframeDesc);
+    RasterizerState::Desc desc;
+    desc.setFillMode(RasterizerState::FillMode::Solid);
+    desc.setCullMode(RasterizerState::CullMode::Back);
+    mpRasterState = RasterizerState::create(desc);
 
     mpState->setRasterizerState(mpRasterState);
 
     // Create FBO.
     mpFbo = Fbo::create(mpDevice);
+
+    // Create depth buffer.
+    mpDepth = pDevice->createTexture2D(
+        1920, 1080, ResourceFormat::D32Float, 1, Resource::kMaxPossible, nullptr, ResourceBindFlags::DepthStencil
+    );
 }
 
 RenderPassReflection DirectIlluminationPass::reflect(const CompileData& compileData)
 {
     // Define the required resources here
     RenderPassReflection reflector;
-
-    reflector.addOutput("depth", "depth buffer")
-        .format(ResourceFormat::D32Float)
-        .bindFlags(ResourceBindFlags::DepthStencil);
-
-    reflector.addOutput("normal", "normal texture")
-        .format(ResourceFormat::RGBA32Float)
-        .bindFlags(ResourceBindFlags::UnorderedAccess);
 
     reflector.addOutput("raster", "raster texture").format(ResourceFormat::RGBA32Float);
 
@@ -47,17 +44,14 @@ RenderPassReflection DirectIlluminationPass::reflect(const CompileData& compileD
 
 void DirectIlluminationPass::execute(RenderContext* pRenderContext, const RenderData& renderData)
 {
-    const auto& pDepth = renderData.getTexture("depth");
-    const auto& pNormal = renderData.getTexture("normal");
     const auto& pOutput = renderData.getTexture("raster");
 
-    FALCOR_ASSERT(pDepth && pNormal && pOutput);
+    FALCOR_ASSERT(pOutput);
 
     mpFbo->attachColorTarget(pOutput, 0);
-    mpFbo->attachDepthStencilTarget(pDepth);
+    mpFbo->attachDepthStencilTarget(mpDepth);
 
-    pRenderContext->clearDsv(pDepth->getDSV().get(), 1.f, 0);
-    pRenderContext->clearUAV(pNormal->getUAV().get(), float4(0));
+    pRenderContext->clearDsv(mpDepth->getDSV().get(), 1.f, 0);
     pRenderContext->clearFbo(mpFbo.get(), float4(0), 1.f, 0, FboAttachmentType::Color);
 
     mpState->setFbo(mpFbo);
