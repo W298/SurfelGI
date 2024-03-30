@@ -9,12 +9,21 @@ float3 unProject(float2 uv, float32_t depth, float4x4 invViewProj)
     return pos.xyz / pos.w;
 }
 
+float computeLinearDepth(in float z, in float near, in float far)
+{
+    float z_n = 2 * z - 1;
+    float lin = 2 * far * near / (near + far - z_n * (near - far));
+    return lin;
+}
+
+namespace Random
+{
+
 uint rotl(uint x, uint k)
 {
     return (x << k) | (x >> (32 - k));
 }
 
-// Random
 uint hash(uint seed)
 {
     seed = (seed ^ 61) ^ (seed >> 16);
@@ -43,18 +52,12 @@ uint next(uint2 s)
     return result;
 }
 
-float next_float(uint2 id, uint frameIndex)
+float randomFloat(uint2 id, uint frameIndex)
 {
     uint2 s = init(id, frameIndex);
 
     uint u = 0x3f800000 | (next(s) >> 9);
     return asfloat(u) - 1.0;
 }
-// Random end
 
-float computeLinearDepth(in float z, in float near, in float far)
-{
-    float z_n = 2 * z - 1;
-    float lin = 2 * far * near / (near + far - z_n * (near - far));
-    return lin;
 }

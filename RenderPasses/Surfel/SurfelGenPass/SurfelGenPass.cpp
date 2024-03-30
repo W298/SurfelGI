@@ -6,6 +6,8 @@ SurfelGenPass::SurfelGenPass(ref<Device> pDevice, const Properties& props) : Ren
     mpDevice = pDevice;
     if (!mpDevice->isShaderModelSupported(ShaderModel::SM6_5))
         FALCOR_THROW("SceneDebugger requires Shader Model 6.5 support.");
+
+    mFrameIndex = 0;
 }
 
 RenderPassReflection SurfelGenPass::reflect(const CompileData& compileData)
@@ -55,6 +57,7 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
         var["CB"]["gTileSize"] = kTileSize;
         var["CB"]["gSurfelLimit"] = kSurfelLimit;
         var["CB"]["gSurfelRadius"] = kSurfelRadius;
+        var["CB"]["gFrameIndex"] = mFrameIndex;
 
         var["gSurfelBuffer"] = dict.getValue<ref<Buffer>>("surfelBuffer");
         var["gSurfelStatus"] = dict.getValue<ref<Buffer>>("surfelStatus");
@@ -68,6 +71,13 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
         pRenderContext->clearUAV(pOutput->getUAV().get(), float4(0));
         mpComputePass->execute(pRenderContext, uint3(resolution, 1));
     }
+
+    mFrameIndex++;
+}
+
+void SurfelGenPass::renderUI(Gui::Widgets& widget)
+{
+    widget.text("frame index: " + std::to_string(mFrameIndex));
 }
 
 void SurfelGenPass::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)

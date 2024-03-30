@@ -9,6 +9,7 @@ cbuffer CB
     uint2 gTileSize;
     uint32_t gSurfelLimit;
     float gSurfelRadius;
+    uint32_t gFrameIndex;
 }
 
 RWStructuredBuffer<Surfel> gSurfelBuffer;
@@ -40,9 +41,9 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
     if (groupThreadID.x == x && groupThreadID.y == y && coverage < 0.2f)
     {
         const float linearDepth = computeLinearDepth(depth, gNearFar.x, gNearFar.y) * (1.f / max(0.0001f, gNearFar.y));
-        const float chance = 0.95f;
+        const float chance = 0.98f;
 
-        if (next_float(pixelPos, 1) > chance)
+        if (Random::randomFloat(pixelPos + uint2(gFrameIndex), gFrameIndex) > chance)
         {
             uint aliveCount;
             gSurfelStatus.InterlockedAdd(0, 1, aliveCount);
@@ -51,7 +52,12 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
             {
                 float3 normal = gNormal[pixelPos].xyz;
 
-                Surfel newSurfel = { unProjectedPos, normal, true };
+                float3 randomColor;
+                randomColor.x = Random::randomFloat(pixelPos + uint2(gFrameIndex) * 2, gFrameIndex);
+                randomColor.y = Random::randomFloat(pixelPos + uint2(gFrameIndex) * 3, gFrameIndex);
+                randomColor.z = Random::randomFloat(pixelPos + uint2(gFrameIndex) * 4, gFrameIndex);
+
+                Surfel newSurfel = { unProjectedPos, normal, randomColor, true };
                 gSurfelBuffer[aliveCount] = newSurfel;
             }
         }
@@ -74,7 +80,7 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
             float dotN = dot(gNormal[pixelPos].xyz, normal);
             if (dotN > 0)
             {
-                gOutput[pixelPos] = float4(surfel.position, 1);
+                gOutput[pixelPos] = float4(surfel.color, 1);
                 return;
             }
         }
