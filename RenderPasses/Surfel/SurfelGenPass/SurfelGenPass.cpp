@@ -51,7 +51,6 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
         auto var = mpComputePass->getRootVar();
         auto& dict = renderData.getDictionary();
 
-        var["CB"]["gNearFar"] = float2(mpScene->getCamera()->getNearPlane(), mpScene->getCamera()->getFarPlane());
         var["CB"]["gInvResolution"] = float2(1.f / resolution.x, 1.f / resolution.y);
         var["CB"]["gInvViewProj"] = mpScene->getCamera()->getInvViewProjMatrix();
         var["CB"]["gTileSize"] = kTileSize;

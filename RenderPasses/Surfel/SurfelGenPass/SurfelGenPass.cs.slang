@@ -3,7 +3,6 @@ import RenderPasses.Surfel.SurfelUtil;
 
 cbuffer CB
 {
-    float2 gNearFar;
     float2 gInvResolution;
     float4x4 gInvViewProj;
     uint2 gTileSize;
@@ -38,12 +37,12 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
 
     float3 unProjectedPos = unProject(pixelPos * gInvResolution, depth, gInvViewProj);
 
-    if (groupThreadID.x == x && groupThreadID.y == y && coverage < 0.2f)
+    if (groupThreadID.x == x && groupThreadID.y == y && coverage < 0.01f)
     {
-        const float linearDepth = computeLinearDepth(depth, gNearFar.x, gNearFar.y) * (1.f / max(0.0001f, gNearFar.y));
-        const float chance = 0.98f;
+        const float chance = pow(depth, 8);
+        Random::State randomState = Random::init(pixelPos, gFrameIndex);
 
-        if (Random::randomFloat(pixelPos + uint2(gFrameIndex), gFrameIndex) > chance)
+        if (Random::nextFloat(randomState) < chance)
         {
             uint aliveCount;
             gSurfelStatus.InterlockedAdd(0, 1, aliveCount);
@@ -51,11 +50,7 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
             if (aliveCount < gSurfelLimit)
             {
                 float3 normal = gNormal[pixelPos].xyz;
-
-                float3 randomColor;
-                randomColor.x = Random::randomFloat(pixelPos + uint2(gFrameIndex) * 2, gFrameIndex);
-                randomColor.y = Random::randomFloat(pixelPos + uint2(gFrameIndex) * 3, gFrameIndex);
-                randomColor.z = Random::randomFloat(pixelPos + uint2(gFrameIndex) * 4, gFrameIndex);
+                float3 randomColor = Random::nextFloat3(randomState);
 
                 Surfel newSurfel = { unProjectedPos, normal, randomColor, true };
                 gSurfelBuffer[aliveCount] = newSurfel;

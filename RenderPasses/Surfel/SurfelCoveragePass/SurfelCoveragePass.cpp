@@ -74,7 +74,7 @@ void SurfelCoveragePass::setScene(RenderContext* pRenderContext, const ref<Scene
     if (mpScene)
     {
         mpScene->getCamera()->setPosition(float3(-0.2447, 0.2664, 0.4022));
-        mpScene->getCamera()->setTarget(float3(0.1015, -0.0460, -0.4825));
+        mpScene->getCamera()->setTarget(float3(0.0858, -0.1472, -0.4462));
 
         ProgramDesc desc;
         desc.addShaderLibrary("RenderPasses/Surfel/SurfelCoveragePass/SurfelCoveragePass.cs.slang").csEntry("csMain");

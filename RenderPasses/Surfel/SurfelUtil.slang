@@ -9,20 +9,11 @@ float3 unProject(float2 uv, float32_t depth, float4x4 invViewProj)
     return pos.xyz / pos.w;
 }
 
-float computeLinearDepth(in float z, in float near, in float far)
-{
-    float z_n = 2 * z - 1;
-    float lin = 2 * far * near / (near + far - z_n * (near - far));
-    return lin;
-}
-
 namespace Random
 {
+typedef uint2 State;
 
-uint rotl(uint x, uint k)
-{
-    return (x << k) | (x >> (32 - k));
-}
+uint rotl(uint x, uint k) { return (x << k) | (x >> (32 - k)); }
 
 uint hash(uint seed)
 {
@@ -34,14 +25,7 @@ uint hash(uint seed)
     return seed;
 }
 
-uint2 init(uint2 id, uint frameIndex)
-{
-    uint s0 = (id.x << 16) | id.y;
-    uint s1 = frameIndex;
-    return uint2(hash(s0), hash(s1));
-}
-
-uint next(uint2 s)
+uint next(inout State s)
 {
     uint result = s.x * 0x9e3779bb;
 
@@ -52,12 +36,26 @@ uint next(uint2 s)
     return result;
 }
 
-float randomFloat(uint2 id, uint frameIndex)
+State init(uint2 id, uint frameIndex)
 {
-    uint2 s = init(id, frameIndex);
+    id += uint2(frameIndex);
+    uint s0 = (id.x << 16) | id.y;
+    uint s1 = frameIndex;
+    return uint2(hash(s0), hash(s1));
+}
 
+float nextFloat(inout State s)
+{
     uint u = 0x3f800000 | (next(s) >> 9);
     return asfloat(u) - 1.0;
 }
 
+float3 nextFloat3(inout State s)
+{
+    float x = nextFloat(s);
+    float y = nextFloat(s);
+    float z = nextFloat(s);
+
+    return float3(x, y, z);
 }
+} // namespace Random
