@@ -58,4 +58,11 @@ float3 nextFloat3(inout State s)
 
     return float3(x, y, z);
 }
+
+uint nextUint(inout State s, uint maxValue)
+{
+    float f = nextFloat(s);
+    return uint(floor(f * maxValue));
+}
+
 } // namespace Random

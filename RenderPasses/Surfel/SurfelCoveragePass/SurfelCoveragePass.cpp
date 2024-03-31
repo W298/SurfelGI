@@ -53,6 +53,7 @@ void SurfelCoveragePass::execute(RenderContext* pRenderContext, const RenderData
         var["CB"]["gTileSize"] = kTileSize;
         var["CB"]["gSurfelLimit"] = kSurfelLimit;
         var["CB"]["gSurfelRadius"] = kSurfelRadius;
+        var["CB"]["gFrameIndex"] = mFrameIndex;
 
         var["gSurfelBuffer"] = dict.getValue<ref<Buffer>>("surfelBuffer");
         var["gSurfelStatus"] = dict.getValue<ref<Buffer>>("surfelStatus");
@@ -65,6 +66,8 @@ void SurfelCoveragePass::execute(RenderContext* pRenderContext, const RenderData
         pRenderContext->clearUAV(pCoverage->getUAV().get(), uint4(0));
         mpComputePass->execute(pRenderContext, uint3(resolution, 1));
     }
+
+    mFrameIndex++;
 }
 
 void SurfelCoveragePass::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
