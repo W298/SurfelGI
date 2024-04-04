@@ -1,3 +1,4 @@
+import RenderPasses.Surfel.Random;
 import RenderPasses.Surfel.SurfelTypes;
 import RenderPasses.Surfel.SurfelUtil;
 
@@ -6,17 +7,20 @@ cbuffer CB
     float2 gInvResolution;
     float4x4 gInvViewProj;
     uint32_t gFrameIndex;
+    float3 gCameraPos;
 }
 
 RWStructuredBuffer<Surfel> gSurfelBuffer;
 RWByteAddressBuffer gSurfelStatus;
+RWStructuredBuffer<CellInfo> gCellInfoBuffer;
+RWStructuredBuffer<uint32_t> gCellIndexBuffer;
 
 Texture2D<float32_t> gDepth;
 Texture2D<float4> gNormal;
 Texture2D<uint> gCoverage;
 
 RWTexture2D<float4> gOutput;
-RWTexture2D<float> gDebug;
+RWTexture2D<uint> gDebug;
 
 [numthreads(16, 16, 1)]
 void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV_GroupThreadID)
@@ -33,52 +37,70 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
     uint x = (coverageData & 0x000000F0) >> 4;
     uint y = (coverageData & 0x0000000F) >> 0;
 
-    gDebug[pixelPos] = coverage;
+    float3 worldPos = unProject(pixelPos * gInvResolution, depth, gInvViewProj);
 
-    float3 unProjectedPos = unProject(pixelPos * gInvResolution, depth, gInvViewProj);
+    int3 cellPos = getCellPos(worldPos, gCameraPos);
+    if (!isCellValid(cellPos))
+        return;
 
-    if (groupThreadID.x == x && groupThreadID.y == y && coverage < 0.08f)
+    uint flattenIndex = getFlattenCellIndex(cellPos);
+    CellInfo cellInfo = gCellInfoBuffer[flattenIndex];
+
+    if (cellInfo.count < kCellSurfelLimit)
     {
-        const float chance = pow(depth, 8);
-        Random::State randomState = Random::init(pixelPos, gFrameIndex);
-
-        if (Random::nextFloat(randomState) < chance)
+        if (groupThreadID.x == x && groupThreadID.y == y && coverage < 0.08f)
         {
-            uint aliveCount;
-            gSurfelStatus.InterlockedAdd(0, 1, aliveCount);
+            const float chance = pow(depth, 8);
+            Random::State randomState = Random::init(pixelPos, gFrameIndex);
 
-            if (aliveCount < kSurfelLimit)
+            if (Random::nextFloat(randomState) < chance)
             {
-                float3 normal = gNormal[pixelPos].xyz;
-                float3 randomColor = Random::nextFloat3(randomState);
+                uint aliveCount;
+                gSurfelStatus.InterlockedAdd((uint)SurfelStatusOffset::SurfelCount, 1, aliveCount);
 
-                Surfel newSurfel = { unProjectedPos, normal, randomColor };
-                gSurfelBuffer[aliveCount] = newSurfel;
-            }
-            else
-            {
-                gSurfelStatus.InterlockedAdd(0, -1, aliveCount);
+                if (aliveCount < kSurfelLimit)
+                {
+                    float3 normal = gNormal[pixelPos].xyz;
+                    float3 randomColor = Random::nextFloat3(randomState);
+
+                    Surfel newSurfel = { worldPos, normal, randomColor };
+                    gSurfelBuffer[aliveCount] = newSurfel;
+                }
+                else
+                {
+                    gSurfelStatus.InterlockedAdd((uint)SurfelStatusOffset::SurfelCount, -1, aliveCount);
+                }
             }
         }
     }
 
     // Visualize
-    for (uint s = 0; s < gSurfelStatus.Load<uint32_t>(0); s++)
-    {
-        Surfel surfel = gSurfelBuffer[s];
+    float3 blendedColor = float3(0);
+    uint blendedCount = 0;
 
-        float3 bias = unProjectedPos - surfel.position;
+    for (uint i = 0; i < cellInfo.count; ++i)
+    {
+        uint surfelIndex = gCellIndexBuffer[cellInfo.offset + i];
+        Surfel surfel = gSurfelBuffer[surfelIndex];
+
+        float3 bias = worldPos - surfel.position;
         float dist2 = dot(bias, bias);
 
         if (dist2 < kSurfelRadius * kSurfelRadius)
         {
             float3 normal = normalize(surfel.normal);
+
             float dotN = dot(gNormal[pixelPos].xyz, normal);
             if (dotN > 0)
             {
-                gOutput[pixelPos] = float4(surfel.color, 1);
-                return;
+                blendedColor += surfel.color;
+                blendedCount++;
             }
         }
     }
+
+    blendedColor /= max(1, blendedCount);
+    blendedColor *= 0.8f;
+
+    gOutput[pixelPos] = float4(blendedColor, 1);
 }

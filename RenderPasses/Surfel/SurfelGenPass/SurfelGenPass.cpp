@@ -32,7 +32,7 @@ RenderPassReflection SurfelGenPass::reflect(const CompileData& compileData)
         .bindFlags(ResourceBindFlags::UnorderedAccess);
 
     reflector.addOutput("debug", "debug texture")
-        .format(ResourceFormat::R32Float)
+        .format(ResourceFormat::R32Uint)
         .bindFlags(ResourceBindFlags::UnorderedAccess);
 
     return reflector;
@@ -59,12 +59,16 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
         var["CB"]["gInvResolution"] = float2(1.f / resolution.x, 1.f / resolution.y);
         var["CB"]["gInvViewProj"] = mpScene->getCamera()->getInvViewProjMatrix();
         var["CB"]["gFrameIndex"] = mFrameIndex;
+        var["CB"]["gCameraPos"] = mpScene->getCamera()->getPosition();
 
         var["gSurfelBuffer"] = dict.getValue<ref<Buffer>>("surfelBuffer");
 
         ref<Buffer> surfelStatus = dict.getValue<ref<Buffer>>("surfelStatus");
-        mNumSurfels = surfelStatus->getElement<uint32_t>(0);
+        mNumSurfels = surfelStatus->getElement<uint32_t>((uint)SurfelStatusOffset::SurfelCount);
         var["gSurfelStatus"] = surfelStatus;
+
+        var["gCellInfoBuffer"] = dict.getValue<ref<Buffer>>("cellInfoBuffer");
+        var["gCellIndexBuffer"] = dict.getValue<ref<Buffer>>("cellIndexBuffer");
 
         var["gDepth"] = pDepth;
         var["gNormal"] = pNormal;

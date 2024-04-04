@@ -6,17 +6,17 @@
 
 using namespace Falcor;
 
-class SurfelCoveragePass : public RenderPass
+class SurfelUpdatePass : public RenderPass
 {
 public:
-    FALCOR_PLUGIN_CLASS(SurfelCoveragePass, "SurfelCoveragePass", "Surfel coverage pass");
+    FALCOR_PLUGIN_CLASS(SurfelUpdatePass, "SurfelUpdatePass", "Surfel update pass");
 
-    static ref<SurfelCoveragePass> create(ref<Device> pDevice, const Properties& props)
+    static ref<SurfelUpdatePass> create(ref<Device> pDevice, const Properties& props)
     {
-        return make_ref<SurfelCoveragePass>(pDevice, props);
+        return make_ref<SurfelUpdatePass>(pDevice, props);
     }
 
-    SurfelCoveragePass(ref<Device> pDevice, const Properties& props);
+    SurfelUpdatePass(ref<Device> pDevice, const Properties& props);
 
     virtual Properties getProperties() const override { return {}; }
     virtual RenderPassReflection reflect(const CompileData& compileData) override;
@@ -29,6 +29,8 @@ public:
 
 private:
     ref<Scene> mpScene;
-    ref<ComputePass> mpComputePass;
-    uint32_t mFrameIndex;
+
+    ref<ComputePass> mpCollectCellInfoPass;
+    ref<ComputePass> mpAccumulateCellInfoPass;
+    ref<ComputePass> mpUpdateCellIBPass;
 };

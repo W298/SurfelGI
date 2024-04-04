@@ -1,4 +1,36 @@
 #pragma once
+import RenderPasses.Surfel.SurfelTypes;
+
+static const int3 neighborOffset[27] =
+{
+    int3(-1, -1, -1),
+	int3(-1, -1, 0),
+	int3(-1, -1, 1),
+	int3(-1, 0, -1),
+	int3(-1, 0, 0),
+	int3(-1, 0, 1),
+    int3(-1, 1, -1),
+	int3(-1, 1, 0),
+	int3(-1, 1, 1),
+	int3(0, -1, -1),
+	int3(0, -1, 0),
+	int3(0, -1, 1),
+    int3(0, 0, -1),
+	int3(0, 0, 0),
+	int3(0, 0, 1),
+	int3(0, 1, -1),
+	int3(0, 1, 0),
+	int3(0, 1, 1),
+    int3(1, -1, -1),
+	int3(1, -1, 0),
+	int3(1, -1, 1),
+	int3(1, 0, -1),
+	int3(1, 0, 0),
+	int3(1, 0, 1),
+    int3(1, 1, -1),
+	int3(1, 1, 0),
+	int3(1, 1, 1),
+};
 
 float3 unProject(float2 uv, float32_t depth, float4x4 invViewProj)
 {
@@ -9,60 +41,40 @@ float3 unProject(float2 uv, float32_t depth, float4x4 invViewProj)
     return pos.xyz / pos.w;
 }
 
-namespace Random
+int3 getCellPos(float3 posW, float3 cameraPosW)
 {
-typedef uint2 State;
-
-uint rotl(uint x, uint k) { return (x << k) | (x >> (32 - k)); }
-
-uint hash(uint seed)
-{
-    seed = (seed ^ 61) ^ (seed >> 16);
-    seed *= 9;
-    seed = seed ^ (seed >> 4);
-    seed *= 0x27d4eb2d;
-    seed = seed ^ (seed >> 15);
-    return seed;
+    float3 posC = posW - cameraPosW;
+    posC /= kCellUnit;
+    return (int3)round(posC);
 }
 
-uint next(inout State s)
+uint getFlattenCellIndex(int3 cellPos)
 {
-    uint result = s.x * 0x9e3779bb;
-
-    s.y ^= s.x;
-    s.x = rotl(s.x, 26) ^ s.y ^ (s.y << 9);
-    s.y = rotl(s.y, 13);
-
-    return result;
+    uint3 unsignedPos = cellPos + kCellDimension / 2;
+    return (unsignedPos.z * kCellDimension.x * kCellDimension.y) + (unsignedPos.y * kCellDimension.x) + unsignedPos.x;
 }
 
-State init(uint2 id, uint frameIndex)
+bool isCellValid(int3 cellPos)
 {
-    id += uint2(frameIndex);
-    uint s0 = (id.x << 16) | id.y;
-    uint s1 = frameIndex;
-    return uint2(hash(s0), hash(s1));
+    if (abs(cellPos.x) > kCellDimension.x / 2)
+        return false;
+    if (abs(cellPos.y) > kCellDimension.y / 2)
+        return false;
+    if (abs(cellPos.z) > kCellDimension.z / 2)
+        return false;
+
+    return true;
 }
 
-float nextFloat(inout State s)
+bool isSurfelIntersectCell(Surfel surfel, int3 cellPos, float3 cameraPosW)
 {
-    uint u = 0x3f800000 | (next(s) >> 9);
-    return asfloat(u) - 1.0;
+    if (!isCellValid(cellPos))
+        return false;
+
+    float3 minPosW = cellPos * kCellUnit - float3(kCellUnit / 2.0f) + cameraPosW;
+    float3 maxPosW = cellPos * kCellUnit + float3(kCellUnit / 2.0f) + cameraPosW;
+    float3 closePoint = min(max(surfel.position, minPosW), maxPosW);
+
+    float dist = distance(closePoint, surfel.position);
+    return dist < kSurfelRadius;
 }
-
-float3 nextFloat3(inout State s)
-{
-    float x = nextFloat(s);
-    float y = nextFloat(s);
-    float z = nextFloat(s);
-
-    return float3(x, y, z);
-}
-
-uint nextUint(inout State s, uint maxValue)
-{
-    float f = nextFloat(s);
-    return uint(floor(f * maxValue));
-}
-
-} // namespace Random

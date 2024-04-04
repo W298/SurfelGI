@@ -45,15 +45,15 @@ void SurfelCoveragePass::execute(RenderContext* pRenderContext, const RenderData
         auto var = mpComputePass->getRootVar();
         auto& dict = renderData.getDictionary();
 
-        if (!dict.keyExists("surfelBuffer"))
-            createSurfelBuffer(dict);
-
         var["CB"]["gInvResolution"] = float2(1.f / resolution.x, 1.f / resolution.y);
         var["CB"]["gInvViewProj"] = mpScene->getCamera()->getInvViewProjMatrix();
         var["CB"]["gFrameIndex"] = mFrameIndex;
+        var["CB"]["gCameraPos"] = mpScene->getCamera()->getPosition();
 
         var["gSurfelBuffer"] = dict.getValue<ref<Buffer>>("surfelBuffer");
         var["gSurfelStatus"] = dict.getValue<ref<Buffer>>("surfelStatus");
+        var["gCellInfoBuffer"] = dict.getValue<ref<Buffer>>("cellInfoBuffer");
+        var["gCellIndexBuffer"] = dict.getValue<ref<Buffer>>("cellIndexBuffer");
 
         var["gDepth"] = pDepth;
         var["gNormal"] = pNormal;
@@ -80,16 +80,4 @@ void SurfelCoveragePass::setScene(RenderContext* pRenderContext, const ref<Scene
         desc.addShaderLibrary("RenderPasses/Surfel/SurfelCoveragePass/SurfelCoveragePass.cs.slang").csEntry("csMain");
         mpComputePass = ComputePass::create(mpDevice, desc, mpScene->getSceneDefines());
     }
-}
-
-void SurfelCoveragePass::createSurfelBuffer(Dictionary& dict)
-{
-    const ref<Buffer> surfelBuffer = mpDevice->createStructuredBuffer(
-        sizeof(Surfel), kSurfelLimit, ResourceBindFlags::UnorderedAccess, MemoryType::DeviceLocal, nullptr, false
-    );
-
-    const ref<Buffer> surfelStatus = mpDevice->createBuffer(sizeof(uint32_t));
-
-    dict["surfelBuffer"] = surfelBuffer;
-    dict["surfelStatus"] = surfelStatus;
 }

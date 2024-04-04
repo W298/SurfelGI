@@ -1,9 +1,13 @@
 #include "RenderGraph/RenderPass.h"
+#include "SurfelPreparePass/SurfelPreparePass.h"
+#include "SurfelUpdatePass/SurfelUpdatePass.h"
 #include "SurfelCoveragePass/SurfelCoveragePass.h"
 #include "SurfelGenPass/SurfelGenPass.h"
 
 extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
 {
+    registry.registerClass<RenderPass, SurfelPreparePass>();
+    registry.registerClass<RenderPass, SurfelUpdatePass>();
     registry.registerClass<RenderPass, SurfelCoveragePass>();
     registry.registerClass<RenderPass, SurfelGenPass>();
 }

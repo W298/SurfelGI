@@ -1,3 +1,4 @@
+import RenderPasses.Surfel.Random;
 import RenderPasses.Surfel.SurfelTypes;
 import RenderPasses.Surfel.SurfelUtil;
 
@@ -6,10 +7,13 @@ cbuffer CB
     float2 gInvResolution;
     float4x4 gInvViewProj;
     uint32_t gFrameIndex;
+    float3 gCameraPos;
 }
 
 RWStructuredBuffer<Surfel> gSurfelBuffer;
 RWByteAddressBuffer gSurfelStatus;
+RWStructuredBuffer<CellInfo> gCellInfoBuffer;
+RWStructuredBuffer<uint32_t> gCellIndexBuffer;
 
 Texture2D<float> gDepth;
 Texture2D<float4> gNormal;
@@ -34,14 +38,22 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex : SV_Gr
     if (depth == 1)
         return;
 
-    float3 unProjectedPos = unProject(pixelPos * gInvResolution, depth, gInvViewProj);
+    float3 worldPos = unProject(pixelPos * gInvResolution, depth, gInvViewProj);
+
+    int3 cellPos = getCellPos(worldPos, gCameraPos);
+    if (!isCellValid(cellPos))
+        return;
+
+    uint flattenIndex = getFlattenCellIndex(cellPos);
+    CellInfo cellInfo = gCellInfoBuffer[flattenIndex];
 
     float coverage = 0.f;
-    for (uint s = 0; s < gSurfelStatus.Load<uint32_t>(0); s++)
+    for (uint i = 0; i < cellInfo.count; ++i)
     {
-        Surfel surfel = gSurfelBuffer[s];
+        uint surfelIndex = gCellIndexBuffer[cellInfo.offset + i];
+        Surfel surfel = gSurfelBuffer[surfelIndex];
 
-        float3 bias = unProjectedPos - surfel.position;
+        float3 bias = worldPos - surfel.position;
         float dist2 = dot(bias, bias);
 
         if (dist2 < kSurfelRadius * kSurfelRadius)
@@ -64,13 +76,16 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex : SV_Gr
 
     Random::State randomState = Random::init(pixelPos, gFrameIndex);
 
-    uint coverageData = 0;
-    coverageData |= ((f32tof16(coverage) & 0x0000FFFF) << 16);
-    coverageData |= ((Random::nextUint(randomState, 255) & 0x000000FF) << 8);
-    coverageData |= ((groupThreadID.x & 0x0000000F) << 4);
-    coverageData |= ((groupThreadID.y & 0x0000000F) << 0);
+    if (cellInfo.count < kCellSurfelLimit)
+    {
+        uint coverageData = 0;
+        coverageData |= ((f32tof16(coverage) & 0x0000FFFF) << 16);
+        coverageData |= ((Random::nextUint(randomState, 255) & 0x000000FF) << 8);
+        coverageData |= ((groupThreadID.x & 0x0000000F) << 4);
+        coverageData |= ((groupThreadID.y & 0x0000000F) << 0);
 
-    InterlockedMin(groupShareMinCoverage, coverageData);
+        InterlockedMin(groupShareMinCoverage, coverageData);
+    }
 
     GroupMemoryBarrierWithGroupSync();
 
