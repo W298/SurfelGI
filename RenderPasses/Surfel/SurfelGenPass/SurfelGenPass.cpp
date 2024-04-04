@@ -31,6 +31,10 @@ RenderPassReflection SurfelGenPass::reflect(const CompileData& compileData)
         .format(ResourceFormat::RGBA32Float)
         .bindFlags(ResourceBindFlags::UnorderedAccess);
 
+    reflector.addOutput("debug", "debug texture")
+        .format(ResourceFormat::R32Float)
+        .bindFlags(ResourceBindFlags::UnorderedAccess);
+
     return reflector;
 }
 
@@ -41,6 +45,7 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
     const auto& pCoverage = renderData.getTexture("coverage");
 
     const auto& pOutput = renderData.getTexture("output");
+    const auto& pDebug = renderData.getTexture("debug");
 
     FALCOR_ASSERT(pDepth && pNormal && pCoverage && pOutput);
 
@@ -53,9 +58,6 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
 
         var["CB"]["gInvResolution"] = float2(1.f / resolution.x, 1.f / resolution.y);
         var["CB"]["gInvViewProj"] = mpScene->getCamera()->getInvViewProjMatrix();
-        var["CB"]["gTileSize"] = kTileSize;
-        var["CB"]["gSurfelLimit"] = kSurfelLimit;
-        var["CB"]["gSurfelRadius"] = kSurfelRadius;
         var["CB"]["gFrameIndex"] = mFrameIndex;
 
         var["gSurfelBuffer"] = dict.getValue<ref<Buffer>>("surfelBuffer");
@@ -66,6 +68,7 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
         var["gCoverage"] = pCoverage;
 
         var["gOutput"] = pOutput;
+        var["gDebug"] = pDebug;
 
         pRenderContext->clearUAV(pOutput->getUAV().get(), float4(0));
         mpComputePass->execute(pRenderContext, uint3(resolution, 1));

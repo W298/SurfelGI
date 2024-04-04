@@ -5,9 +5,6 @@ cbuffer CB
 {
     float2 gInvResolution;
     float4x4 gInvViewProj;
-    uint2 gTileSize;
-    uint32_t gSurfelLimit;
-    float gSurfelRadius;
     uint32_t gFrameIndex;
 }
 
@@ -19,11 +16,12 @@ Texture2D<float4> gNormal;
 Texture2D<uint> gCoverage;
 
 RWTexture2D<float4> gOutput;
+RWTexture2D<float> gDebug;
 
 [numthreads(16, 16, 1)]
 void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV_GroupThreadID)
 {
-    uint2 tilePos = dispatchThreadId.xy / gTileSize;
+    uint2 tilePos = dispatchThreadId.xy / kTileSize;
     uint2 pixelPos = dispatchThreadId.xy;
 
     float depth = gDepth[pixelPos];
@@ -35,9 +33,11 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
     uint x = (coverageData & 0x000000F0) >> 4;
     uint y = (coverageData & 0x0000000F) >> 0;
 
+    gDebug[pixelPos] = coverage;
+
     float3 unProjectedPos = unProject(pixelPos * gInvResolution, depth, gInvViewProj);
 
-    if (groupThreadID.x == x && groupThreadID.y == y && coverage < 0.01f)
+    if (groupThreadID.x == x && groupThreadID.y == y && coverage < 0.08f)
     {
         const float chance = pow(depth, 8);
         Random::State randomState = Random::init(pixelPos, gFrameIndex);
@@ -47,7 +47,7 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
             uint aliveCount;
             gSurfelStatus.InterlockedAdd(0, 1, aliveCount);
 
-            if (aliveCount < gSurfelLimit)
+            if (aliveCount < kSurfelLimit)
             {
                 float3 normal = gNormal[pixelPos].xyz;
                 float3 randomColor = Random::nextFloat3(randomState);
@@ -59,7 +59,7 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
     }
 
     // Visualize
-    for (uint s = 0; s < gSurfelLimit; s++)
+    for (uint s = 0; s < kSurfelLimit; s++)
     {
         Surfel surfel = gSurfelBuffer[s];
 
@@ -69,7 +69,7 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
         float3 bias = unProjectedPos - surfel.position;
         float dist2 = dot(bias, bias);
 
-        if (dist2 < gSurfelRadius * gSurfelRadius)
+        if (dist2 < kSurfelRadius * kSurfelRadius)
         {
             float3 normal = normalize(surfel.normal);
             float dotN = dot(gNormal[pixelPos].xyz, normal);

@@ -1,7 +1,8 @@
 #pragma once
 #include "Falcor.h"
 #include "RenderGraph/RenderPass.h"
-#include "../RenderPasses/Surfel/SurfelBase.h"
+
+#include "../RenderPasses/Surfel/SurfelTypes.slang"
 
 using namespace Falcor;
 

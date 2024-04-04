@@ -5,9 +5,6 @@ cbuffer CB
 {
     float2 gInvResolution;
     float4x4 gInvViewProj;
-    uint2 gTileSize;
-    uint32_t gSurfelLimit;
-    float gSurfelRadius;
     uint32_t gFrameIndex;
 }
 
@@ -30,7 +27,7 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex : SV_Gr
     }
     GroupMemoryBarrierWithGroupSync();
 
-    uint2 tilePos = dispatchThreadId.xy / gTileSize;
+    uint2 tilePos = dispatchThreadId.xy / kTileSize;
     uint2 pixelPos = dispatchThreadId.xy;
 
     float depth = gDepth[pixelPos];
@@ -40,7 +37,7 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex : SV_Gr
     float3 unProjectedPos = unProject(pixelPos * gInvResolution, depth, gInvViewProj);
 
     float coverage = 0.f;
-    for (uint s = 0; s < gSurfelLimit; s++)
+    for (uint s = 0; s < kSurfelLimit; s++)
     {
         Surfel surfel = gSurfelBuffer[s];
 
@@ -50,7 +47,7 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex : SV_Gr
         float3 bias = unProjectedPos - surfel.position;
         float dist2 = dot(bias, bias);
 
-        if (dist2 < gSurfelRadius * gSurfelRadius)
+        if (dist2 < kSurfelRadius * kSurfelRadius)
         {
             float3 normal = normalize(surfel.normal);
 
@@ -61,7 +58,7 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex : SV_Gr
                 float contribution = 1.f;
 
                 contribution *= saturate(dotN);
-                contribution *= saturate(1 - dist / gSurfelRadius);
+                contribution *= saturate(1 - dist / kSurfelRadius);
                 contribution = smoothstep(0, 1, contribution);
                 coverage += contribution;
             }
