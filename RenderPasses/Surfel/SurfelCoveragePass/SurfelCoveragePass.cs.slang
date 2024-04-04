@@ -37,12 +37,9 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex : SV_Gr
     float3 unProjectedPos = unProject(pixelPos * gInvResolution, depth, gInvViewProj);
 
     float coverage = 0.f;
-    for (uint s = 0; s < kSurfelLimit; s++)
+    for (uint s = 0; s < gSurfelStatus.Load<uint32_t>(0); s++)
     {
         Surfel surfel = gSurfelBuffer[s];
-
-        if (!surfel.valid)
-            continue;
 
         float3 bias = unProjectedPos - surfel.position;
         float dist2 = dot(bias, bias);

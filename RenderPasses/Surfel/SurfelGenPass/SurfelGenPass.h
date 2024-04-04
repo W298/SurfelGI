@@ -31,4 +31,5 @@ private:
     ref<Scene> mpScene;
     ref<ComputePass> mpComputePass;
     uint32_t mFrameIndex;
+    uint32_t mNumSurfels;
 };

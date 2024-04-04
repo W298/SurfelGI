@@ -52,19 +52,20 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
                 float3 normal = gNormal[pixelPos].xyz;
                 float3 randomColor = Random::nextFloat3(randomState);
 
-                Surfel newSurfel = { unProjectedPos, normal, randomColor, true };
+                Surfel newSurfel = { unProjectedPos, normal, randomColor };
                 gSurfelBuffer[aliveCount] = newSurfel;
+            }
+            else
+            {
+                gSurfelStatus.InterlockedAdd(0, -1, aliveCount);
             }
         }
     }
 
     // Visualize
-    for (uint s = 0; s < kSurfelLimit; s++)
+    for (uint s = 0; s < gSurfelStatus.Load<uint32_t>(0); s++)
     {
         Surfel surfel = gSurfelBuffer[s];
-
-        if (!surfel.valid)
-            continue;
 
         float3 bias = unProjectedPos - surfel.position;
         float dist2 = dot(bias, bias);

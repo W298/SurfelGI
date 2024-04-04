@@ -61,7 +61,10 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
         var["CB"]["gFrameIndex"] = mFrameIndex;
 
         var["gSurfelBuffer"] = dict.getValue<ref<Buffer>>("surfelBuffer");
-        var["gSurfelStatus"] = dict.getValue<ref<Buffer>>("surfelStatus");
+
+        ref<Buffer> surfelStatus = dict.getValue<ref<Buffer>>("surfelStatus");
+        mNumSurfels = surfelStatus->getElement<uint32_t>(0);
+        var["gSurfelStatus"] = surfelStatus;
 
         var["gDepth"] = pDepth;
         var["gNormal"] = pNormal;
@@ -80,6 +83,7 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
 void SurfelGenPass::renderUI(Gui::Widgets& widget)
 {
     widget.text("frame index: " + std::to_string(mFrameIndex));
+    widget.text("num surfels: " + std::to_string(mNumSurfels));
 }
 
 void SurfelGenPass::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
