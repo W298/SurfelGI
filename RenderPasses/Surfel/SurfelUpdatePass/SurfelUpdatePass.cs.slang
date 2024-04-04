@@ -9,13 +9,13 @@ cbuffer CB
 RWStructuredBuffer<Surfel> gSurfelBuffer;
 RWByteAddressBuffer gSurfelStatus;
 RWStructuredBuffer<CellInfo> gCellInfoBuffer;
-RWStructuredBuffer<uint32_t> gCellIndexBuffer;
+RWStructuredBuffer<uint32_t> gCellToSurfelBuffer;
 
 [numthreads(32, 1, 1)]
 void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
 {
-    uint surfelCount = gSurfelStatus.Load<uint32_t>((uint)SurfelStatusOffset::SurfelCount);
-    if (dispatchThreadId.x >= surfelCount)
+    uint totalSurfelCount = gSurfelStatus.Load<uint32_t>((uint)SurfelStatusOffset::TotalSurfelCount);
+    if (dispatchThreadId.x >= totalSurfelCount)
         return;
 
     uint surfelIndex = dispatchThreadId.x;
@@ -28,7 +28,7 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
         if (isSurfelIntersectCell(surfel, neighborPos, gCameraPos))
         {
             uint flattenIndex = getFlattenCellIndex(neighborPos);
-            InterlockedAdd(gCellInfoBuffer[flattenIndex].count, 1);
+            InterlockedAdd(gCellInfoBuffer[flattenIndex].surfelCount, 1);
         }
     }
 }
@@ -40,23 +40,23 @@ void accumulateCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
         return;
 
     uint flattenIndex = dispatchThreadId.x;
-    if (gCellInfoBuffer[flattenIndex].count == 0)
+    if (gCellInfoBuffer[flattenIndex].surfelCount == 0)
         return;
 
     gSurfelStatus.InterlockedAdd(
         (uint)SurfelStatusOffset::CellCount,
-        gCellInfoBuffer[flattenIndex].count,
-        gCellInfoBuffer[flattenIndex].offset
+        gCellInfoBuffer[flattenIndex].surfelCount,
+        gCellInfoBuffer[flattenIndex].cellToSurfelBufferOffset
     );
 
-    gCellInfoBuffer[flattenIndex].count = 0;
+    gCellInfoBuffer[flattenIndex].surfelCount = 0;
 }
 
 [numthreads(32, 1, 1)]
-void updateCellIB(uint3 dispatchThreadId: SV_DispatchThreadID)
+void updateCellToSurfelBuffer(uint3 dispatchThreadId: SV_DispatchThreadID)
 {
-    uint surfelCount = gSurfelStatus.Load<uint32_t>((uint)SurfelStatusOffset::SurfelCount);
-    if (dispatchThreadId.x >= surfelCount)
+    uint totalSurfelCount = gSurfelStatus.Load<uint32_t>((uint)SurfelStatusOffset::TotalSurfelCount);
+    if (dispatchThreadId.x >= totalSurfelCount)
         return;
 
     uint surfelIndex = dispatchThreadId.x;
@@ -71,9 +71,9 @@ void updateCellIB(uint3 dispatchThreadId: SV_DispatchThreadID)
             uint flattenIndex = getFlattenCellIndex(neighborPos);
 
             uint prevCount;
-            InterlockedAdd(gCellInfoBuffer[flattenIndex].count, 1, prevCount);
+            InterlockedAdd(gCellInfoBuffer[flattenIndex].surfelCount, 1, prevCount);
 
-            gCellIndexBuffer[gCellInfoBuffer[flattenIndex].offset + prevCount] = surfelIndex;
+            gCellToSurfelBuffer[gCellInfoBuffer[flattenIndex].cellToSurfelBufferOffset + prevCount] = surfelIndex;
         }
     }
 }

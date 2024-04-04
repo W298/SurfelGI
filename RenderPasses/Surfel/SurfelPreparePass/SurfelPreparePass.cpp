@@ -1,4 +1,5 @@
 #include "SurfelPreparePass.h"
+#include "../RenderPasses/Surfel/SurfelTypes.slang"
 
 SurfelPreparePass::SurfelPreparePass(ref<Device> pDevice, const Properties& props) : RenderPass(pDevice)
 {
@@ -6,6 +7,9 @@ SurfelPreparePass::SurfelPreparePass(ref<Device> pDevice, const Properties& prop
     mpDevice = pDevice;
     if (!mpDevice->isShaderModelSupported(ShaderModel::SM6_5))
         FALCOR_THROW("SceneDebugger requires Shader Model 6.5 support.");
+
+    mpComputePass =
+        ComputePass::create(mpDevice, "RenderPasses/Surfel/SurfelPreparePass/SurfelPreparePass.cs.slang", "csMain");
 }
 
 RenderPassReflection SurfelPreparePass::reflect(const CompileData& compileData)
@@ -26,8 +30,8 @@ void SurfelPreparePass::execute(RenderContext* pRenderContext, const RenderData&
         createSurfelStatus(dict);
     if (!dict.keyExists("cellInfoBuffer"))
         createCellInfoBuffer(dict);
-    if (!dict.keyExists("cellIndexBuffer"))
-        createCellIndexBuffer(dict);
+    if (!dict.keyExists("cellToSurfelBuffer"))
+        createCellToSurfelBuffer(dict);
 
     if (mpComputePass)
     {
@@ -36,31 +40,16 @@ void SurfelPreparePass::execute(RenderContext* pRenderContext, const RenderData&
         var["gSurfelBuffer"] = dict.getValue<ref<Buffer>>("surfelBuffer");
         var["gSurfelStatus"] = dict.getValue<ref<Buffer>>("surfelStatus");
         var["gCellInfoBuffer"] = dict.getValue<ref<Buffer>>("cellInfoBuffer");
-        var["gCellIndexBuffer"] = dict.getValue<ref<Buffer>>("cellIndexBuffer");
+        var["gCellToSurfelBuffer"] = dict.getValue<ref<Buffer>>("cellToSurfelBuffer");
 
-        mpComputePass->execute(pRenderContext, uint3(1, 1, 1));
-    }
-}
-
-void SurfelPreparePass::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
-{
-    mpScene = pScene;
-
-    if (mpScene)
-    {
-        mpComputePass = ComputePass::create(
-            mpDevice,
-            "RenderPasses/Surfel/SurfelPreparePass/SurfelPreparePass.cs.slang",
-            "csMain",
-            mpScene->getSceneDefines()
-        );
+        mpComputePass->execute(pRenderContext, uint3(1));
     }
 }
 
 void SurfelPreparePass::createSurfelBuffer(Dictionary& dict)
 {
     const ref<Buffer> surfelBuffer = mpDevice->createStructuredBuffer(
-        sizeof(Surfel), kSurfelLimit, ResourceBindFlags::UnorderedAccess, MemoryType::DeviceLocal, nullptr, false
+        sizeof(Surfel), kTotalSurfelLimit, ResourceBindFlags::UnorderedAccess, MemoryType::DeviceLocal, nullptr, false
     );
     dict["surfelBuffer"] = surfelBuffer;
 }
@@ -79,10 +68,10 @@ void SurfelPreparePass::createCellInfoBuffer(Dictionary& dict)
     dict["cellInfoBuffer"] = cellInfoBuffer;
 }
 
-void SurfelPreparePass::createCellIndexBuffer(Dictionary& dict)
+void SurfelPreparePass::createCellToSurfelBuffer(Dictionary& dict)
 {
-    const ref<Buffer> cellIndexBuffer = mpDevice->createStructuredBuffer(
-        sizeof(uint32_t), kSurfelLimit * 27, ResourceBindFlags::UnorderedAccess, MemoryType::DeviceLocal, nullptr, false
-    );
-    dict["cellIndexBuffer"] = cellIndexBuffer;
+    const ref<Buffer> cellToSurfelBuffer = mpDevice->createStructuredBuffer(
+        sizeof(uint32_t), kTotalSurfelLimit * 27, ResourceBindFlags::UnorderedAccess, MemoryType::DeviceLocal, nullptr, false
+    ); // #TODO
+    dict["cellToSurfelBuffer"] = cellToSurfelBuffer;
 }

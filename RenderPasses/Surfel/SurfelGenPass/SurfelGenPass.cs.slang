@@ -13,14 +13,13 @@ cbuffer CB
 RWStructuredBuffer<Surfel> gSurfelBuffer;
 RWByteAddressBuffer gSurfelStatus;
 RWStructuredBuffer<CellInfo> gCellInfoBuffer;
-RWStructuredBuffer<uint32_t> gCellIndexBuffer;
+RWStructuredBuffer<uint32_t> gCellToSurfelBuffer;
 
 Texture2D<float32_t> gDepth;
 Texture2D<float4> gNormal;
 Texture2D<uint> gCoverage;
 
 RWTexture2D<float4> gOutput;
-RWTexture2D<uint> gDebug;
 
 [numthreads(16, 16, 1)]
 void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV_GroupThreadID)
@@ -46,7 +45,7 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
     uint flattenIndex = getFlattenCellIndex(cellPos);
     CellInfo cellInfo = gCellInfoBuffer[flattenIndex];
 
-    if (cellInfo.count < kCellSurfelLimit)
+    if (cellInfo.surfelCount < kCellSurfelLimit)
     {
         if (groupThreadID.x == x && groupThreadID.y == y && coverage < 0.08f)
         {
@@ -56,9 +55,9 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
             if (Random::nextFloat(randomState) < chance)
             {
                 uint aliveCount;
-                gSurfelStatus.InterlockedAdd((uint)SurfelStatusOffset::SurfelCount, 1, aliveCount);
+                gSurfelStatus.InterlockedAdd((uint)SurfelStatusOffset::TotalSurfelCount, 1, aliveCount);
 
-                if (aliveCount < kSurfelLimit)
+                if (aliveCount < kTotalSurfelLimit)
                 {
                     float3 normal = gNormal[pixelPos].xyz;
                     float3 randomColor = Random::nextFloat3(randomState);
@@ -68,7 +67,8 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
                 }
                 else
                 {
-                    gSurfelStatus.InterlockedAdd((uint)SurfelStatusOffset::SurfelCount, -1, aliveCount);
+                    // #TODO
+                    gSurfelStatus.InterlockedAdd((uint)SurfelStatusOffset::TotalSurfelCount, -1, aliveCount);
                 }
             }
         }
@@ -78,9 +78,9 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
     float3 blendedColor = float3(0);
     uint blendedCount = 0;
 
-    for (uint i = 0; i < cellInfo.count; ++i)
+    for (uint i = 0; i < cellInfo.surfelCount; ++i)
     {
-        uint surfelIndex = gCellIndexBuffer[cellInfo.offset + i];
+        uint surfelIndex = gCellToSurfelBuffer[cellInfo.cellToSurfelBufferOffset + i];
         Surfel surfel = gSurfelBuffer[surfelIndex];
 
         float3 bias = worldPos - surfel.position;

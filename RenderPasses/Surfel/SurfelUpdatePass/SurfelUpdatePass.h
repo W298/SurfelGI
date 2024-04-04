@@ -2,8 +2,6 @@
 #include "Falcor.h"
 #include "RenderGraph/RenderPass.h"
 
-#include "../RenderPasses/Surfel/SurfelTypes.slang"
-
 using namespace Falcor;
 
 class SurfelUpdatePass : public RenderPass
@@ -32,5 +30,5 @@ private:
 
     ref<ComputePass> mpCollectCellInfoPass;
     ref<ComputePass> mpAccumulateCellInfoPass;
-    ref<ComputePass> mpUpdateCellIBPass;
+    ref<ComputePass> mpUpdateCellToSurfelBuffer;
 };

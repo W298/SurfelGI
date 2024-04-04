@@ -2,8 +2,6 @@
 #include "Falcor.h"
 #include "RenderGraph/RenderPass.h"
 
-#include "../RenderPasses/Surfel/SurfelTypes.slang"
-
 using namespace Falcor;
 
 class SurfelCoveragePass : public RenderPass

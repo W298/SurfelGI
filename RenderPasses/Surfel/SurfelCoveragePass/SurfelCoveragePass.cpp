@@ -24,7 +24,7 @@ RenderPassReflection SurfelCoveragePass::reflect(const CompileData& compileData)
     reflector.addOutput("coverage", "coverage texture")
         .format(ResourceFormat::R32Uint)
         .bindFlags(ResourceBindFlags::UnorderedAccess)
-        .texture2D(1920 / 16, 1080 / 16);
+        .texture2D(1920 / 16, 1080 / 16); // #TODO
 
     return reflector;
 }
@@ -51,9 +51,8 @@ void SurfelCoveragePass::execute(RenderContext* pRenderContext, const RenderData
         var["CB"]["gCameraPos"] = mpScene->getCamera()->getPosition();
 
         var["gSurfelBuffer"] = dict.getValue<ref<Buffer>>("surfelBuffer");
-        var["gSurfelStatus"] = dict.getValue<ref<Buffer>>("surfelStatus");
         var["gCellInfoBuffer"] = dict.getValue<ref<Buffer>>("cellInfoBuffer");
-        var["gCellIndexBuffer"] = dict.getValue<ref<Buffer>>("cellIndexBuffer");
+        var["gCellToSurfelBuffer"] = dict.getValue<ref<Buffer>>("cellToSurfelBuffer");
 
         var["gDepth"] = pDepth;
         var["gNormal"] = pNormal;
@@ -74,10 +73,13 @@ void SurfelCoveragePass::setScene(RenderContext* pRenderContext, const ref<Scene
     if (mpScene)
     {
         mpScene->getCamera()->setPosition(float3(-0.0613, 0.1113, 0.1275));
-        //mpScene->getCamera()->setTarget(float3(0.0858, -0.1472, -0.4462));
+        // mpScene->getCamera()->setTarget(float3(0.0858, -0.1472, -0.4462));
 
-        ProgramDesc desc;
-        desc.addShaderLibrary("RenderPasses/Surfel/SurfelCoveragePass/SurfelCoveragePass.cs.slang").csEntry("csMain");
-        mpComputePass = ComputePass::create(mpDevice, desc, mpScene->getSceneDefines());
+        mpComputePass = ComputePass::create(
+            mpDevice,
+            "RenderPasses/Surfel/SurfelCoveragePass/SurfelCoveragePass.cs.slang",
+            "csMain",
+            mpScene->getSceneDefines()
+        );
     }
 }

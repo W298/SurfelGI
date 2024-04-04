@@ -1,4 +1,5 @@
 #include "SurfelUpdatePass.h"
+#include "../RenderPasses/Surfel/SurfelTypes.slang"
 
 SurfelUpdatePass::SurfelUpdatePass(ref<Device> pDevice, const Properties& props) : RenderPass(pDevice)
 {
@@ -31,7 +32,7 @@ void SurfelUpdatePass::execute(RenderContext* pRenderContext, const RenderData& 
         var["gSurfelStatus"] = dict.getValue<ref<Buffer>>("surfelStatus");
         var["gCellInfoBuffer"] = dict.getValue<ref<Buffer>>("cellInfoBuffer");
 
-        mpCollectCellInfoPass->execute(pRenderContext, uint3(kSurfelLimit, 1, 1));
+        mpCollectCellInfoPass->execute(pRenderContext, uint3(kTotalSurfelLimit, 1, 1));
     }
 
     if (mpAccumulateCellInfoPass)
@@ -40,25 +41,24 @@ void SurfelUpdatePass::execute(RenderContext* pRenderContext, const RenderData& 
 
         var["CB"]["gCameraPos"] = mpScene->getCamera()->getPosition();
 
-        var["gSurfelBuffer"] = dict.getValue<ref<Buffer>>("surfelBuffer");
         var["gSurfelStatus"] = dict.getValue<ref<Buffer>>("surfelStatus");
         var["gCellInfoBuffer"] = dict.getValue<ref<Buffer>>("cellInfoBuffer");
 
         mpAccumulateCellInfoPass->execute(pRenderContext, uint3(kCellCount, 1, 1));
     }
 
-    if (mpUpdateCellIBPass)
+    if (mpUpdateCellToSurfelBuffer)
     {
-        auto var = mpUpdateCellIBPass->getRootVar();
+        auto var = mpUpdateCellToSurfelBuffer->getRootVar();
 
         var["CB"]["gCameraPos"] = mpScene->getCamera()->getPosition();
 
         var["gSurfelBuffer"] = dict.getValue<ref<Buffer>>("surfelBuffer");
         var["gSurfelStatus"] = dict.getValue<ref<Buffer>>("surfelStatus");
         var["gCellInfoBuffer"] = dict.getValue<ref<Buffer>>("cellInfoBuffer");
-        var["gCellIndexBuffer"] = dict.getValue<ref<Buffer>>("cellIndexBuffer");
+        var["gCellToSurfelBuffer"] = dict.getValue<ref<Buffer>>("cellToSurfelBuffer");
 
-        mpUpdateCellIBPass->execute(pRenderContext, uint3(kSurfelLimit, 1, 1));
+        mpUpdateCellToSurfelBuffer->execute(pRenderContext, uint3(kTotalSurfelLimit, 1, 1));
     }
 }
 
@@ -82,10 +82,10 @@ void SurfelUpdatePass::setScene(RenderContext* pRenderContext, const ref<Scene>&
             mpScene->getSceneDefines()
         );
 
-        mpUpdateCellIBPass = ComputePass::create(
+        mpUpdateCellToSurfelBuffer = ComputePass::create(
             mpDevice,
             "RenderPasses/Surfel/SurfelUpdatePass/SurfelUpdatePass.cs.slang",
-            "updateCellIB",
+            "updateCellToSurfelBuffer",
             mpScene->getSceneDefines()
         );
     }

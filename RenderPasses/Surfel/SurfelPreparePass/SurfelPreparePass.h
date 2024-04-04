@@ -2,8 +2,6 @@
 #include "Falcor.h"
 #include "RenderGraph/RenderPass.h"
 
-#include "../RenderPasses/Surfel/SurfelTypes.slang"
-
 using namespace Falcor;
 
 class SurfelPreparePass : public RenderPass
@@ -23,7 +21,7 @@ public:
     virtual void compile(RenderContext* pRenderContext, const CompileData& compileData) override {}
     virtual void execute(RenderContext* pRenderContext, const RenderData& renderData) override;
     virtual void renderUI(Gui::Widgets& widget) override {}
-    virtual void setScene(RenderContext* pRenderContext, const ref<Scene>& pScene) override;
+    virtual void setScene(RenderContext* pRenderContext, const ref<Scene>& pScene) override {}
     virtual bool onMouseEvent(const MouseEvent& mouseEvent) override { return false; }
     virtual bool onKeyEvent(const KeyboardEvent& keyEvent) override { return false; }
 
@@ -31,8 +29,7 @@ private:
     void createSurfelBuffer(Dictionary& dict);
     void createSurfelStatus(Dictionary& dict);
     void createCellInfoBuffer(Dictionary& dict);
-    void createCellIndexBuffer(Dictionary& dict);
+    void createCellToSurfelBuffer(Dictionary& dict);
 
-    ref<Scene> mpScene;
     ref<ComputePass> mpComputePass;
 };

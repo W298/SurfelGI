@@ -1,4 +1,5 @@
 #include "SurfelGenPass.h"
+#include "../RenderPasses/Surfel/SurfelTypes.slang"
 
 SurfelGenPass::SurfelGenPass(ref<Device> pDevice, const Properties& props) : RenderPass(pDevice)
 {
@@ -24,15 +25,11 @@ RenderPassReflection SurfelGenPass::reflect(const CompileData& compileData)
     reflector.addInput("coverage", "coverage texture")
         .format(ResourceFormat::R32Uint)
         .bindFlags(ResourceBindFlags::ShaderResource)
-        .texture2D(1920 / 16, 1080 / 16);
+        .texture2D(1920 / 16, 1080 / 16); // #TODO
 
     // Output
     reflector.addOutput("output", "output texture")
         .format(ResourceFormat::RGBA32Float)
-        .bindFlags(ResourceBindFlags::UnorderedAccess);
-
-    reflector.addOutput("debug", "debug texture")
-        .format(ResourceFormat::R32Uint)
         .bindFlags(ResourceBindFlags::UnorderedAccess);
 
     return reflector;
@@ -45,7 +42,6 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
     const auto& pCoverage = renderData.getTexture("coverage");
 
     const auto& pOutput = renderData.getTexture("output");
-    const auto& pDebug = renderData.getTexture("debug");
 
     FALCOR_ASSERT(pDepth && pNormal && pCoverage && pOutput);
 
@@ -64,18 +60,17 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
         var["gSurfelBuffer"] = dict.getValue<ref<Buffer>>("surfelBuffer");
 
         ref<Buffer> surfelStatus = dict.getValue<ref<Buffer>>("surfelStatus");
-        mNumSurfels = surfelStatus->getElement<uint32_t>((uint)SurfelStatusOffset::SurfelCount);
+        mNumSurfels = surfelStatus->getElement<uint32_t>((uint)SurfelStatusOffset::TotalSurfelCount);
         var["gSurfelStatus"] = surfelStatus;
 
         var["gCellInfoBuffer"] = dict.getValue<ref<Buffer>>("cellInfoBuffer");
-        var["gCellIndexBuffer"] = dict.getValue<ref<Buffer>>("cellIndexBuffer");
+        var["gCellToSurfelBuffer"] = dict.getValue<ref<Buffer>>("cellToSurfelBuffer");
 
         var["gDepth"] = pDepth;
         var["gNormal"] = pNormal;
         var["gCoverage"] = pCoverage;
 
         var["gOutput"] = pOutput;
-        var["gDebug"] = pDebug;
 
         pRenderContext->clearUAV(pOutput->getUAV().get(), float4(0));
         mpComputePass->execute(pRenderContext, uint3(resolution, 1));
@@ -96,8 +91,8 @@ void SurfelGenPass::setScene(RenderContext* pRenderContext, const ref<Scene>& pS
 
     if (mpScene)
     {
-        ProgramDesc desc;
-        desc.addShaderLibrary("RenderPasses/Surfel/SurfelGenPass/SurfelGenPass.cs.slang").csEntry("csMain");
-        mpComputePass = ComputePass::create(mpDevice, desc, mpScene->getSceneDefines());
+        mpComputePass = ComputePass::create(
+            mpDevice, "RenderPasses/Surfel/SurfelGenPass/SurfelGenPass.cs.slang", "csMain", mpScene->getSceneDefines()
+        );
     }
 }

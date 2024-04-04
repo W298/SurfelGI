@@ -11,9 +11,8 @@ cbuffer CB
 }
 
 RWStructuredBuffer<Surfel> gSurfelBuffer;
-RWByteAddressBuffer gSurfelStatus;
 RWStructuredBuffer<CellInfo> gCellInfoBuffer;
-RWStructuredBuffer<uint32_t> gCellIndexBuffer;
+RWStructuredBuffer<uint32_t> gCellToSurfelBuffer;
 
 Texture2D<float> gDepth;
 Texture2D<float4> gNormal;
@@ -48,9 +47,9 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex : SV_Gr
     CellInfo cellInfo = gCellInfoBuffer[flattenIndex];
 
     float coverage = 0.f;
-    for (uint i = 0; i < cellInfo.count; ++i)
+    for (uint i = 0; i < cellInfo.surfelCount; ++i)
     {
-        uint surfelIndex = gCellIndexBuffer[cellInfo.offset + i];
+        uint surfelIndex = gCellToSurfelBuffer[cellInfo.cellToSurfelBufferOffset + i];
         Surfel surfel = gSurfelBuffer[surfelIndex];
 
         float3 bias = worldPos - surfel.position;
@@ -76,7 +75,7 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex : SV_Gr
 
     Random::State randomState = Random::init(pixelPos, gFrameIndex);
 
-    if (cellInfo.count < kCellSurfelLimit)
+    if (cellInfo.surfelCount < kCellSurfelLimit)
     {
         uint coverageData = 0;
         coverageData |= ((f32tof16(coverage) & 0x0000FFFF) << 16);
