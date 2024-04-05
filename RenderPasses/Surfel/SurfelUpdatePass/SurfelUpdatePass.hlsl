@@ -1,5 +1,5 @@
-import RenderPasses.Surfel.SurfelTypes;
-import RenderPasses.Surfel.SurfelUtil;
+#include "../SurfelTypes.hlsl"
+#include "../SurfelUtil.hlsl"
 
 cbuffer CB
 {
@@ -9,12 +9,12 @@ cbuffer CB
 RWStructuredBuffer<Surfel> gSurfelBuffer;
 RWByteAddressBuffer gSurfelStatus;
 RWStructuredBuffer<CellInfo> gCellInfoBuffer;
-RWStructuredBuffer<uint32_t> gCellToSurfelBuffer;
+RWStructuredBuffer<uint> gCellToSurfelBuffer;
 
 [numthreads(32, 1, 1)]
 void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
 {
-    uint totalSurfelCount = gSurfelStatus.Load<uint32_t>((uint)SurfelStatusOffset::TotalSurfelCount);
+    uint totalSurfelCount = gSurfelStatus.Load(kSurfelStatus_TotalSurfelCount);
     if (dispatchThreadId.x >= totalSurfelCount)
         return;
 
@@ -44,7 +44,7 @@ void accumulateCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
         return;
 
     gSurfelStatus.InterlockedAdd(
-        (uint)SurfelStatusOffset::CellCount,
+        kSurfelStatus_CellCount,
         gCellInfoBuffer[flattenIndex].surfelCount,
         gCellInfoBuffer[flattenIndex].cellToSurfelBufferOffset
     );
@@ -55,7 +55,7 @@ void accumulateCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
 [numthreads(32, 1, 1)]
 void updateCellToSurfelBuffer(uint3 dispatchThreadId: SV_DispatchThreadID)
 {
-    uint totalSurfelCount = gSurfelStatus.Load<uint32_t>((uint)SurfelStatusOffset::TotalSurfelCount);
+    uint totalSurfelCount = gSurfelStatus.Load(kSurfelStatus_TotalSurfelCount);
     if (dispatchThreadId.x >= totalSurfelCount)
         return;
 

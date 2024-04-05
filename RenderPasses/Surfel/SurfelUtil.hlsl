@@ -1,38 +1,40 @@
-#pragma once
-import RenderPasses.Surfel.SurfelTypes;
+#ifndef SURFEL_UTIL_H
+#define SURFEL_UTIL_H
+
+#include "SurfelTypes.hlsl"
 
 static const int3 neighborOffset[27] =
 {
     int3(-1, -1, -1),
-	int3(-1, -1, 0),
-	int3(-1, -1, 1),
-	int3(-1, 0, -1),
-	int3(-1, 0, 0),
-	int3(-1, 0, 1),
+    int3(-1, -1, 0),
+    int3(-1, -1, 1),
+    int3(-1, 0, -1),
+    int3(-1, 0, 0),
+    int3(-1, 0, 1),
     int3(-1, 1, -1),
-	int3(-1, 1, 0),
-	int3(-1, 1, 1),
-	int3(0, -1, -1),
-	int3(0, -1, 0),
-	int3(0, -1, 1),
+    int3(-1, 1, 0),
+    int3(-1, 1, 1),
+    int3(0, -1, -1),
+    int3(0, -1, 0),
+    int3(0, -1, 1),
     int3(0, 0, -1),
-	int3(0, 0, 0),
-	int3(0, 0, 1),
-	int3(0, 1, -1),
-	int3(0, 1, 0),
-	int3(0, 1, 1),
+    int3(0, 0, 0),
+    int3(0, 0, 1),
+    int3(0, 1, -1),
+    int3(0, 1, 0),
+    int3(0, 1, 1),
     int3(1, -1, -1),
-	int3(1, -1, 0),
-	int3(1, -1, 1),
-	int3(1, 0, -1),
-	int3(1, 0, 0),
-	int3(1, 0, 1),
+    int3(1, -1, 0),
+    int3(1, -1, 1),
+    int3(1, 0, -1),
+    int3(1, 0, 0),
+    int3(1, 0, 1),
     int3(1, 1, -1),
-	int3(1, 1, 0),
-	int3(1, 1, 1),
+    int3(1, 1, 0),
+    int3(1, 1, 1),
 };
 
-float3 unProject(float2 uv, float32_t depth, float4x4 invViewProj)
+float3 unProject(float2 uv, float depth, float4x4 invViewProj)
 {
     float x = uv.x * 2 - 1;
     float y = (1 - uv.y) * 2 - 1;
@@ -71,10 +73,12 @@ bool isSurfelIntersectCell(Surfel surfel, int3 cellPos, float3 cameraPosW)
     if (!isCellValid(cellPos))
         return false;
 
-    float3 minPosW = cellPos * kCellUnit - float3(kCellUnit / 2.0f) + cameraPosW;
-    float3 maxPosW = cellPos * kCellUnit + float3(kCellUnit / 2.0f) + cameraPosW;
+    float3 minPosW = cellPos * kCellUnit - float3(kCellUnit, kCellCount, kCellCount) / 2.0f + cameraPosW;
+    float3 maxPosW = cellPos * kCellUnit + float3(kCellUnit, kCellCount, kCellCount) / 2.0f + cameraPosW;
     float3 closePoint = min(max(surfel.position, minPosW), maxPosW);
 
     float dist = distance(closePoint, surfel.position);
     return dist < kSurfelRadius;
 }
+
+#endif

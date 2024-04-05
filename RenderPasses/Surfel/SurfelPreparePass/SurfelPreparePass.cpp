@@ -1,5 +1,5 @@
 #include "SurfelPreparePass.h"
-#include "../RenderPasses/Surfel/SurfelTypes.slang"
+#include "../RenderPasses/Surfel/SurfelTypes.hlsl"
 
 SurfelPreparePass::SurfelPreparePass(ref<Device> pDevice, const Properties& props) : RenderPass(pDevice)
 {
@@ -9,7 +9,7 @@ SurfelPreparePass::SurfelPreparePass(ref<Device> pDevice, const Properties& prop
         FALCOR_THROW("SceneDebugger requires Shader Model 6.5 support.");
 
     mpComputePass =
-        ComputePass::create(mpDevice, "RenderPasses/Surfel/SurfelPreparePass/SurfelPreparePass.cs.slang", "csMain");
+        ComputePass::create(mpDevice, "RenderPasses/Surfel/SurfelPreparePass/SurfelPreparePass.hlsl", "csMain");
 }
 
 RenderPassReflection SurfelPreparePass::reflect(const CompileData& compileData)
@@ -56,7 +56,7 @@ void SurfelPreparePass::createSurfelBuffer(Dictionary& dict)
 
 void SurfelPreparePass::createSurfelStatus(Dictionary& dict)
 {
-    const ref<Buffer> surfelStatus = mpDevice->createBuffer(sizeof(uint32_t) * 2);
+    const ref<Buffer> surfelStatus = mpDevice->createBuffer(sizeof(uint) * 2);
     dict["surfelStatus"] = surfelStatus;
 }
 
@@ -71,7 +71,7 @@ void SurfelPreparePass::createCellInfoBuffer(Dictionary& dict)
 void SurfelPreparePass::createCellToSurfelBuffer(Dictionary& dict)
 {
     const ref<Buffer> cellToSurfelBuffer = mpDevice->createStructuredBuffer(
-        sizeof(uint32_t), kTotalSurfelLimit * 27, ResourceBindFlags::UnorderedAccess, MemoryType::DeviceLocal, nullptr, false
+        sizeof(uint), kTotalSurfelLimit * 27, ResourceBindFlags::UnorderedAccess, MemoryType::DeviceLocal, nullptr, false
     ); // #TODO
     dict["cellToSurfelBuffer"] = cellToSurfelBuffer;
 }

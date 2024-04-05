@@ -1,5 +1,5 @@
 #include "SurfelUpdatePass.h"
-#include "../RenderPasses/Surfel/SurfelTypes.slang"
+#include "../RenderPasses/Surfel/SurfelTypes.hlsl"
 
 SurfelUpdatePass::SurfelUpdatePass(ref<Device> pDevice, const Properties& props) : RenderPass(pDevice)
 {
@@ -70,21 +70,21 @@ void SurfelUpdatePass::setScene(RenderContext* pRenderContext, const ref<Scene>&
     {
         mpCollectCellInfoPass = ComputePass::create(
             mpDevice,
-            "RenderPasses/Surfel/SurfelUpdatePass/SurfelUpdatePass.cs.slang",
+            "RenderPasses/Surfel/SurfelUpdatePass/SurfelUpdatePass.hlsl",
             "collectCellInfo",
             mpScene->getSceneDefines()
         );
 
         mpAccumulateCellInfoPass = ComputePass::create(
             mpDevice,
-            "RenderPasses/Surfel/SurfelUpdatePass/SurfelUpdatePass.cs.slang",
+            "RenderPasses/Surfel/SurfelUpdatePass/SurfelUpdatePass.hlsl",
             "accumulateCellInfo",
             mpScene->getSceneDefines()
         );
 
         mpUpdateCellToSurfelBuffer = ComputePass::create(
             mpDevice,
-            "RenderPasses/Surfel/SurfelUpdatePass/SurfelUpdatePass.cs.slang",
+            "RenderPasses/Surfel/SurfelUpdatePass/SurfelUpdatePass.hlsl",
             "updateCellToSurfelBuffer",
             mpScene->getSceneDefines()
         );

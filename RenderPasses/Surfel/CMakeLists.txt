@@ -3,25 +3,25 @@ add_plugin(Surfel)
 target_sources(Surfel PRIVATE
     SurfelBase.cpp
 
-    Random.slang
-    SurfelTypes.slang
-    SurfelUtil.slang
+    Random.hlsl
+    SurfelTypes.hlsl
+    SurfelUtil.hlsl
 
     SurfelPreparePass/SurfelPreparePass.cpp
     SurfelPreparePass/SurfelPreparePass.h
-    SurfelPreparePass/SurfelPreparePass.cs.slang
+    SurfelPreparePass/SurfelPreparePass.hlsl
 
     SurfelUpdatePass/SurfelUpdatePass.cpp
     SurfelUpdatePass/SurfelUpdatePass.h
-    SurfelUpdatePass/SurfelUpdatePass.cs.slang
-
-    SurfelGenPass/SurfelGenPass.cpp
-    SurfelGenPass/SurfelGenPass.h
-    SurfelGenPass/SurfelGenPass.cs.slang
+    SurfelUpdatePass/SurfelUpdatePass.hlsl
 
     SurfelCoveragePass/SurfelCoveragePass.cpp
     SurfelCoveragePass/SurfelCoveragePass.h
-    SurfelCoveragePass/SurfelCoveragePass.cs.slang
+    SurfelCoveragePass/SurfelCoveragePass.hlsl
+
+    SurfelGenPass/SurfelGenPass.cpp
+    SurfelGenPass/SurfelGenPass.h
+    SurfelGenPass/SurfelGenPass.hlsl
 )
 
 target_copy_shaders(Surfel RenderPasses/Surfel)

@@ -77,7 +77,7 @@ void SurfelCoveragePass::setScene(RenderContext* pRenderContext, const ref<Scene
 
         mpComputePass = ComputePass::create(
             mpDevice,
-            "RenderPasses/Surfel/SurfelCoveragePass/SurfelCoveragePass.cs.slang",
+            "RenderPasses/Surfel/SurfelCoveragePass/SurfelCoveragePass.hlsl",
             "csMain",
             mpScene->getSceneDefines()
         );

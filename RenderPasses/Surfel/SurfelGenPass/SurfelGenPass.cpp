@@ -1,5 +1,5 @@
 #include "SurfelGenPass.h"
-#include "../RenderPasses/Surfel/SurfelTypes.slang"
+#include "../RenderPasses/Surfel/SurfelTypes.hlsl"
 
 SurfelGenPass::SurfelGenPass(ref<Device> pDevice, const Properties& props) : RenderPass(pDevice)
 {
@@ -60,7 +60,7 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
         var["gSurfelBuffer"] = dict.getValue<ref<Buffer>>("surfelBuffer");
 
         ref<Buffer> surfelStatus = dict.getValue<ref<Buffer>>("surfelStatus");
-        mNumSurfels = surfelStatus->getElement<uint32_t>((uint)SurfelStatusOffset::TotalSurfelCount);
+        mNumSurfels = surfelStatus->getElement<uint>(kSurfelStatus_TotalSurfelCount);
         var["gSurfelStatus"] = surfelStatus;
 
         var["gCellInfoBuffer"] = dict.getValue<ref<Buffer>>("cellInfoBuffer");
@@ -92,7 +92,7 @@ void SurfelGenPass::setScene(RenderContext* pRenderContext, const ref<Scene>& pS
     if (mpScene)
     {
         mpComputePass = ComputePass::create(
-            mpDevice, "RenderPasses/Surfel/SurfelGenPass/SurfelGenPass.cs.slang", "csMain", mpScene->getSceneDefines()
+            mpDevice, "RenderPasses/Surfel/SurfelGenPass/SurfelGenPass.hlsl", "csMain", mpScene->getSceneDefines()
         );
     }
 }

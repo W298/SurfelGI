@@ -1,21 +1,21 @@
-import RenderPasses.Surfel.Random;
-import RenderPasses.Surfel.SurfelTypes;
-import RenderPasses.Surfel.SurfelUtil;
+#include "../Random.hlsl"
+#include "../SurfelTypes.hlsl"
+#include "../SurfelUtil.hlsl"
 
 cbuffer CB
 {
     float2 gInvResolution;
     float4x4 gInvViewProj;
-    uint32_t gFrameIndex;
+    uint gFrameIndex;
     float3 gCameraPos;
 }
 
 RWStructuredBuffer<Surfel> gSurfelBuffer;
 RWByteAddressBuffer gSurfelStatus;
 RWStructuredBuffer<CellInfo> gCellInfoBuffer;
-RWStructuredBuffer<uint32_t> gCellToSurfelBuffer;
+RWStructuredBuffer<uint> gCellToSurfelBuffer;
 
-Texture2D<float32_t> gDepth;
+Texture2D<float> gDepth;
 Texture2D<float4> gNormal;
 Texture2D<uint> gCoverage;
 
@@ -50,17 +50,17 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
         if (groupThreadID.x == x && groupThreadID.y == y && coverage < 0.08f)
         {
             const float chance = pow(depth, 8);
-            Random::State randomState = Random::init(pixelPos, gFrameIndex);
+            RandomState randomState = initRandomState(pixelPos, gFrameIndex);
 
-            if (Random::nextFloat(randomState) < chance)
+            if (getNextFloat(randomState) < chance)
             {
                 uint aliveCount;
-                gSurfelStatus.InterlockedAdd((uint)SurfelStatusOffset::TotalSurfelCount, 1, aliveCount);
+                gSurfelStatus.InterlockedAdd(kSurfelStatus_TotalSurfelCount, 1, aliveCount);
 
                 if (aliveCount < kTotalSurfelLimit)
                 {
                     float3 normal = gNormal[pixelPos].xyz;
-                    float3 randomColor = Random::nextFloat3(randomState);
+                    float3 randomColor = getNextFloat3(randomState);
 
                     Surfel newSurfel = { worldPos, normal, randomColor };
                     gSurfelBuffer[aliveCount] = newSurfel;
@@ -68,14 +68,14 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
                 else
                 {
                     // #TODO
-                    gSurfelStatus.InterlockedAdd((uint)SurfelStatusOffset::TotalSurfelCount, -1, aliveCount);
+                    gSurfelStatus.InterlockedAdd(kSurfelStatus_TotalSurfelCount, -1, aliveCount);
                 }
             }
         }
     }
 
     // Visualize
-    float3 blendedColor = float3(0);
+    float3 blendedColor = float3(0, 0, 0);
     uint blendedCount = 0;
 
     for (uint i = 0; i < cellInfo.surfelCount; ++i)

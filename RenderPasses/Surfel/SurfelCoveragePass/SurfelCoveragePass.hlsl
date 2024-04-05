@@ -1,18 +1,18 @@
-import RenderPasses.Surfel.Random;
-import RenderPasses.Surfel.SurfelTypes;
-import RenderPasses.Surfel.SurfelUtil;
+#include "../Random.hlsl"
+#include "../SurfelTypes.hlsl"
+#include "../SurfelUtil.hlsl"
 
 cbuffer CB
 {
     float2 gInvResolution;
     float4x4 gInvViewProj;
-    uint32_t gFrameIndex;
+    uint gFrameIndex;
     float3 gCameraPos;
 }
 
 RWStructuredBuffer<Surfel> gSurfelBuffer;
 RWStructuredBuffer<CellInfo> gCellInfoBuffer;
-RWStructuredBuffer<uint32_t> gCellToSurfelBuffer;
+RWStructuredBuffer<uint> gCellToSurfelBuffer;
 
 Texture2D<float> gDepth;
 Texture2D<float4> gNormal;
@@ -73,13 +73,13 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex : SV_Gr
         }
     }
 
-    Random::State randomState = Random::init(pixelPos, gFrameIndex);
+    RandomState randomState = initRandomState(pixelPos, gFrameIndex);
 
     if (cellInfo.surfelCount < kCellSurfelLimit)
     {
         uint coverageData = 0;
         coverageData |= ((f32tof16(coverage) & 0x0000FFFF) << 16);
-        coverageData |= ((Random::nextUint(randomState, 255) & 0x000000FF) << 8);
+        coverageData |= ((getNextUInt(randomState, 255) & 0x000000FF) << 8);
         coverageData |= ((groupThreadID.x & 0x0000000F) << 4);
         coverageData |= ((groupThreadID.y & 0x0000000F) << 0);
 
