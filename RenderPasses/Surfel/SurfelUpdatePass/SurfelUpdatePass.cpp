@@ -1,5 +1,5 @@
 #include "SurfelUpdatePass.h"
-#include "../RenderPasses/Surfel/SurfelTypes.hlsl"
+#include "../RenderPasses/Surfel/SurfelTypes.hlsli"
 
 SurfelUpdatePass::SurfelUpdatePass(ref<Device> pDevice, const Properties& props) : RenderPass(pDevice)
 {

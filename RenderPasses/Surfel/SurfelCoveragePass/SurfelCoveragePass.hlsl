@@ -1,6 +1,6 @@
-#include "../Random.hlsl"
-#include "../SurfelTypes.hlsl"
-#include "../SurfelUtil.hlsl"
+#include "../Random.hlsli"
+#include "../SurfelTypes.hlsli"
+#include "../SurfelUtils.hlsli"
 
 cbuffer CB
 {
@@ -75,7 +75,7 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex : SV_Gr
 
     RandomState randomState = initRandomState(pixelPos, gFrameIndex);
 
-    if (cellInfo.surfelCount < kCellSurfelLimit)
+    if (cellInfo.surfelCount < kPerCellSurfelLimit)
     {
         uint coverageData = 0;
         coverageData |= ((f32tof16(coverage) & 0x0000FFFF) << 16);

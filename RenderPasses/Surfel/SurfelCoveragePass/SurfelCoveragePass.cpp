@@ -72,9 +72,6 @@ void SurfelCoveragePass::setScene(RenderContext* pRenderContext, const ref<Scene
 
     if (mpScene)
     {
-        mpScene->getCamera()->setPosition(float3(-0.0613, 0.1113, 0.1275));
-        // mpScene->getCamera()->setTarget(float3(0.0858, -0.1472, -0.4462));
-
         mpComputePass = ComputePass::create(
             mpDevice,
             "RenderPasses/Surfel/SurfelCoveragePass/SurfelCoveragePass.hlsl",

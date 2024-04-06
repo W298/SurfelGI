@@ -1,5 +1,5 @@
 #include "SurfelGenPass.h"
-#include "../RenderPasses/Surfel/SurfelTypes.hlsl"
+#include "../RenderPasses/Surfel/SurfelTypes.hlsli"
 
 SurfelGenPass::SurfelGenPass(ref<Device> pDevice, const Properties& props) : RenderPass(pDevice)
 {
@@ -83,6 +83,11 @@ void SurfelGenPass::renderUI(Gui::Widgets& widget)
 {
     widget.text("frame index: " + std::to_string(mFrameIndex));
     widget.text("num surfels: " + std::to_string(mNumSurfels));
+
+    widget.text("total surfel limit: " + std::to_string(kTotalSurfelLimit));
+    widget.text("per cell surfel limit: " + std::to_string(kPerCellSurfelLimit));
+    widget.text("coverage threshold: " + std::to_string(kCoverageThreshold));
+    widget.text("surfel radius: " + std::to_string(kSurfelRadius));
 }
 
 void SurfelGenPass::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)

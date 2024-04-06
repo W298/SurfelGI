@@ -3,7 +3,8 @@
 
 static const uint2 kTileSize = uint2(16, 16);
 static const uint kTotalSurfelLimit = 51200;
-static const uint kCellSurfelLimit = 4;
+static const uint kPerCellSurfelLimit = 8;
+static const float kCoverageThreshold = 1e-6f;
 static const float kSurfelRadius = 0.008f;
 static const float kCellUnit = 0.01f;
 static const uint3 kCellDimension = uint3(500, 500, 500);

@@ -1,4 +1,4 @@
-#include "../SurfelTypes.hlsl"
+#include "../SurfelTypes.hlsli"
 
 RWStructuredBuffer<Surfel> gSurfelBuffer;
 RWByteAddressBuffer gSurfelStatus;

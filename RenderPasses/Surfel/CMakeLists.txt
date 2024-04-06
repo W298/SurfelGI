@@ -3,9 +3,13 @@ add_plugin(Surfel)
 target_sources(Surfel PRIVATE
     SurfelBase.cpp
 
-    Random.hlsl
-    SurfelTypes.hlsl
-    SurfelUtil.hlsl
+    Random.hlsli
+    SurfelTypes.hlsli
+    SurfelUtils.hlsli
+
+    SurfelGBuffer/SurfelGBuffer.cpp
+    SurfelGBuffer/SurfelGBuffer.h
+    SurfelGBuffer/SurfelGBuffer.3d.slang
 
     SurfelPreparePass/SurfelPreparePass.cpp
     SurfelPreparePass/SurfelPreparePass.h

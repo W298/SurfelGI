@@ -1,7 +1,7 @@
-#ifndef SURFEL_UTIL_H
-#define SURFEL_UTIL_H
+#ifndef SURFEL_UTILS_H
+#define SURFEL_UTILS_H
 
-#include "SurfelTypes.hlsl"
+#include "SurfelTypes.hlsli"
 
 static const int3 neighborOffset[27] =
 {

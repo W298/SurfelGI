@@ -1,5 +1,5 @@
 #include "SurfelPreparePass.h"
-#include "../RenderPasses/Surfel/SurfelTypes.hlsl"
+#include "../RenderPasses/Surfel/SurfelTypes.hlsli"
 
 SurfelPreparePass::SurfelPreparePass(ref<Device> pDevice, const Properties& props) : RenderPass(pDevice)
 {
@@ -71,7 +71,12 @@ void SurfelPreparePass::createCellInfoBuffer(Dictionary& dict)
 void SurfelPreparePass::createCellToSurfelBuffer(Dictionary& dict)
 {
     const ref<Buffer> cellToSurfelBuffer = mpDevice->createStructuredBuffer(
-        sizeof(uint), kTotalSurfelLimit * 27, ResourceBindFlags::UnorderedAccess, MemoryType::DeviceLocal, nullptr, false
+        sizeof(uint),
+        kTotalSurfelLimit * 27,
+        ResourceBindFlags::UnorderedAccess,
+        MemoryType::DeviceLocal,
+        nullptr,
+        false
     ); // #TODO
     dict["cellToSurfelBuffer"] = cellToSurfelBuffer;
 }
