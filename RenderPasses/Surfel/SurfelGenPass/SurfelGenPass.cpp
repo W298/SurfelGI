@@ -1,5 +1,6 @@
 #include "SurfelGenPass.h"
 #include "../RenderPasses/Surfel/SurfelTypes.hlsli"
+#include "RenderGraph/RenderPassHelpers.h"
 
 SurfelGenPass::SurfelGenPass(ref<Device> pDevice, const Properties& props) : RenderPass(pDevice)
 {
@@ -33,7 +34,7 @@ RenderPassReflection SurfelGenPass::reflect(const CompileData& compileData)
     reflector.addInput("coverage", "coverage texture")
         .format(ResourceFormat::R32Uint)
         .bindFlags(ResourceBindFlags::ShaderResource)
-        .texture2D(1920 / 16, 1080 / 16); // #TODO
+        .texture2D(compileData.defaultTexDims.x / kTileSize.x, compileData.defaultTexDims.y / kTileSize.y);
     reflector.addInput("packedHitInfo", "packed hit info texture")
         .format(ResourceFormat::RGBA32Uint)
         .bindFlags(ResourceBindFlags::ShaderResource);
@@ -57,7 +58,7 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
 
     FALCOR_ASSERT(pDepth && pNormal && pCoverage && pOutput);
 
-    const uint2 resolution = uint2(pDepth->getWidth(), pDepth->getHeight());
+    uint2 resolution = uint2(pDepth->getWidth(), pDepth->getHeight());
 
     if (mpComputePass)
     {
@@ -67,7 +68,7 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
         if (mIsMoving)
         {
             const AnimationController* pAnimationController = mpScene->getAnimationController();
-            const GeometryInstanceData& instance = mpScene->getGeometryInstance(83);
+            const GeometryInstanceData& instance = mpScene->getGeometryInstance(698);
             const float4x4& instanceTransform = pAnimationController->getGlobalMatrices()[instance.globalMatrixID];
 
             float3 scale;
@@ -78,17 +79,16 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
             math::decompose(instanceTransform, scale, rotation, translation, skew, perspective);
 
             float speed = 0.001f;
-            float3 tDelta = float3(
-                mMovement[Input::Key::Right] ? speed : mMovement[Input::Key::Left] ? -speed : 0,
-                0,
-                mMovement[Input::Key::Up] ? -speed : mMovement[Input::Key::Down] ? speed : 0
-            );
+
+            float dx = mMovement[Input::Key::Right] ? speed : mMovement[Input::Key::Left] ? -speed : 0;
+            float dz = mMovement[Input::Key::Up] ? -speed : mMovement[Input::Key::Down] ? speed : 0;
+            float3 tDelta = float3(dx, 0, dz);
 
             float3 rDelta = float3(0, mMovement[Input::Key::R] ? speed * 4 : 0, 0);
 
             Transform finalTransform;
             finalTransform.setTranslation(translation + tDelta);
-            finalTransform.setRotationEuler(float3(0, yaw(rotation), 0) + rDelta);
+            finalTransform.setRotation(rotation);
             finalTransform.setScaling(scale);
 
             mpScene->updateNodeTransform(instance.globalMatrixID, finalTransform.getMatrix());
@@ -96,6 +96,7 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
 
         mpScene->setRaytracingShaderData(pRenderContext, var);
 
+        var["CB"]["gResolution"] = resolution;
         var["CB"]["gInvResolution"] = float2(1.f / resolution.x, 1.f / resolution.y);
         var["CB"]["gInvViewProj"] = mpScene->getCamera()->getInvViewProjMatrix();
         var["CB"]["gFrameIndex"] = mFrameIndex;
@@ -126,13 +127,15 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
 
 void SurfelGenPass::renderUI(Gui::Widgets& widget)
 {
-    widget.text("frame index: " + std::to_string(mFrameIndex));
-    widget.text("num surfels: " + std::to_string(mNumSurfels));
+    widget.text("Frame index\t\t" + std::to_string(mFrameIndex));
+    widget.text("Num surfels\t\t" + std::to_string(mNumSurfels));
 
-    widget.text("total surfel limit: " + std::to_string(kTotalSurfelLimit));
-    widget.text("per cell surfel limit: " + std::to_string(kPerCellSurfelLimit));
-    widget.text("coverage threshold: " + std::to_string(kCoverageThreshold));
-    widget.text("surfel radius: " + std::to_string(kSurfelRadius));
+    widget.dummy("#spacer0", {1, 20});
+
+    widget.text("Total surfel limit\t\t" + std::to_string(kTotalSurfelLimit));
+    widget.text("Per cell surfel limit\t\t" + std::to_string(kPerCellSurfelLimit));
+    widget.text("Coverage threshold\t\t" + std::to_string(kCoverageThreshold));
+    widget.text("Surfel radius\t\t" + std::to_string(kSurfelRadius));
 }
 
 void SurfelGenPass::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)

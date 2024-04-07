@@ -77,6 +77,6 @@ void SurfelPreparePass::createCellToSurfelBuffer(Dictionary& dict)
         MemoryType::DeviceLocal,
         nullptr,
         false
-    ); // #TODO
+    );
     dict["cellToSurfelBuffer"] = cellToSurfelBuffer;
 }

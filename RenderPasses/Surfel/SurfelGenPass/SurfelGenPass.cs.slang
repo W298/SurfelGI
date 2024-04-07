@@ -8,6 +8,7 @@ import Scene.RaytracingInline;
 
 cbuffer CB
 {
+    uint2 gResolution;
     float2 gInvResolution;
     float4x4 gInvViewProj;
     uint gFrameIndex;
@@ -29,7 +30,7 @@ RWTexture2D<float4> gOutput;
 uint4 getPixelInfo(uint2 pixelPos)
 {
 #if USE_RAYTRACE
-    const Ray ray = gScene.camera.computeRayPinhole(pixelPos, uint2(1920, 1080));   // #TODO
+    const Ray ray = gScene.camera.computeRayPinhole(pixelPos, gResolution);
     SceneRayQuery<0> sceneRayQuery;
 
     HitInfo hit;
@@ -69,10 +70,10 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
     {
         if (groupThreadID.x == x && groupThreadID.y == y && coverage <= kCoverageThreshold)
         {
-            const float chance = pow(depth, 8);
+            const float chance = pow(depth, kChancePower);
             RandomState randomState = initRandomState(pixelPos, gFrameIndex);
 
-            if (getNextFloat(randomState) < chance)
+            if (getNextFloat(randomState) < chance * kChaneMultiply)
             {
                 uint aliveCount;
                 gSurfelStatus.InterlockedAdd(kSurfelStatus_TotalSurfelCount, 1, aliveCount);
@@ -126,7 +127,5 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
     }
 
     blendedColor /= max(1, blendedCount);
-    blendedColor *= 0.8f;
-
     gOutput[pixelPos] = float4(blendedColor, 1);
 }

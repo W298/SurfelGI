@@ -29,7 +29,7 @@ float4 psMain(VSOut vOut, uint triangleIndex: SV_PrimitiveID) : SV_TARGET
     float3 c = normalize(gScene.camera.getPosition() - v.posW);
     float3 specular = pow(saturate(dot(r, c)), 1.2f) * specularAlbedo;
 
-    float3 ambient = diffuseAlbedo * float3(0.02f, 0.02f, 0.02f);
+    float3 ambient = diffuseAlbedo * float3(0.08f, 0.08f, 0.08f) + specularAlbedo * float3(0.08f, 0.08f, 0.08f);
 
     return float4(diffuse + specular + ambient, 1);
 }

@@ -1,4 +1,5 @@
 #include "SurfelCoveragePass.h"
+#include "../SurfelTypes.hlsli"
 
 SurfelCoveragePass::SurfelCoveragePass(ref<Device> pDevice, const Properties& props) : RenderPass(pDevice)
 {
@@ -24,7 +25,7 @@ RenderPassReflection SurfelCoveragePass::reflect(const CompileData& compileData)
     reflector.addOutput("coverage", "coverage texture")
         .format(ResourceFormat::R32Uint)
         .bindFlags(ResourceBindFlags::UnorderedAccess)
-        .texture2D(1920 / 16, 1080 / 16); // #TODO
+        .texture2D(compileData.defaultTexDims.x / kTileSize.x, compileData.defaultTexDims.y / kTileSize.y);
 
     return reflector;
 }
