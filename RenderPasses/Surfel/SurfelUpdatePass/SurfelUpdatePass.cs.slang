@@ -58,6 +58,7 @@ void accumulateCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
     if (gCellInfoBuffer[flattenIndex].surfelCount == 0)
         return;
 
+    // Calculate offsets.
     gSurfelStatus.InterlockedAdd(
         kSurfelStatus_CellCount,
         gCellInfoBuffer[flattenIndex].surfelCount,

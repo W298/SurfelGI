@@ -2,16 +2,19 @@
 
 const ChannelList SurfelGBuffer::kChannels = {
     {"normal", "gNormal", "Normal", true, ResourceFormat::RGBA32Float},
-    {"instanceID", "gInstanceID", "Instance ID", true, ResourceFormat::R32Uint},
+    {"packedHitInfo", "gPackedHitInfo", "Packed Hit Info", true, ResourceFormat::RGBA32Uint},
     {"instanceIDVisual", "gInstanceIDVisual", "Instance ID Visualization", true, ResourceFormat::RGBA32Float},
 };
 
 SurfelGBuffer::SurfelGBuffer(ref<Device> pDevice, const Properties& props) : RenderPass(pDevice)
 {
-    // Check device feature support.
-    mpDevice = pDevice;
-    if (!mpDevice->isShaderModelSupported(ShaderModel::SM6_5))
-        FALCOR_THROW("SceneDebugger requires Shader Model 6.5 support.");
+    // Check for required features.
+    if (!mpDevice->isShaderModelSupported(ShaderModel::SM6_2))
+        FALCOR_THROW("requires Shader Model 6.2 support.");
+    if (!mpDevice->isFeatureSupported(Device::SupportedFeatures::Barycentrics))
+        FALCOR_THROW("requires pixel shader barycentrics support.");
+    if (!mpDevice->isFeatureSupported(Device::SupportedFeatures::RasterizerOrderedViews))
+        FALCOR_THROW("requires rasterizer ordered views (ROVs) support.");
 
     // Init graphics state.
     mpState = GraphicsState::create(mpDevice);
@@ -30,7 +33,7 @@ RenderPassReflection SurfelGBuffer::reflect(const CompileData& compileData)
         .bindFlags(ResourceBindFlags::DepthStencil);
 
     // Output channels
-    addRenderPassOutputs(reflector, kChannels, ResourceBindFlags::RenderTarget);
+    addRenderPassOutputs(reflector, kChannels, ResourceBindFlags::RenderTarget | ResourceBindFlags::UnorderedAccess);
 
     return reflector;
 }
@@ -44,9 +47,7 @@ void SurfelGBuffer::execute(RenderContext* pRenderContext, const RenderData& ren
         mpFbo->attachDepthStencilTarget(pDepth);
 
         for (uint32_t i = 0; i < kChannels.size(); ++i)
-        {
             mpFbo->attachColorTarget(renderData.getTexture(kChannels[i].name), i);
-        }
 
         pRenderContext->clearDsv(pDepth->getDSV().get(), 1.f, 0);
         pRenderContext->clearFbo(mpFbo.get(), float4(0), 1.f, 0, FboAttachmentType::Color);

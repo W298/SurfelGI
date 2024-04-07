@@ -34,8 +34,8 @@ RenderPassReflection SurfelGenPass::reflect(const CompileData& compileData)
         .format(ResourceFormat::R32Uint)
         .bindFlags(ResourceBindFlags::ShaderResource)
         .texture2D(1920 / 16, 1080 / 16); // #TODO
-    reflector.addInput("instance", "instance texture")
-        .format(ResourceFormat::R32Uint)
+    reflector.addInput("packedHitInfo", "packed hit info texture")
+        .format(ResourceFormat::RGBA32Uint)
         .bindFlags(ResourceBindFlags::ShaderResource);
 
     // Output
@@ -51,7 +51,7 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
     const auto& pDepth = renderData.getTexture("depth");
     const auto& pNormal = renderData.getTexture("normal");
     const auto& pCoverage = renderData.getTexture("coverage");
-    const auto& pInstance = renderData.getTexture("instance");
+    const auto& pPackedHitInfo = renderData.getTexture("packedHitInfo");
 
     const auto& pOutput = renderData.getTexture("output");
 
@@ -113,7 +113,7 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
         var["gDepth"] = pDepth;
         var["gNormal"] = pNormal;
         var["gCoverage"] = pCoverage;
-        var["gInstance"] = pInstance;
+        var["gPackedHitInfo"] = pPackedHitInfo;
 
         var["gOutput"] = pOutput;
 

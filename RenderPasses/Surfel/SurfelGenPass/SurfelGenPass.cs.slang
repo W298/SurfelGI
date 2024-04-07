@@ -2,6 +2,8 @@
 #include "../SurfelTypes.hlsli"
 #include "../SurfelUtils.hlsli"
 
+#define USE_RAYTRACE 0
+
 import Scene.RaytracingInline;
 
 cbuffer CB
@@ -20,9 +22,24 @@ RWStructuredBuffer<uint> gCellToSurfelBuffer;
 Texture2D<float> gDepth;
 Texture2D<float4> gNormal;
 Texture2D<uint> gCoverage;
-Texture2D<uint> gInstance;
+Texture2D<uint4> gPackedHitInfo;
 
 RWTexture2D<float4> gOutput;
+
+uint4 getPixelInfo(uint2 pixelPos)
+{
+#if USE_RAYTRACE
+    const Ray ray = gScene.camera.computeRayPinhole(pixelPos, uint2(1920, 1080));   // #TODO
+    SceneRayQuery<0> sceneRayQuery;
+
+    HitInfo hit;
+    float hitT;
+    sceneRayQuery.traceRay(ray, hit, hitT, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xff);
+    return hit.getTriangleHit().pack();
+#else
+    return gPackedHitInfo[pixelPos];
+#endif
+}
 
 [numthreads(16, 16, 1)]
 void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV_GroupThreadID)
@@ -65,25 +82,14 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
                     float3 normal = gNormal[pixelPos].xyz;
                     float3 randomColor = getNextFloat3(randomState);
 
-                    const Ray ray = gScene.camera.computeRayPinhole(pixelPos, uint2(1920, 1080));
-                    SceneRayQuery<0> sceneRayQuery;
+                    Surfel newSurfel = {
+                        worldPos,
+                        normal,
+                        randomColor,
+                        getPixelInfo(pixelPos)
+                    };
 
-                    HitInfo hit;
-                    float hitT;
-
-                    if (sceneRayQuery.traceRay(ray, hit, hitT, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xff))
-                    {
-                        const TriangleHit triangleHit = hit.getTriangleHit();
-
-                        Surfel newSurfel = {
-                            worldPos,
-                            normal,
-                            getNextFloat3(randomState),
-                            triangleHit.pack()
-                        };
-
-                        gSurfelBuffer[aliveCount] = newSurfel;
-                    }
+                    gSurfelBuffer[aliveCount] = newSurfel;
                 }
                 else
                 {
