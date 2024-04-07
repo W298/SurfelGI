@@ -1,6 +1,8 @@
 #include "../SurfelTypes.hlsli"
 #include "../SurfelUtils.hlsli"
 
+import Scene.Scene;
+
 cbuffer CB
 {
     float3 gCameraPos;
@@ -22,6 +24,14 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
     uint surfelIndex = dispatchThreadId.x;
     Surfel surfel = gSurfelBuffer[surfelIndex];
 
+    // Update surfel position and normal.
+    TriangleHit hit = TriangleHit(surfel.packedHitInfo);
+    VertexData data = gScene.getVertexData(hit);
+
+    surfel.position = data.posW;
+    surfel.normal = data.normalW;
+
+    // Calculate number of surfels located at cell.
     int3 cellPos = getCellPos(surfel.position, gCameraPos);
     for (uint i = 0; i < 27; ++i)
     {
@@ -32,6 +42,9 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
             InterlockedAdd(gCellInfoBuffer[flattenIndex].surfelCount, 1);
         }
     }
+
+    // Write back to buffer.
+    gSurfelBuffer[surfelIndex] = surfel;
 }
 
 // Calculate offset of cell to surfel buffer.

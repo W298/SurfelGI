@@ -3,6 +3,7 @@ add_plugin(Surfel)
 target_sources(Surfel PRIVATE
     SurfelBase.cpp
 
+    HashUtils.hlsli
     Random.hlsli
     SurfelTypes.hlsli
     SurfelUtils.hlsli
@@ -17,7 +18,7 @@ target_sources(Surfel PRIVATE
 
     SurfelUpdatePass/SurfelUpdatePass.cpp
     SurfelUpdatePass/SurfelUpdatePass.h
-    SurfelUpdatePass/SurfelUpdatePass.hlsl
+    SurfelUpdatePass/SurfelUpdatePass.cs.slang
 
     SurfelCoveragePass/SurfelCoveragePass.cpp
     SurfelCoveragePass/SurfelCoveragePass.h
@@ -25,7 +26,7 @@ target_sources(Surfel PRIVATE
 
     SurfelGenPass/SurfelGenPass.cpp
     SurfelGenPass/SurfelGenPass.h
-    SurfelGenPass/SurfelGenPass.hlsl
+    SurfelGenPass/SurfelGenPass.cs.slang
 )
 
 target_copy_shaders(Surfel RenderPasses/Surfel)

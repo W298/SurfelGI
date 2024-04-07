@@ -2,6 +2,8 @@
 #include "../SurfelTypes.hlsli"
 #include "../SurfelUtils.hlsli"
 
+import Scene.RaytracingInline;
+
 cbuffer CB
 {
     float2 gInvResolution;
@@ -18,6 +20,7 @@ RWStructuredBuffer<uint> gCellToSurfelBuffer;
 Texture2D<float> gDepth;
 Texture2D<float4> gNormal;
 Texture2D<uint> gCoverage;
+Texture2D<uint> gInstance;
 
 RWTexture2D<float4> gOutput;
 
@@ -62,8 +65,31 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
                     float3 normal = gNormal[pixelPos].xyz;
                     float3 randomColor = getNextFloat3(randomState);
 
-                    Surfel newSurfel = { worldPos, normal, randomColor };
-                    gSurfelBuffer[aliveCount] = newSurfel;
+                    const Ray ray = gScene.camera.computeRayPinhole(pixelPos, uint2(1920, 1080));
+                    SceneRayQuery<0> sceneRayQuery;
+
+                    HitInfo hit;
+                    float hitT;
+                    TriangleHit triangleHit;
+
+                    if (sceneRayQuery.traceRay(ray, hit, hitT, RAY_FLAG_NONE, 0xff))
+                    {
+                        const TriangleHit triangleHit = hit.getTriangleHit();
+
+                        Surfel newSurfel = {
+                            worldPos,
+                            normal,
+                            getNextFloat3(randomState),
+                            triangleHit.pack()
+                        };
+
+                        gSurfelBuffer[aliveCount] = newSurfel;
+                    }
+                    else
+                    {
+                        // #TODO
+                        gSurfelStatus.InterlockedAdd(kSurfelStatus_TotalSurfelCount, -1, aliveCount);
+                    } 
                 }
                 else
                 {

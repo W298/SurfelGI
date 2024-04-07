@@ -2,6 +2,7 @@
 #define SURFEL_UTILS_H
 
 #include "SurfelTypes.hlsli"
+#include "HashUtils.hlsli"
 
 static const int3 neighborOffset[27] =
 {
@@ -79,6 +80,12 @@ bool isSurfelIntersectCell(Surfel surfel, int3 cellPos, float3 cameraPosW)
 
     float dist = distance(closePoint, surfel.position);
     return dist < kSurfelRadius;
+}
+
+float3 pseudocolor(uint value)
+{
+    uint h = jenkinsHash(value);
+    return (uint3(h, h >> 8, h >> 16) & 0xff) / 255.f;
 }
 
 #endif

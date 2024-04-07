@@ -26,6 +26,8 @@ void SurfelUpdatePass::execute(RenderContext* pRenderContext, const RenderData& 
     {
         auto var = mpCollectCellInfoPass->getRootVar();
 
+        mpScene->setRaytracingShaderData(pRenderContext, var);
+
         var["CB"]["gCameraPos"] = mpScene->getCamera()->getPosition();
 
         var["gSurfelBuffer"] = dict.getValue<ref<Buffer>>("surfelBuffer");
@@ -70,21 +72,21 @@ void SurfelUpdatePass::setScene(RenderContext* pRenderContext, const ref<Scene>&
     {
         mpCollectCellInfoPass = ComputePass::create(
             mpDevice,
-            "RenderPasses/Surfel/SurfelUpdatePass/SurfelUpdatePass.hlsl",
+            "RenderPasses/Surfel/SurfelUpdatePass/SurfelUpdatePass.cs.slang",
             "collectCellInfo",
             mpScene->getSceneDefines()
         );
 
         mpAccumulateCellInfoPass = ComputePass::create(
             mpDevice,
-            "RenderPasses/Surfel/SurfelUpdatePass/SurfelUpdatePass.hlsl",
+            "RenderPasses/Surfel/SurfelUpdatePass/SurfelUpdatePass.cs.slang",
             "accumulateCellInfo",
             mpScene->getSceneDefines()
         );
 
         mpUpdateCellToSurfelBuffer = ComputePass::create(
             mpDevice,
-            "RenderPasses/Surfel/SurfelUpdatePass/SurfelUpdatePass.hlsl",
+            "RenderPasses/Surfel/SurfelUpdatePass/SurfelUpdatePass.cs.slang",
             "updateCellToSurfelBuffer",
             mpScene->getSceneDefines()
         );

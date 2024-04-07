@@ -21,14 +21,11 @@ PSOut psMain(VSOut vOut, uint triangleIndex: SV_PrimitiveID)
     float3 faceNormal = gScene.getFaceNormalW(vOut.instanceID, triangleIndex);
     VertexData v = prepareVertexData(vOut, faceNormal);
 
-    //GeometryInstanceID id = vOut.instanceID;
-    //float4x4 transform = gScene->getWorldMatrix(id);
-
     PSOut psOut = {};
 
     psOut.normal = float4(v.normalW, 1);
     psOut.instanceID = vOut.instanceID.index;
-    psOut.instanceIDVisual = float4(getNextFloat3(randomState), 1);    
+    psOut.instanceIDVisual = float4(getNextFloat3(randomState), 1);
 
     return psOut;
 }

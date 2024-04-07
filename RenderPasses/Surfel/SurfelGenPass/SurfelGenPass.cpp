@@ -26,6 +26,9 @@ RenderPassReflection SurfelGenPass::reflect(const CompileData& compileData)
         .format(ResourceFormat::R32Uint)
         .bindFlags(ResourceBindFlags::ShaderResource)
         .texture2D(1920 / 16, 1080 / 16); // #TODO
+    reflector.addInput("instance", "instance texture")
+        .format(ResourceFormat::R32Uint)
+        .bindFlags(ResourceBindFlags::ShaderResource);
 
     // Output
     reflector.addOutput("output", "output texture")
@@ -40,6 +43,7 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
     const auto& pDepth = renderData.getTexture("depth");
     const auto& pNormal = renderData.getTexture("normal");
     const auto& pCoverage = renderData.getTexture("coverage");
+    const auto& pInstance = renderData.getTexture("instance");
 
     const auto& pOutput = renderData.getTexture("output");
 
@@ -51,6 +55,28 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
     {
         auto var = mpComputePass->getRootVar();
         auto& dict = renderData.getDictionary();
+
+        {
+            const AnimationController* pAnimationController = mpScene->getAnimationController();
+            const GeometryInstanceData& instance = mpScene->getGeometryInstance(157);
+            const float4x4& instanceTransform = pAnimationController->getGlobalMatrices()[instance.globalMatrixID];
+
+            float3 scale;
+            quatf rotation;
+            float3 translation;
+            float3 skew;
+            float4 perspective;
+            math::decompose(instanceTransform, scale, rotation, translation, skew, perspective);
+
+            Transform finalTranform;
+            finalTranform.setTranslation(translation);
+            finalTranform.setRotationEulerDeg(float3(0, (float)mFrameIndex * 0.01f, 0));
+            finalTranform.setScaling(scale);
+
+            mpScene->updateNodeTransform(instance.globalMatrixID, finalTranform.getMatrix());
+        }
+
+        mpScene->setRaytracingShaderData(pRenderContext, var);
 
         var["CB"]["gInvResolution"] = float2(1.f / resolution.x, 1.f / resolution.y);
         var["CB"]["gInvViewProj"] = mpScene->getCamera()->getInvViewProjMatrix();
@@ -69,6 +95,7 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
         var["gDepth"] = pDepth;
         var["gNormal"] = pNormal;
         var["gCoverage"] = pCoverage;
+        var["gInstance"] = pInstance;
 
         var["gOutput"] = pOutput;
 
@@ -97,7 +124,7 @@ void SurfelGenPass::setScene(RenderContext* pRenderContext, const ref<Scene>& pS
     if (mpScene)
     {
         mpComputePass = ComputePass::create(
-            mpDevice, "RenderPasses/Surfel/SurfelGenPass/SurfelGenPass.hlsl", "csMain", mpScene->getSceneDefines()
+            mpDevice, "RenderPasses/Surfel/SurfelGenPass/SurfelGenPass.cs.slang", "csMain", mpScene->getSceneDefines()
         );
     }
 }
