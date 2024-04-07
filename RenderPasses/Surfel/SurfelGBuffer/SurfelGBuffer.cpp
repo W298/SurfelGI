@@ -62,8 +62,8 @@ void SurfelGBuffer::setScene(RenderContext* pRenderContext, const ref<Scene>& pS
 
     if (mpScene)
     {
-        mpScene->getCamera()->setPosition(float3(-0.0613, 0.1113, 0.1275));
-        // mpScene->getCamera()->setTarget(float3(0.0858, -0.1472, -0.4462));
+        mpScene->getCamera()->setPosition(float3(-0.1948, 0.1656, 0.4519));
+        mpScene->getCamera()->setTarget(float3(0.1823, 0.0117, -0.4614));
 
         ProgramDesc desc;
         desc.addShaderModules(mpScene->getShaderModules());

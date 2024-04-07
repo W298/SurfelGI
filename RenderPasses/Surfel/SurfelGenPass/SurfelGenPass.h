@@ -23,11 +23,14 @@ public:
     virtual void renderUI(Gui::Widgets& widget) override;
     virtual void setScene(RenderContext* pRenderContext, const ref<Scene>& pScene) override;
     virtual bool onMouseEvent(const MouseEvent& mouseEvent) override { return false; }
-    virtual bool onKeyEvent(const KeyboardEvent& keyEvent) override { return false; }
+    virtual bool onKeyEvent(const KeyboardEvent& keyEvent) override;
 
 private:
     ref<Scene> mpScene;
     ref<ComputePass> mpComputePass;
     uint mFrameIndex;
     uint mNumSurfels;
+
+    std::unordered_map<Input::Key, bool> mMovement;
+    bool mIsMoving;
 };

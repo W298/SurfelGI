@@ -50,7 +50,7 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
 
     if (cellInfo.surfelCount < kPerCellSurfelLimit)
     {
-        if (groupThreadID.x == x && groupThreadID.y == y && coverage < kCoverageThreshold)
+        if (groupThreadID.x == x && groupThreadID.y == y && coverage <= kCoverageThreshold)
         {
             const float chance = pow(depth, 8);
             RandomState randomState = initRandomState(pixelPos, gFrameIndex);
@@ -70,9 +70,8 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
 
                     HitInfo hit;
                     float hitT;
-                    TriangleHit triangleHit;
 
-                    if (sceneRayQuery.traceRay(ray, hit, hitT, RAY_FLAG_NONE, 0xff))
+                    if (sceneRayQuery.traceRay(ray, hit, hitT, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xff))
                     {
                         const TriangleHit triangleHit = hit.getTriangleHit();
 
@@ -85,11 +84,6 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
 
                         gSurfelBuffer[aliveCount] = newSurfel;
                     }
-                    else
-                    {
-                        // #TODO
-                        gSurfelStatus.InterlockedAdd(kSurfelStatus_TotalSurfelCount, -1, aliveCount);
-                    } 
                 }
                 else
                 {

@@ -9,6 +9,14 @@ SurfelGenPass::SurfelGenPass(ref<Device> pDevice, const Properties& props) : Ren
         FALCOR_THROW("SceneDebugger requires Shader Model 6.5 support.");
 
     mFrameIndex = 0;
+
+    mMovement[Input::Key::Right] = false;
+    mMovement[Input::Key::Up] = false;
+    mMovement[Input::Key::Down] = false;
+    mMovement[Input::Key::Left] = false;
+    mMovement[Input::Key::R] = false;
+
+    mIsMoving = false;
 }
 
 RenderPassReflection SurfelGenPass::reflect(const CompileData& compileData)
@@ -56,9 +64,10 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
         auto var = mpComputePass->getRootVar();
         auto& dict = renderData.getDictionary();
 
+        if (mIsMoving)
         {
             const AnimationController* pAnimationController = mpScene->getAnimationController();
-            const GeometryInstanceData& instance = mpScene->getGeometryInstance(157);
+            const GeometryInstanceData& instance = mpScene->getGeometryInstance(83);
             const float4x4& instanceTransform = pAnimationController->getGlobalMatrices()[instance.globalMatrixID];
 
             float3 scale;
@@ -68,12 +77,21 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
             float4 perspective;
             math::decompose(instanceTransform, scale, rotation, translation, skew, perspective);
 
-            Transform finalTranform;
-            finalTranform.setTranslation(translation);
-            finalTranform.setRotationEulerDeg(float3(0, (float)mFrameIndex * 0.01f, 0));
-            finalTranform.setScaling(scale);
+            float speed = 0.001f;
+            float3 tDelta = float3(
+                mMovement[Input::Key::Right] ? speed : mMovement[Input::Key::Left] ? -speed : 0,
+                0,
+                mMovement[Input::Key::Up] ? -speed : mMovement[Input::Key::Down] ? speed : 0
+            );
 
-            mpScene->updateNodeTransform(instance.globalMatrixID, finalTranform.getMatrix());
+            float3 rDelta = float3(0, mMovement[Input::Key::R] ? speed * 4 : 0, 0);
+
+            Transform finalTransform;
+            finalTransform.setTranslation(translation + tDelta);
+            finalTransform.setRotationEuler(float3(0, yaw(rotation), 0) + rDelta);
+            finalTransform.setScaling(scale);
+
+            mpScene->updateNodeTransform(instance.globalMatrixID, finalTransform.getMatrix());
         }
 
         mpScene->setRaytracingShaderData(pRenderContext, var);
@@ -127,4 +145,12 @@ void SurfelGenPass::setScene(RenderContext* pRenderContext, const ref<Scene>& pS
             mpDevice, "RenderPasses/Surfel/SurfelGenPass/SurfelGenPass.cs.slang", "csMain", mpScene->getSceneDefines()
         );
     }
+}
+
+bool SurfelGenPass::onKeyEvent(const KeyboardEvent& keyEvent)
+{
+    mIsMoving = keyEvent.type != KeyboardEvent::Type::KeyReleased;
+    mMovement[keyEvent.key] = mIsMoving;
+
+    return false;
 }
