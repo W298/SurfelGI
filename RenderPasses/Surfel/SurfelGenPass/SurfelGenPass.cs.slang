@@ -102,8 +102,8 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
     }
 
     // Visualize
-    float3 blendedColor = float3(0, 0, 0);
-    uint blendedCount = 0;
+    float3 topColor = float3(0, 0, 0);
+    uint top = 0;
 
     for (uint i = 0; i < cellInfo.surfelCount; ++i)
     {
@@ -120,12 +120,14 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
             float dotN = dot(gNormal[pixelPos].xyz, normal);
             if (dotN > 0)
             {
-                blendedColor += surfel.color;
-                blendedCount++;
+                if (surfelIndex > top)
+                {
+                    topColor = surfel.color;
+                    top = surfelIndex;
+                }
             }
         }
     }
 
-    blendedColor /= max(1, blendedCount);
-    gOutput[pixelPos] = float4(blendedColor, 1);
+    gOutput[pixelPos] = float4(topColor, 1);
 }
