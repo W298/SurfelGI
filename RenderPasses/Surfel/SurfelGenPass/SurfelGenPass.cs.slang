@@ -16,7 +16,9 @@ cbuffer CB
 }
 
 RWStructuredBuffer<Surfel> gSurfelBuffer;
-RWByteAddressBuffer gSurfelStatus;
+RWStructuredBuffer<uint> gSurfelFreeIndexBuffer;
+RWStructuredBuffer<uint> gSurfelValidIndexBuffer;
+RWByteAddressBuffer gSurfelCounter;
 RWStructuredBuffer<CellInfo> gCellInfoBuffer;
 RWStructuredBuffer<uint> gCellToSurfelBuffer;
 
@@ -75,27 +77,31 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
 
             if (getNextFloat(randomState) < chance * kChaneMultiply)
             {
-                uint aliveCount;
-                gSurfelStatus.InterlockedAdd(kSurfelStatus_TotalSurfelCount, 1, aliveCount);
+                int freeSurfelCount;
+                gSurfelCounter.InterlockedAdd(SURFEL_COUNTER_FREE_SURFEL, -1, freeSurfelCount);
 
-                if (aliveCount < kTotalSurfelLimit)
+                if (0 < freeSurfelCount && freeSurfelCount <= kTotalSurfelLimit)
                 {
-                    float3 normal = gNormal[pixelPos].xyz;
-                    float3 randomColor = getNextFloat3(randomState);
+                    uint validSurfelCount;
+                    gSurfelCounter.InterlockedAdd(SURFEL_COUNTER_VALID_SURFEL, 1, validSurfelCount);
 
-                    Surfel newSurfel = {
-                        worldPos,
-                        normal,
-                        randomColor,
-                        getPixelInfo(pixelPos)
-                    };
+                    if (validSurfelCount < kTotalSurfelLimit)
+                    {
+                        uint newIndex = gSurfelFreeIndexBuffer[freeSurfelCount - 1];
 
-                    gSurfelBuffer[aliveCount] = newSurfel;
-                }
-                else
-                {
-                    // #TODO
-                    gSurfelStatus.InterlockedAdd(kSurfelStatus_TotalSurfelCount, -1, aliveCount);
+                        float3 normal = gNormal[pixelPos].xyz;
+                        float3 randomColor = getNextFloat3(randomState);
+
+                        Surfel newSurfel = {
+                            worldPos,
+                            normal,
+                            randomColor,
+                            getPixelInfo(pixelPos)
+                        };
+
+                        gSurfelValidIndexBuffer[validSurfelCount] = newIndex;
+                        gSurfelBuffer[newIndex] = newSurfel;
+                    }
                 }
             }
         }

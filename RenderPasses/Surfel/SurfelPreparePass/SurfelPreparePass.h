@@ -27,7 +27,9 @@ public:
 
 private:
     void createSurfelBuffer(Dictionary& dict);
-    void createSurfelStatus(Dictionary& dict);
+    void createSurfelFreeIndexBuffer(Dictionary& dict);
+    void createSurfelValidIndexBuffer(Dictionary& dict);
+    void createSurfelCounter(Dictionary& dict);
     void createCellInfoBuffer(Dictionary& dict);
     void createCellToSurfelBuffer(Dictionary& dict);
 

@@ -27,9 +27,12 @@ public:
 
 private:
     ref<Scene> mpScene;
+    ref<Fence> mpFence;
     ref<ComputePass> mpComputePass;
     uint mFrameIndex;
-    uint mNumSurfels;
+
+    ref<Buffer> mReadBackBuffer;
+    bool mReadBackValid;
 
     std::unordered_map<Input::Key, bool> mMovement;
     bool mIsMoving;

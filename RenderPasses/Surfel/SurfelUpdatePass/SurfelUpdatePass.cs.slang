@@ -9,7 +9,8 @@ cbuffer CB
 }
 
 RWStructuredBuffer<Surfel> gSurfelBuffer;
-RWByteAddressBuffer gSurfelStatus;
+RWStructuredBuffer<uint> gSurfelValidIndexBuffer;
+RWByteAddressBuffer gSurfelCounter;
 RWStructuredBuffer<CellInfo> gCellInfoBuffer;
 RWStructuredBuffer<uint> gCellToSurfelBuffer;
 
@@ -17,11 +18,11 @@ RWStructuredBuffer<uint> gCellToSurfelBuffer;
 [numthreads(32, 1, 1)]
 void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
 {
-    uint totalSurfelCount = gSurfelStatus.Load(kSurfelStatus_TotalSurfelCount);
-    if (dispatchThreadId.x >= totalSurfelCount)
+    uint vaildSurfelCount = gSurfelCounter.Load(SURFEL_COUNTER_VALID_SURFEL);
+    if (dispatchThreadId.x >= vaildSurfelCount)
         return;
 
-    uint surfelIndex = dispatchThreadId.x;
+    uint surfelIndex = gSurfelValidIndexBuffer[dispatchThreadId.x];
     Surfel surfel = gSurfelBuffer[surfelIndex];
 
     // Update surfel position and normal.
@@ -59,8 +60,8 @@ void accumulateCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
         return;
 
     // Calculate offsets.
-    gSurfelStatus.InterlockedAdd(
-        kSurfelStatus_CellCount,
+    gSurfelCounter.InterlockedAdd(
+        SURFEL_COUNTER_CELL,
         gCellInfoBuffer[flattenIndex].surfelCount,
         gCellInfoBuffer[flattenIndex].cellToSurfelBufferOffset
     );
@@ -73,11 +74,11 @@ void accumulateCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
 [numthreads(32, 1, 1)]
 void updateCellToSurfelBuffer(uint3 dispatchThreadId: SV_DispatchThreadID)
 {
-    uint totalSurfelCount = gSurfelStatus.Load(kSurfelStatus_TotalSurfelCount);
-    if (dispatchThreadId.x >= totalSurfelCount)
+    uint vaildSurfelCount = gSurfelCounter.Load(SURFEL_COUNTER_VALID_SURFEL);
+    if (dispatchThreadId.x >= vaildSurfelCount)
         return;
 
-    uint surfelIndex = dispatchThreadId.x;
+    uint surfelIndex = gSurfelValidIndexBuffer[dispatchThreadId.x];
     Surfel surfel = gSurfelBuffer[surfelIndex];
 
     int3 cellPos = getCellPos(surfel.position, gCameraPos);

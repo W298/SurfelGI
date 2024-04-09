@@ -31,7 +31,8 @@ void SurfelUpdatePass::execute(RenderContext* pRenderContext, const RenderData& 
         var["CB"]["gCameraPos"] = mpScene->getCamera()->getPosition();
 
         var["gSurfelBuffer"] = dict.getValue<ref<Buffer>>("surfelBuffer");
-        var["gSurfelStatus"] = dict.getValue<ref<Buffer>>("surfelStatus");
+        var["gSurfelValidIndexBuffer"] = dict.getValue<ref<Buffer>>("surfelValidIndexBuffer");
+        var["gSurfelCounter"] = dict.getValue<ref<Buffer>>("surfelCounter");
         var["gCellInfoBuffer"] = dict.getValue<ref<Buffer>>("cellInfoBuffer");
 
         mpCollectCellInfoPass->execute(pRenderContext, uint3(kTotalSurfelLimit, 1, 1));
@@ -43,7 +44,7 @@ void SurfelUpdatePass::execute(RenderContext* pRenderContext, const RenderData& 
 
         var["CB"]["gCameraPos"] = mpScene->getCamera()->getPosition();
 
-        var["gSurfelStatus"] = dict.getValue<ref<Buffer>>("surfelStatus");
+        var["gSurfelCounter"] = dict.getValue<ref<Buffer>>("surfelCounter");
         var["gCellInfoBuffer"] = dict.getValue<ref<Buffer>>("cellInfoBuffer");
 
         mpAccumulateCellInfoPass->execute(pRenderContext, uint3(kCellCount, 1, 1));
@@ -56,7 +57,8 @@ void SurfelUpdatePass::execute(RenderContext* pRenderContext, const RenderData& 
         var["CB"]["gCameraPos"] = mpScene->getCamera()->getPosition();
 
         var["gSurfelBuffer"] = dict.getValue<ref<Buffer>>("surfelBuffer");
-        var["gSurfelStatus"] = dict.getValue<ref<Buffer>>("surfelStatus");
+        var["gSurfelValidIndexBuffer"] = dict.getValue<ref<Buffer>>("surfelValidIndexBuffer");
+        var["gSurfelCounter"] = dict.getValue<ref<Buffer>>("surfelCounter");
         var["gCellInfoBuffer"] = dict.getValue<ref<Buffer>>("cellInfoBuffer");
         var["gCellToSurfelBuffer"] = dict.getValue<ref<Buffer>>("cellToSurfelBuffer");
 

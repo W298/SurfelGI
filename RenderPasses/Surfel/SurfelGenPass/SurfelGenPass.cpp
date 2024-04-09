@@ -9,7 +9,14 @@ SurfelGenPass::SurfelGenPass(ref<Device> pDevice, const Properties& props) : Ren
     if (!mpDevice->isShaderModelSupported(ShaderModel::SM6_5))
         FALCOR_THROW("SceneDebugger requires Shader Model 6.5 support.");
 
+    mpFence = mpDevice->createFence();
+
     mFrameIndex = 0;
+
+    mReadBackBuffer = mpDevice->createBuffer(
+        sizeof(uint) * _countof(kInitialStatus), ResourceBindFlags::None, MemoryType::ReadBack, nullptr
+    );
+    mReadBackValid = false;
 
     mMovement[Input::Key::Right] = false;
     mMovement[Input::Key::Up] = false;
@@ -49,6 +56,8 @@ RenderPassReflection SurfelGenPass::reflect(const CompileData& compileData)
 
 void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& renderData)
 {
+    mReadBackValid = false;
+
     const auto& pDepth = renderData.getTexture("depth");
     const auto& pNormal = renderData.getTexture("normal");
     const auto& pCoverage = renderData.getTexture("coverage");
@@ -64,6 +73,7 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
     {
         auto var = mpComputePass->getRootVar();
         auto& dict = renderData.getDictionary();
+        ref<Buffer> surfelCounter = dict.getValue<ref<Buffer>>("surfelCounter");
 
         if (mIsMoving)
         {
@@ -103,11 +113,9 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
         var["CB"]["gCameraPos"] = mpScene->getCamera()->getPosition();
 
         var["gSurfelBuffer"] = dict.getValue<ref<Buffer>>("surfelBuffer");
-
-        ref<Buffer> surfelStatus = dict.getValue<ref<Buffer>>("surfelStatus");
-        mNumSurfels = surfelStatus->getElement<uint>(kSurfelStatus_TotalSurfelCount);
-        var["gSurfelStatus"] = surfelStatus;
-
+        var["gSurfelFreeIndexBuffer"] = dict.getValue<ref<Buffer>>("surfelFreeIndexBuffer");
+        var["gSurfelValidIndexBuffer"] = dict.getValue<ref<Buffer>>("surfelValidIndexBuffer");
+        var["gSurfelCounter"] = surfelCounter;
         var["gCellInfoBuffer"] = dict.getValue<ref<Buffer>>("cellInfoBuffer");
         var["gCellToSurfelBuffer"] = dict.getValue<ref<Buffer>>("cellToSurfelBuffer");
 
@@ -120,6 +128,12 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
 
         pRenderContext->clearUAV(pOutput->getUAV().get(), float4(0));
         mpComputePass->execute(pRenderContext, uint3(resolution, 1));
+
+        pRenderContext->copyResource(mReadBackBuffer.get(), surfelCounter.get());
+        pRenderContext->submit(false);
+        pRenderContext->signal(mpFence.get());
+
+        mReadBackValid = true;
     }
 
     mFrameIndex++;
@@ -128,7 +142,13 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
 void SurfelGenPass::renderUI(Gui::Widgets& widget)
 {
     widget.text("Frame index\t\t" + std::to_string(mFrameIndex));
-    widget.text("Num surfels\t\t" + std::to_string(mNumSurfels));
+
+    if (mReadBackValid)
+    {
+        widget.text("Valid surfel count\t\t" + std::to_string(mReadBackBuffer->getElement<uint>(0)));
+        widget.text("Free surfel count\t\t" + std::to_string(mReadBackBuffer->getElement<int>(1)));
+        widget.text("Valid cell count\t\t" + std::to_string(mReadBackBuffer->getElement<uint>(2)));
+    }
 
     widget.dummy("#spacer0", {1, 20});
 
