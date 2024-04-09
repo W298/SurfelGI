@@ -31,6 +31,7 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
 
     surfel.position = data.posW;
     surfel.normal = data.normalW;
+    surfel.radius = getRadius(distance(gScene.camera.getPosition(), surfel.position));
 
     // Calculate number of surfels located at cell.
     int3 cellPos = getCellPos(surfel.position, gCameraPos);

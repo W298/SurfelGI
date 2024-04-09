@@ -155,7 +155,6 @@ void SurfelGenPass::renderUI(Gui::Widgets& widget)
     widget.text("Total surfel limit\t\t" + std::to_string(kTotalSurfelLimit));
     widget.text("Per cell surfel limit\t\t" + std::to_string(kPerCellSurfelLimit));
     widget.text("Coverage threshold\t\t" + std::to_string(kCoverageThreshold));
-    widget.text("Surfel radius\t\t" + std::to_string(kSurfelRadius));
 }
 
 void SurfelGenPass::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)

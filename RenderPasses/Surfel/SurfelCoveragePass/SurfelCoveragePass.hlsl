@@ -18,6 +18,7 @@ Texture2D<float> gDepth;
 Texture2D<float4> gNormal;
 
 RWTexture2D<uint> gCoverage;
+RWTexture2D<float4> gDebug;
 
 groupshared uint groupShareMinCoverage;
 
@@ -55,7 +56,7 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex : SV_Gr
         float3 bias = worldPos - surfel.position;
         float dist2 = dot(bias, bias);
 
-        if (dist2 < kSurfelRadius * kSurfelRadius)
+        if (dist2 < surfel.radius * surfel.radius)
         {
             float3 normal = normalize(surfel.normal);
 
@@ -66,12 +67,14 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex : SV_Gr
                 float contribution = 1.f;
 
                 contribution *= saturate(dotN);
-                contribution *= saturate(1 - dist / kSurfelRadius);
+                contribution *= saturate(1 - dist / surfel.radius);
                 contribution = smoothstep(0, 1, contribution);
                 coverage += contribution;
             }
         }
     }
+
+    gDebug[pixelPos] = float4(step(1, coverage), step(coverage, 1), 0, 1);
 
     RandomState randomState = initRandomState(pixelPos, gFrameIndex);
 

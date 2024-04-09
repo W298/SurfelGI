@@ -27,6 +27,10 @@ target_sources(Surfel PRIVATE
     SurfelGenPass/SurfelGenPass.cpp
     SurfelGenPass/SurfelGenPass.h
     SurfelGenPass/SurfelGenPass.cs.slang
+
+    SurfelDebugPass/SurfelDebugPass.cpp
+    SurfelDebugPass/SurfelDebugPass.h
+    SurfelDebugPass/SurfelDebugPass.3d.slang
 )
 
 target_copy_shaders(Surfel RenderPasses/Surfel)

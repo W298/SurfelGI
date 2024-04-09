@@ -27,6 +27,10 @@ RenderPassReflection SurfelCoveragePass::reflect(const CompileData& compileData)
         .bindFlags(ResourceBindFlags::UnorderedAccess)
         .texture2D(compileData.defaultTexDims.x / kTileSize.x, compileData.defaultTexDims.y / kTileSize.y);
 
+    reflector.addOutput("debug", "debug texture")
+        .format(ResourceFormat::RGBA32Float)
+        .bindFlags(ResourceBindFlags::UnorderedAccess);
+
     return reflector;
 }
 
@@ -36,8 +40,9 @@ void SurfelCoveragePass::execute(RenderContext* pRenderContext, const RenderData
     const auto& pNormal = renderData.getTexture("normal");
 
     const auto& pCoverage = renderData.getTexture("coverage");
+    const auto& pDebug = renderData.getTexture("debug");
 
-    FALCOR_ASSERT(pDepth && pNormal && pCoverage);
+    FALCOR_ASSERT(pDepth && pNormal && pCoverage && pDebug);
 
     const uint2 resolution = uint2(pDepth->getWidth(), pDepth->getHeight());
 
@@ -59,8 +64,10 @@ void SurfelCoveragePass::execute(RenderContext* pRenderContext, const RenderData
         var["gNormal"] = pNormal;
 
         var["gCoverage"] = pCoverage;
+        var["gDebug"] = pDebug;
 
         pRenderContext->clearUAV(pCoverage->getUAV().get(), uint4(0));
+        pRenderContext->clearUAV(pDebug->getUAV().get(), float4(0));
         mpComputePass->execute(pRenderContext, uint3(resolution, 1));
     }
 

@@ -44,6 +44,12 @@ float3 unProject(float2 uv, float depth, float4x4 invViewProj)
     return pos.xyz / pos.w;
 }
 
+float getRadius(float distance)
+{
+    float s = smoothstep(kCellUnit, kCellUnit * kCellDimension.x / 2, distance);
+    return lerp(kSurfelRadiusRange.x, kSurfelRadiusRange.y, s);
+}
+
 int3 getCellPos(float3 posW, float3 cameraPosW)
 {
     float3 posC = posW - cameraPosW;
@@ -79,7 +85,7 @@ bool isSurfelIntersectCell(Surfel surfel, int3 cellPos, float3 cameraPosW)
     float3 closePoint = min(max(surfel.position, minPosW), maxPosW);
 
     float dist = distance(closePoint, surfel.position);
-    return dist < kSurfelRadius;
+    return dist < surfel.radius;
 }
 
 float3 pseudocolor(uint value)

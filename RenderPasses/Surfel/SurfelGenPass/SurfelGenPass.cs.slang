@@ -91,10 +91,12 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
 
                         float3 normal = gNormal[pixelPos].xyz;
                         float3 randomColor = getNextFloat3(randomState);
+                        float radius = getRadius(distance(gScene.camera.getPosition(), worldPos));
 
                         Surfel newSurfel = {
                             worldPos,
                             normal,
+                            radius,
                             randomColor,
                             getPixelInfo(pixelPos)
                         };
@@ -119,7 +121,7 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
         float3 bias = worldPos - surfel.position;
         float dist2 = dot(bias, bias);
 
-        if (dist2 < kSurfelRadius * kSurfelRadius)
+        if (dist2 < surfel.radius * surfel.radius)
         {
             float3 normal = normalize(surfel.normal);
 
