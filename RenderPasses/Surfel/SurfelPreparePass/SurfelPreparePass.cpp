@@ -60,13 +60,15 @@ void SurfelPreparePass::createSurfelBuffer(Dictionary& dict)
 
 void SurfelPreparePass::createSurfelFreeIndexBuffer(Dictionary& dict)
 {
-    uint freeIndexBuffer[kTotalSurfelLimit];
-    std::iota(std::begin(freeIndexBuffer), std::end(freeIndexBuffer), 0);
+    uint* freeIndexBuffer = new uint[kTotalSurfelLimit];
+    std::iota(freeIndexBuffer, freeIndexBuffer + kTotalSurfelLimit, 0);
 
     const ref<Buffer> surfelFreeIndexBuffer = mpDevice->createStructuredBuffer(
         sizeof(uint), kTotalSurfelLimit, ResourceBindFlags::UnorderedAccess, MemoryType::DeviceLocal, freeIndexBuffer, false
     );
     dict["surfelFreeIndexBuffer"] = surfelFreeIndexBuffer;
+
+    delete[] freeIndexBuffer;
 }
 
 void SurfelPreparePass::createSurfelValidIndexBuffer(Dictionary& dict)
