@@ -1,6 +1,7 @@
 #include "SurfelGenPass.h"
 #include "../RenderPasses/Surfel/SurfelTypes.hlsli"
 #include "RenderGraph/RenderPassHelpers.h"
+#include "Utils/Math/FalcorMath.h"
 
 SurfelGenPass::SurfelGenPass(ref<Device> pDevice, const Properties& props) : RenderPass(pDevice)
 {
@@ -13,7 +14,7 @@ SurfelGenPass::SurfelGenPass(ref<Device> pDevice, const Properties& props) : Ren
 
     mFrameIndex = 0;
 
-    mReadBackBuffer = mpDevice->createBuffer(
+    mpReadBackBuffer = mpDevice->createBuffer(
         sizeof(uint) * _countof(kInitialStatus), ResourceBindFlags::None, MemoryType::ReadBack, nullptr
     );
     mReadBackValid = false;
@@ -108,6 +109,8 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
 
         var["CB"]["gResolution"] = resolution;
         var["CB"]["gInvResolution"] = float2(1.f / resolution.x, 1.f / resolution.y);
+        var["CB"]["gFOVy"] = mFOVy;
+        
         var["CB"]["gInvViewProj"] = mpScene->getCamera()->getInvViewProjMatrix();
         var["CB"]["gFrameIndex"] = mFrameIndex;
         var["CB"]["gCameraPos"] = mpScene->getCamera()->getPosition();
@@ -129,7 +132,7 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
         pRenderContext->clearUAV(pOutput->getUAV().get(), float4(0));
         mpComputePass->execute(pRenderContext, uint3(resolution, 1));
 
-        pRenderContext->copyResource(mReadBackBuffer.get(), surfelCounter.get());
+        pRenderContext->copyResource(mpReadBackBuffer.get(), surfelCounter.get());
         pRenderContext->submit(false);
         pRenderContext->signal(mpFence.get());
 
@@ -145,9 +148,9 @@ void SurfelGenPass::renderUI(Gui::Widgets& widget)
 
     if (mReadBackValid)
     {
-        widget.text("Valid surfel count\t\t" + std::to_string(mReadBackBuffer->getElement<uint>(0)));
-        widget.text("Free surfel count\t\t" + std::to_string(mReadBackBuffer->getElement<int>(1)));
-        widget.text("Valid cell count\t\t" + std::to_string(mReadBackBuffer->getElement<uint>(2)));
+        widget.text("Valid surfel count\t\t" + std::to_string(mpReadBackBuffer->getElement<uint>(0)));
+        widget.text("Free surfel count\t\t" + std::to_string(mpReadBackBuffer->getElement<int>(1)));
+        widget.text("Valid cell count\t\t" + std::to_string(mpReadBackBuffer->getElement<uint>(2)));
     }
 
     widget.dummy("#spacer0", {1, 20});
@@ -166,6 +169,8 @@ void SurfelGenPass::setScene(RenderContext* pRenderContext, const ref<Scene>& pS
         mpComputePass = ComputePass::create(
             mpDevice, "RenderPasses/Surfel/SurfelGenPass/SurfelGenPass.cs.slang", "csMain", mpScene->getSceneDefines()
         );
+
+        mFOVy = focalLengthToFovY(mpScene->getCamera()->getFocalLength(), mpScene->getCamera()->getFrameHeight());
     }
 }
 

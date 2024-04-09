@@ -1,5 +1,6 @@
 #include "SurfelUpdatePass.h"
 #include "../RenderPasses/Surfel/SurfelTypes.hlsli"
+#include "Utils/Math/FalcorMath.h"
 
 SurfelUpdatePass::SurfelUpdatePass(ref<Device> pDevice, const Properties& props) : RenderPass(pDevice)
 {
@@ -29,6 +30,8 @@ void SurfelUpdatePass::execute(RenderContext* pRenderContext, const RenderData& 
         mpScene->setRaytracingShaderData(pRenderContext, var);
 
         var["CB"]["gCameraPos"] = mpScene->getCamera()->getPosition();
+        var["CB"]["gResolution"] = renderData.getDefaultTextureDims();
+        var["CB"]["gFOVy"] = mFOVy;
 
         var["gSurfelBuffer"] = dict.getValue<ref<Buffer>>("surfelBuffer");
         var["gSurfelValidIndexBuffer"] = dict.getValue<ref<Buffer>>("surfelValidIndexBuffer");
@@ -92,5 +95,7 @@ void SurfelUpdatePass::setScene(RenderContext* pRenderContext, const ref<Scene>&
             "updateCellToSurfelBuffer",
             mpScene->getSceneDefines()
         );
+
+        mFOVy = focalLengthToFovY(mpScene->getCamera()->getFocalLength(), mpScene->getCamera()->getFrameHeight());
     }
 }

@@ -25,11 +25,6 @@ DirectIlluminationPass::DirectIlluminationPass(ref<Device> pDevice, const Proper
 
     // Create FBO.
     mpFbo = Fbo::create(mpDevice);
-
-    // Create depth buffer.
-    mpDepth = pDevice->createTexture2D(
-        1920, 1080, ResourceFormat::D32Float, 1, Resource::kMaxPossible, nullptr, ResourceBindFlags::DepthStencil
-    );
 }
 
 RenderPassReflection DirectIlluminationPass::reflect(const CompileData& compileData)
@@ -47,6 +42,20 @@ void DirectIlluminationPass::execute(RenderContext* pRenderContext, const Render
     const auto& pOutput = renderData.getTexture("raster");
 
     FALCOR_ASSERT(pOutput);
+
+    if (!mpDepth)
+    {
+        // Create depth buffer.
+        mpDepth = mpDevice->createTexture2D(
+            renderData.getDefaultTextureDims().x,
+            renderData.getDefaultTextureDims().y,
+            ResourceFormat::D32Float,
+            1,
+            Resource::kMaxPossible,
+            nullptr,
+            ResourceBindFlags::DepthStencil
+        );
+    }
 
     mpFbo->attachColorTarget(pOutput, 0);
     mpFbo->attachDepthStencilTarget(mpDepth);

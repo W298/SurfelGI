@@ -31,4 +31,7 @@ private:
     ref<ComputePass> mpCollectCellInfoPass;
     ref<ComputePass> mpAccumulateCellInfoPass;
     ref<ComputePass> mpUpdateCellToSurfelBuffer;
+
+    uint2 mResolution;
+    float mFOVy;
 };

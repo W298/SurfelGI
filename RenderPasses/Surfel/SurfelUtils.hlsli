@@ -1,6 +1,8 @@
 #ifndef SURFEL_UTILS_H
 #define SURFEL_UTILS_H
 
+#define PI 3.14159265f
+
 #include "SurfelTypes.hlsli"
 #include "HashUtils.hlsli"
 
@@ -44,10 +46,27 @@ float3 unProject(float2 uv, float depth, float4x4 invViewProj)
     return pos.xyz / pos.w;
 }
 
-float getRadius(float distance)
+float calcProjectArea(float radius, float distance, float fovy, uint2 resolution)
 {
-    float s = smoothstep(kCellUnit, kCellUnit * kCellDimension.x / 2, distance);
-    return lerp(kSurfelRadiusRange.x, kSurfelRadiusRange.y, s);
+    float projRadius = atan(radius / distance) * max(resolution.x, resolution.y) / fovy;
+    return PI * projRadius * projRadius;
+}
+
+float calcRadiusApprox(float area, float distance, float fovy, uint2 resolution)
+{
+    return distance * tan(sqrt(area / PI) * fovy / max(resolution.x, resolution.y));
+}
+
+float calcRadius(float area, float distance, float fovy, uint2 resolution)
+{
+    float cosTheta = 1 - (area * (1 - cos(fovy / 2)) / PI) / (resolution.x * resolution.y);
+    float sinTheta = sqrt(1 - pow(cosTheta, 2));
+    return distance * sinTheta;
+}
+
+float calcSurfelRadius(float distance, float fovy, uint2 resolution)
+{
+    return min(calcRadiusApprox(kSurfelTargetArea, distance, fovy, resolution), kCellUnit);
 }
 
 int3 getCellPos(float3 posW, float3 cameraPosW)

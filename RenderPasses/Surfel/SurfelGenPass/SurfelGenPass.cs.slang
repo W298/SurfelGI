@@ -10,6 +10,7 @@ cbuffer CB
 {
     uint2 gResolution;
     float2 gInvResolution;
+    float gFOVy;
     float4x4 gInvViewProj;
     uint gFrameIndex;
     float3 gCameraPos;
@@ -91,7 +92,11 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
 
                         float3 normal = gNormal[pixelPos].xyz;
                         float3 randomColor = getNextFloat3(randomState);
-                        float radius = getRadius(distance(gScene.camera.getPosition(), worldPos));
+                        float radius = calcSurfelRadius(
+                            distance(gScene.camera.getPosition(), worldPos),
+                            gFOVy,
+                            gResolution
+                        );
 
                         Surfel newSurfel = {
                             worldPos,

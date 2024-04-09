@@ -31,7 +31,9 @@ private:
     ref<ComputePass> mpComputePass;
     uint mFrameIndex;
 
-    ref<Buffer> mReadBackBuffer;
+    float mFOVy;
+
+    ref<Buffer> mpReadBackBuffer;
     bool mReadBackValid;
 
     std::unordered_map<Input::Key, bool> mMovement;

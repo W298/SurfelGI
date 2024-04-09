@@ -6,6 +6,8 @@ import Scene.Scene;
 cbuffer CB
 {
     float3 gCameraPos;
+    uint2 gResolution;
+    float gFOVy;
 }
 
 RWStructuredBuffer<Surfel> gSurfelBuffer;
@@ -31,7 +33,11 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
 
     surfel.position = data.posW;
     surfel.normal = data.normalW;
-    surfel.radius = getRadius(distance(gScene.camera.getPosition(), surfel.position));
+    surfel.radius = calcSurfelRadius(
+        distance(gScene.camera.getPosition(), surfel.position),
+        gFOVy,
+        gResolution
+    );
 
     // Calculate number of surfels located at cell.
     int3 cellPos = getCellPos(surfel.position, gCameraPos);
