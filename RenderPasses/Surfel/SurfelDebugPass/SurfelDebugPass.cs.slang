@@ -12,8 +12,11 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex : SV_Gr
 {
     uint2 pixelPos = dispatchThreadId.xy;
 
-    float3 color = gInstanceIDVisual[pixelPos].xyz;
-    float strength = clamp(length(gSurfel[pixelPos].xyz), 0.01f, 0.99f);
+    float3 surfelColor = gSurfel[pixelPos].xyz;
+    float3 instanceColor = gInstanceIDVisual[pixelPos].xyz;
 
-    gDebug[pixelPos] = float4(color * strength, 1);
+    float strength = clamp(length(surfelColor), 0.01f, 0.99f);
+    float3 combine = 0.95f * (instanceColor * strength) + 0.05f * surfelColor;
+
+    gDebug[pixelPos] = float4(combine, 1);
 }

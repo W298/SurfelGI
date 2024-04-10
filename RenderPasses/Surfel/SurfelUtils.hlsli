@@ -69,7 +69,7 @@ float calcSurfelRadius(float distance, float fovy, uint2 resolution)
 #if VARIABLE_SURFEL_RADIUS
     return min(calcRadiusApprox(kSurfelTargetArea, distance, fovy, resolution), kCellUnit);
 #else
-    return 0.008f;
+    return kSurfelStaticRadius;
 #endif
 }
 

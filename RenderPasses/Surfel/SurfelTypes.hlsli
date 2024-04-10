@@ -14,6 +14,7 @@ static const uint kPerCellSurfelLimit = 64;
 static const uint kChancePower = 8;
 static const float kChaneMultiply = 1.0f;
 static const float kCoverageThreshold = 1e-12f;
+static const float kSurfelStaticRadius = 0.008f;
 static const float kSurfelTargetArea = 420.0f;
 static const float kCellUnit = 0.02f;
 static const uint3 kCellDimension = uint3(400, 400, 400);
