@@ -61,7 +61,7 @@ void DirectIlluminationPass::execute(RenderContext* pRenderContext, const Render
     mpFbo->attachDepthStencilTarget(mpDepth);
 
     pRenderContext->clearDsv(mpDepth->getDSV().get(), 1.f, 0);
-    pRenderContext->clearFbo(mpFbo.get(), float4(0.2f, 0.2f, 0.2f, 1.f), 1.f, 0, FboAttachmentType::Color);
+    pRenderContext->clearFbo(mpFbo.get(), float4(0.12f, 0.12f, 0.12f, 1.f), 1.f, 0, FboAttachmentType::Color);
 
     mpState->setFbo(mpFbo);
 

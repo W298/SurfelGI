@@ -66,7 +66,11 @@ float calcRadius(float area, float distance, float fovy, uint2 resolution)
 
 float calcSurfelRadius(float distance, float fovy, uint2 resolution)
 {
+#if VARIABLE_SURFEL_RADIUS
     return min(calcRadiusApprox(kSurfelTargetArea, distance, fovy, resolution), kCellUnit);
+#else
+    return 0.008f;
+#endif
 }
 
 int3 getCellPos(float3 posW, float3 cameraPosW)

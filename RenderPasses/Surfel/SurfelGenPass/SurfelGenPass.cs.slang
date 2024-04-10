@@ -2,8 +2,6 @@
 #include "../SurfelTypes.hlsli"
 #include "../SurfelUtils.hlsli"
 
-#define USE_RAYTRACE 0
-
 import Scene.RaytracingInline;
 
 cbuffer CB
@@ -28,11 +26,11 @@ Texture2D<float4> gNormal;
 Texture2D<uint> gCoverage;
 Texture2D<uint4> gPackedHitInfo;
 
-RWTexture2D<float4> gOutput;
+RWTexture2D<float4> gSurfel;
 
 uint4 getPixelInfo(uint2 pixelPos)
 {
-#if USE_RAYTRACE
+#if USE_RAYTRACE_AS_PRIMITIVE_PICK
     const Ray ray = gScene.camera.computeRayPinhole(pixelPos, gResolution);
     SceneRayQuery<0> sceneRayQuery;
 
@@ -117,6 +115,7 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
     // Visualize
     float3 topColor = float3(0, 0, 0);
     uint top = 0;
+    bool noSurfel = true;
 
     for (uint i = 0; i < cellInfo.surfelCount; ++i)
     {
@@ -137,10 +136,11 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
                 {
                     topColor = surfel.color;
                     top = surfelIndex;
+                    noSurfel = false;
                 }
             }
         }
     }
 
-    gOutput[pixelPos] = float4(topColor, 1);
+    gSurfel[pixelPos] = float4(topColor, noSurfel ? 0 : 1);
 }

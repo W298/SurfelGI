@@ -30,7 +30,7 @@ target_sources(Surfel PRIVATE
 
     SurfelDebugPass/SurfelDebugPass.cpp
     SurfelDebugPass/SurfelDebugPass.h
-    SurfelDebugPass/SurfelDebugPass.3d.slang
+    SurfelDebugPass/SurfelDebugPass.cs.slang
 )
 
 target_copy_shaders(Surfel RenderPasses/Surfel)

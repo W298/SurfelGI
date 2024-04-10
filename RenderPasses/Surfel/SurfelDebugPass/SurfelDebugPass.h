@@ -1,14 +1,13 @@
 #pragma once
 #include "Falcor.h"
 #include "RenderGraph/RenderPass.h"
-#include "RenderGraph/RenderPassHelpers.h"
 
 using namespace Falcor;
 
 class SurfelDebugPass : public RenderPass
 {
 public:
-    FALCOR_PLUGIN_CLASS(SurfelDebugPass, "SurfelDebugPass", "Surfel Debug Pass");
+    FALCOR_PLUGIN_CLASS(SurfelDebugPass, "SurfelDebugPass", "Surfel coverage pass");
 
     static ref<SurfelDebugPass> create(ref<Device> pDevice, const Properties& props)
     {
@@ -28,9 +27,6 @@ public:
 
 private:
     ref<Scene> mpScene;
-    ref<GraphicsState> mpState;
-    ref<RasterizerState> mpRasterState;
-    ref<Program> mpProgram;
-    ref<ProgramVars> mpVars;
-    ref<Fbo> mpFbo;
+    ref<ComputePass> mpComputePass;
+    uint mFrameIndex;
 };

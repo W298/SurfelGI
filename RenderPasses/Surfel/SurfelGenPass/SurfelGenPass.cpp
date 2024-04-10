@@ -48,7 +48,7 @@ RenderPassReflection SurfelGenPass::reflect(const CompileData& compileData)
         .bindFlags(ResourceBindFlags::ShaderResource);
 
     // Output
-    reflector.addOutput("output", "output texture")
+    reflector.addOutput("surfel", "surfel texture")
         .format(ResourceFormat::RGBA32Float)
         .bindFlags(ResourceBindFlags::UnorderedAccess);
 
@@ -64,9 +64,9 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
     const auto& pCoverage = renderData.getTexture("coverage");
     const auto& pPackedHitInfo = renderData.getTexture("packedHitInfo");
 
-    const auto& pOutput = renderData.getTexture("output");
+    const auto& pSurfel = renderData.getTexture("surfel");
 
-    FALCOR_ASSERT(pDepth && pNormal && pCoverage && pOutput);
+    FALCOR_ASSERT(pDepth && pNormal && pCoverage && pPackedHitInfo && pSurfel);
 
     uint2 resolution = uint2(pDepth->getWidth(), pDepth->getHeight());
 
@@ -95,8 +95,6 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
             float dz = mMovement[Input::Key::Up] ? -speed : mMovement[Input::Key::Down] ? speed : 0;
             float3 tDelta = float3(dx, 0, dz);
 
-            float3 rDelta = float3(0, mMovement[Input::Key::R] ? speed * 4 : 0, 0);
-
             Transform finalTransform;
             finalTransform.setTranslation(translation + tDelta);
             finalTransform.setRotation(rotation);
@@ -110,7 +108,7 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
         var["CB"]["gResolution"] = resolution;
         var["CB"]["gInvResolution"] = float2(1.f / resolution.x, 1.f / resolution.y);
         var["CB"]["gFOVy"] = mFOVy;
-        
+
         var["CB"]["gInvViewProj"] = mpScene->getCamera()->getInvViewProjMatrix();
         var["CB"]["gFrameIndex"] = mFrameIndex;
         var["CB"]["gCameraPos"] = mpScene->getCamera()->getPosition();
@@ -127,9 +125,9 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
         var["gCoverage"] = pCoverage;
         var["gPackedHitInfo"] = pPackedHitInfo;
 
-        var["gOutput"] = pOutput;
+        var["gSurfel"] = pSurfel;
 
-        pRenderContext->clearUAV(pOutput->getUAV().get(), float4(0));
+        pRenderContext->clearUAV(pSurfel->getUAV().get(), float4(0));
         mpComputePass->execute(pRenderContext, uint3(resolution, 1));
 
         pRenderContext->copyResource(mpReadBackBuffer.get(), surfelCounter.get());

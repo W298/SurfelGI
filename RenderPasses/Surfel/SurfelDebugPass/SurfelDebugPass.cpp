@@ -2,58 +2,57 @@
 
 SurfelDebugPass::SurfelDebugPass(ref<Device> pDevice, const Properties& props) : RenderPass(pDevice)
 {
-    // Check for required features.
-    if (!mpDevice->isShaderModelSupported(ShaderModel::SM6_2))
-        FALCOR_THROW("requires Shader Model 6.2 support.");
-
-    // Init graphics state.
-    mpState = GraphicsState::create(mpDevice);
-
-    // Set rasterizer function.
-    RasterizerState::Desc desc;
-    desc.setFillMode(RasterizerState::FillMode::Wireframe);
-    desc.setCullMode(RasterizerState::CullMode::None);
-    mpRasterState = RasterizerState::create(desc);
-
-    mpState->setRasterizerState(mpRasterState);
-
-    // Create FBO.
-    mpFbo = Fbo::create(mpDevice);
+    // Check device feature support.
+    mpDevice = pDevice;
+    if (!mpDevice->isShaderModelSupported(ShaderModel::SM6_5))
+        FALCOR_THROW("SceneDebugger requires Shader Model 6.5 support.");
 }
 
 RenderPassReflection SurfelDebugPass::reflect(const CompileData& compileData)
 {
     RenderPassReflection reflector;
 
-    // Output depth
-    reflector.addOutput("depth", "depth buffer")
-        .format(ResourceFormat::D32Float)
-        .bindFlags(ResourceBindFlags::DepthStencil);
+    // Input
+    reflector.addInput("instanceIDVisual", "Instance ID Visualization")
+        .format(ResourceFormat::RGBA32Float)
+        .bindFlags(ResourceBindFlags::ShaderResource);
+    reflector.addInput("surfel", "surfel texture")
+        .format(ResourceFormat::RGBA32Float)
+        .bindFlags(ResourceBindFlags::ShaderResource);
 
-    // Output channels
+    // Output
     reflector.addOutput("debug", "debug texture")
         .format(ResourceFormat::RGBA32Float)
-        .bindFlags(ResourceBindFlags::RenderTarget);
+        .bindFlags(ResourceBindFlags::UnorderedAccess);
 
     return reflector;
 }
 
 void SurfelDebugPass::execute(RenderContext* pRenderContext, const RenderData& renderData)
 {
-    const auto& pDepth = renderData.getTexture("depth");
+    const auto& pInstanceIDVisual = renderData.getTexture("instanceIDVisual");
+    const auto& pSurfel = renderData.getTexture("surfel");
+   
     const auto& pDebug = renderData.getTexture("debug");
 
-    if (mpProgram)
+    FALCOR_ASSERT(pInstanceIDVisual && pSurfel && pDebug);
+
+    const uint2 resolution = uint2(pInstanceIDVisual->getWidth(), pInstanceIDVisual->getHeight());
+
+    if (mpComputePass)
     {
-        mpFbo->attachDepthStencilTarget(pDepth);
-        mpFbo->attachColorTarget(pDebug, 0);
+        auto var = mpComputePass->getRootVar();
 
-        pRenderContext->clearDsv(pDepth->getDSV().get(), 1.f, 0);
-        pRenderContext->clearFbo(mpFbo.get(), float4(0), 1.f, 0, FboAttachmentType::Color);
+        var["gInstanceIDVisual"] = pInstanceIDVisual;
+        var["gSurfel"] = pSurfel;
 
-        mpState->setFbo(mpFbo);
-        mpScene->rasterize(pRenderContext, mpState.get(), mpVars.get(), mpRasterState, mpRasterState);
+        var["gDebug"] = pDebug;
+
+        pRenderContext->clearUAV(pDebug->getUAV().get(), float4(0));
+        mpComputePass->execute(pRenderContext, uint3(resolution, 1));
     }
+
+    mFrameIndex++;
 }
 
 void SurfelDebugPass::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
@@ -62,16 +61,11 @@ void SurfelDebugPass::setScene(RenderContext* pRenderContext, const ref<Scene>& 
 
     if (mpScene)
     {
-        ProgramDesc desc;
-        desc.addShaderModules(mpScene->getShaderModules());
-        desc.addShaderLibrary("RenderPasses/Surfel/SurfelDebugPass/SurfelDebugPass.3d.slang")
-            .vsEntry("vsMain")
-            .psEntry("psMain");
-        desc.addTypeConformances(mpScene->getTypeConformances());
-
-        mpProgram = Program::create(mpDevice, desc, mpScene->getSceneDefines());
-        mpState->setProgram(mpProgram);
-
-        mpVars = ProgramVars::create(mpDevice, mpProgram.get());
+        mpComputePass = ComputePass::create(
+            mpDevice,
+            "RenderPasses/Surfel/SurfelDebugPass/SurfelDebugPass.cs.slang",
+            "csMain",
+            mpScene->getSceneDefines()
+        );
     }
 }
