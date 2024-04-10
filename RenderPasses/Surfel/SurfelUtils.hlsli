@@ -4,6 +4,7 @@
 #define PI 3.14159265f
 
 #include "SurfelTypes.hlsli"
+#include "Random.hlsli"
 #include "HashUtils.hlsli"
 
 static const int3 neighborOffset[27] =
@@ -71,6 +72,14 @@ float calcSurfelRadius(float distance, float fovy, uint2 resolution)
 #else
     return kSurfelStaticRadius;
 #endif
+}
+
+float3 randomizeColor(float3 color, inout RandomState randomState)
+{
+    float3 randomColor = getNextFloat3(randomState);
+    float strength = clamp(length(randomColor), 0.1f, 0.9f);
+
+    return 0.99f * (color * strength) + 0.01f * randomColor;
 }
 
 int3 getCellPos(float3 posW, float3 cameraPosW)

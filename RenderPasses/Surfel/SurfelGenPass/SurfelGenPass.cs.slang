@@ -25,6 +25,7 @@ Texture2D<float> gDepth;
 Texture2D<float4> gNormal;
 Texture2D<uint> gCoverage;
 Texture2D<uint4> gPackedHitInfo;
+Texture2D<float4> gRaster;
 
 RWTexture2D<float4> gSurfel;
 
@@ -87,9 +88,12 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
                     if (validSurfelCount < kTotalSurfelLimit)
                     {
                         uint newIndex = gSurfelFreeIndexBuffer[freeSurfelCount - 1];
+                        uint4 packedHitInfo = getPixelInfo(pixelPos);
 
                         float3 normal = gNormal[pixelPos].xyz;
-                        float3 randomColor = getNextFloat3(randomState);
+                        float3 surfelColor = randomizeColor(gRaster[pixelPos].xyz, randomState);
+                        // float3 surfelColor = randomizeColor(pseudocolor(TriangleHit(packedHitInfo).instanceID.index), randomState);
+
                         float radius = calcSurfelRadius(
                             distance(gScene.camera.getPosition(), worldPos),
                             gFOVy,
@@ -100,8 +104,8 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
                             worldPos,
                             normal,
                             radius,
-                            randomColor,
-                            getPixelInfo(pixelPos)
+                            surfelColor,
+                            packedHitInfo
                         };
 
                         gSurfelValidIndexBuffer[validSurfelCount] = newIndex;

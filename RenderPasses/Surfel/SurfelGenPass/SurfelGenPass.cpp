@@ -46,6 +46,9 @@ RenderPassReflection SurfelGenPass::reflect(const CompileData& compileData)
     reflector.addInput("packedHitInfo", "packed hit info texture")
         .format(ResourceFormat::RGBA32Uint)
         .bindFlags(ResourceBindFlags::ShaderResource);
+    reflector.addInput("raster", "raster texture")
+        .format(ResourceFormat::RGBA32Float)
+        .bindFlags(ResourceBindFlags::ShaderResource);
 
     // Output
     reflector.addOutput("surfel", "surfel texture")
@@ -63,10 +66,11 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
     const auto& pNormal = renderData.getTexture("normal");
     const auto& pCoverage = renderData.getTexture("coverage");
     const auto& pPackedHitInfo = renderData.getTexture("packedHitInfo");
+    const auto& pRaster = renderData.getTexture("raster");
 
     const auto& pSurfel = renderData.getTexture("surfel");
 
-    FALCOR_ASSERT(pDepth && pNormal && pCoverage && pPackedHitInfo && pSurfel);
+    FALCOR_ASSERT(pDepth && pNormal && pCoverage && pPackedHitInfo && pRaster && pSurfel);
 
     uint2 resolution = uint2(pDepth->getWidth(), pDepth->getHeight());
 
@@ -124,6 +128,7 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
         var["gNormal"] = pNormal;
         var["gCoverage"] = pCoverage;
         var["gPackedHitInfo"] = pPackedHitInfo;
+        var["gRaster"] = pRaster;
 
         var["gSurfel"] = pSurfel;
 
