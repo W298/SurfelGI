@@ -12,14 +12,6 @@ RenderPassReflection SurfelDebugPass::reflect(const CompileData& compileData)
 {
     RenderPassReflection reflector;
 
-    // Input
-    reflector.addInput("instanceIDVisual", "Instance ID Visualization")
-        .format(ResourceFormat::RGBA32Float)
-        .bindFlags(ResourceBindFlags::ShaderResource);
-    reflector.addInput("surfel", "surfel texture")
-        .format(ResourceFormat::RGBA32Float)
-        .bindFlags(ResourceBindFlags::ShaderResource);
-
     // Output
     reflector.addOutput("debug", "debug texture")
         .format(ResourceFormat::RGBA32Float)
@@ -30,26 +22,17 @@ RenderPassReflection SurfelDebugPass::reflect(const CompileData& compileData)
 
 void SurfelDebugPass::execute(RenderContext* pRenderContext, const RenderData& renderData)
 {
-    const auto& pInstanceIDVisual = renderData.getTexture("instanceIDVisual");
-    const auto& pSurfel = renderData.getTexture("surfel");
-   
     const auto& pDebug = renderData.getTexture("debug");
 
-    FALCOR_ASSERT(pInstanceIDVisual && pSurfel && pDebug);
-
-    const uint2 resolution = uint2(pInstanceIDVisual->getWidth(), pInstanceIDVisual->getHeight());
+    FALCOR_ASSERT(pDebug);
 
     if (mpComputePass)
     {
         auto var = mpComputePass->getRootVar();
-
-        var["gInstanceIDVisual"] = pInstanceIDVisual;
-        var["gSurfel"] = pSurfel;
-
         var["gDebug"] = pDebug;
 
         pRenderContext->clearUAV(pDebug->getUAV().get(), float4(0));
-        mpComputePass->execute(pRenderContext, uint3(resolution, 1));
+        mpComputePass->execute(pRenderContext, uint3(1920, 1080, 1));
     }
 
     mFrameIndex++;

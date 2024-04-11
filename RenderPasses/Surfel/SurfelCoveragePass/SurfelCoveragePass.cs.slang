@@ -24,7 +24,7 @@ groupshared uint groupShareMinCoverage;
 groupshared uint groupShareMaxContribution;
 
 [numthreads(16, 16, 1)]
-void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex : SV_GroupIndex, uint3 groupThreadID : SV_GroupThreadID)
+void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex : SV_GroupIndex, uint3 groupThreadID : SV_GroupThreadID, uint3 groupdId: SV_GroupID)
 {
     if (groupIndex == 0)
     {
@@ -33,8 +33,10 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex : SV_Gr
     }
     GroupMemoryBarrierWithGroupSync();
 
-    uint2 tilePos = dispatchThreadId.xy / kTileSize;
+    uint2 tilePos = groupdId.xy;
     uint2 pixelPos = dispatchThreadId.xy;
+
+    RandomState randomState = initRandomState(pixelPos, gFrameIndex);
 
     float depth = gDepth[pixelPos];
     if (depth == 1)
@@ -52,7 +54,7 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex : SV_Gr
     float coverage = 0.f;
 
     float maxContribution = 0.f;
-    uint maxContributionSurfelIndex = 0;
+    uint maxContributionSurfelIndex = getNextUInt(randomState, cellInfo.surfelCount);
 
     for (uint i = 0; i < cellInfo.surfelCount; ++i)
     {
@@ -86,32 +88,24 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex : SV_Gr
         }
     }
 
-    RandomState randomState = initRandomState(pixelPos, gFrameIndex);
+    uint coverageData = 0;
+    coverageData |= ((f32tof16(coverage) & 0x0000FFFF) << 16);
+    coverageData |= ((0 & 0x000000FF) << 8);
+    coverageData |= ((groupThreadID.x & 0x0000000F) << 4);
+    coverageData |= ((groupThreadID.y & 0x0000000F) << 0);
 
-    if (cellInfo.surfelCount < kPerCellSurfelLimit)
-    {
-        uint coverageData = 0;
-        coverageData |= ((f32tof16(coverage) & 0x0000FFFF) << 16);
-        coverageData |= ((getNextUInt(randomState, 255) & 0x000000FF) << 8);
-        coverageData |= ((groupThreadID.x & 0x0000000F) << 4);
-        coverageData |= ((groupThreadID.y & 0x0000000F) << 0);
+    InterlockedMin(groupShareMinCoverage, coverageData);
 
-        InterlockedMin(groupShareMinCoverage, coverageData);
-    }
+    uint contributionData = 0;
+    contributionData |= ((f32tof16(maxContribution) & 0x0000FFFF) << 16);
+    contributionData |= ((maxContributionSurfelIndex & 0x0000FFFF) << 0);
 
-    if (cellInfo.surfelCount > 0)
-    {
-        uint contributionData = 0;
-        contributionData |= ((f32tof16(maxContribution) & 0x0000FFFF) << 16);
-        contributionData |= ((maxContributionSurfelIndex & 0x0000FFFF) << 0);
-
-        InterlockedMin(groupShareMaxContribution, contributionData);
-    }
+    InterlockedMax(groupShareMaxContribution, contributionData);
 
     GroupMemoryBarrierWithGroupSync();
 
     float groupMinCoverage = f16tof32((groupShareMinCoverage & 0xFFFF0000) >> 16);
-    gDebug[pixelPos] = float4(step(1, groupMinCoverage), step(groupMinCoverage, 1), 0, 1);
+    gDebug[pixelPos] = float4(step(1, groupMinCoverage), 0, 0, 1);
 
     gCoverage[tilePos] = uint2(groupShareMinCoverage, groupShareMaxContribution);
 }

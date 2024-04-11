@@ -45,10 +45,12 @@ uint4 getPixelInfo(uint2 pixelPos)
 }
 
 [numthreads(16, 16, 1)]
-void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV_GroupThreadID)
+void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV_GroupThreadID, uint3 groupdId: SV_GroupID)
 {
-    uint2 tilePos = dispatchThreadId.xy / kTileSize;
+    uint2 tilePos = groupdId.xy;
     uint2 pixelPos = dispatchThreadId.xy;
+
+    RandomState randomState = initRandomState(pixelPos, gFrameIndex);
 
     float depth = gDepth[pixelPos];
     if (depth == 1)
@@ -72,12 +74,10 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
     {
         if (groupThreadID.x == x && groupThreadID.y == y)
         {
-            if (coverage <= kCoverageThreshold)
+            if (coverage <= kPlacementThreshold)
             {
                 const float chance = pow(depth, kChancePower);
-                RandomState randomState = initRandomState(pixelPos, gFrameIndex);
-
-                if (getNextFloat(randomState) < chance * kChaneMultiply)
+                if (getNextFloat(randomState) < chance * kChanceMultiply)
                 {
                     int freeSurfelCount;
                     gSurfelCounter.InterlockedAdd(SURFEL_COUNTER_FREE_SURFEL, -1, freeSurfelCount);
@@ -123,17 +123,21 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
     {
         if (groupThreadID.x == x && groupThreadID.y == y)
         {
-            if (coverage > 1.f)
+            if (coverage > kRemovalThreshold)
             {
-                uint contributionData = gCoverage[tilePos].y;
-                float maxContribution = f16tof32((contributionData & 0xFFFF0000) >> 16);
-                uint maxContributionSurfelIndex = (contributionData & 0x0000FFFF) >> 0;
+                const float chance = pow(depth, kChancePower);
+                if (getNextFloat(randomState) < chance * kChanceMultiply)
+                {
+                    uint contributionData = gCoverage[tilePos].y;
+                    float maxContribution = f16tof32((contributionData & 0xFFFF0000) >> 16);
+                    uint maxContributionSurfelIndex = (contributionData & 0x0000FFFF) >> 0;
 
-                uint toDestroySurfelIndex = gCellToSurfelBuffer[cellInfo.cellToSurfelBufferOffset + maxContributionSurfelIndex];
-                Surfel toDestroySurfel = gSurfelBuffer[toDestroySurfelIndex];
+                    uint toDestroySurfelIndex = gCellToSurfelBuffer[cellInfo.cellToSurfelBufferOffset + maxContributionSurfelIndex];
+                    Surfel toDestroySurfel = gSurfelBuffer[toDestroySurfelIndex];
 
-                toDestroySurfel.radius = 0;
-                gSurfelBuffer[toDestroySurfelIndex] = toDestroySurfel;
+                    toDestroySurfel.radius = 0;
+                    gSurfelBuffer[toDestroySurfelIndex] = toDestroySurfel;
+                }
             }
         }
     }
