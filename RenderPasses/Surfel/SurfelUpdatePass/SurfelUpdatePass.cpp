@@ -34,7 +34,11 @@ void SurfelUpdatePass::execute(RenderContext* pRenderContext, const RenderData& 
         var["CB"]["gFOVy"] = mFOVy;
 
         var["gSurfelBuffer"] = dict.getValue<ref<Buffer>>("surfelBuffer");
+        
+        var["gSurfelDirtyIndexBuffer"] = dict.getValue<ref<Buffer>>("surfelDirtyIndexBuffer");
         var["gSurfelValidIndexBuffer"] = dict.getValue<ref<Buffer>>("surfelValidIndexBuffer");
+        var["gSurfelFreeIndexBuffer"] = dict.getValue<ref<Buffer>>("surfelFreeIndexBuffer");
+
         var["gSurfelCounter"] = dict.getValue<ref<Buffer>>("surfelCounter");
         var["gCellInfoBuffer"] = dict.getValue<ref<Buffer>>("cellInfoBuffer");
 

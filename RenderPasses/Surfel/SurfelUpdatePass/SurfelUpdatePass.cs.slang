@@ -11,7 +11,11 @@ cbuffer CB
 }
 
 RWStructuredBuffer<Surfel> gSurfelBuffer;
+
+StructuredBuffer<uint> gSurfelDirtyIndexBuffer;
 RWStructuredBuffer<uint> gSurfelValidIndexBuffer;
+RWStructuredBuffer<uint> gSurfelFreeIndexBuffer;
+
 RWByteAddressBuffer gSurfelCounter;
 RWStructuredBuffer<CellInfo> gCellInfoBuffer;
 RWStructuredBuffer<uint> gCellToSurfelBuffer;
@@ -20,39 +24,55 @@ RWStructuredBuffer<uint> gCellToSurfelBuffer;
 [numthreads(32, 1, 1)]
 void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
 {
-    uint vaildSurfelCount = gSurfelCounter.Load(SURFEL_COUNTER_VALID_SURFEL);
-    if (dispatchThreadId.x >= vaildSurfelCount)
+    uint dirtySurfelCount = gSurfelCounter.Load(SURFEL_COUNTER_DIRTY_SURFEL);
+    if (dispatchThreadId.x >= dirtySurfelCount)
         return;
 
-    uint surfelIndex = gSurfelValidIndexBuffer[dispatchThreadId.x];
+    uint surfelIndex = gSurfelDirtyIndexBuffer[dispatchThreadId.x];
     Surfel surfel = gSurfelBuffer[surfelIndex];
 
-    // Update surfel position and normal.
-    TriangleHit hit = TriangleHit(surfel.packedHitInfo);
-    VertexData data = gScene.getVertexData(hit);
-
-    surfel.position = data.posW;
-    surfel.normal = data.normalW;
-    surfel.radius = calcSurfelRadius(
-        distance(gScene.camera.getPosition(), surfel.position),
-        gFOVy,
-        gResolution
-    );
-
-    // Calculate number of surfels located at cell.
-    int3 cellPos = getCellPos(surfel.position, gCameraPos);
-    for (uint i = 0; i < 27; ++i)
+    float surfelRadius = surfel.radius;
+    if (surfelRadius > 0)
     {
-        int3 neighborPos = cellPos + neighborOffset[i];
-        if (isSurfelIntersectCell(surfel, neighborPos, gCameraPos))
-        {
-            uint flattenIndex = getFlattenCellIndex(neighborPos);
-            InterlockedAdd(gCellInfoBuffer[flattenIndex].surfelCount, 1);
-        }
-    }
+        // Copy surfel index if radius is not zero.
+        uint validSurfelCount;
+        gSurfelCounter.InterlockedAdd(SURFEL_COUNTER_VALID_SURFEL, 1, validSurfelCount);
+        gSurfelValidIndexBuffer[validSurfelCount] = surfelIndex;
 
-    // Write back to buffer.
-    gSurfelBuffer[surfelIndex] = surfel;
+        // Update surfel position and normal.
+        TriangleHit hit = TriangleHit(surfel.packedHitInfo);
+        VertexData data = gScene.getVertexData(hit);
+
+        surfel.position = data.posW;
+        surfel.normal = data.normalW;
+
+        surfel.radius = calcSurfelRadius(
+            distance(gScene.camera.getPosition(), surfel.position),
+            gFOVy,
+            gResolution
+        );
+
+        // Calculate number of surfels located at cell.
+        int3 cellPos = getCellPos(surfel.position, gCameraPos);
+        for (uint i = 0; i < 27; ++i)
+        {
+            int3 neighborPos = cellPos + neighborOffset[i];
+            if (isSurfelIntersectCell(surfel, neighborPos, gCameraPos))
+            {
+                uint flattenIndex = getFlattenCellIndex(neighborPos);
+                InterlockedAdd(gCellInfoBuffer[flattenIndex].surfelCount, 1);
+            }
+        }
+
+        // Write back to buffer.
+        gSurfelBuffer[surfelIndex] = surfel;
+    }
+    else
+    {
+        int freeSurfelCount;
+        gSurfelCounter.InterlockedAdd(SURFEL_COUNTER_FREE_SURFEL, 1, freeSurfelCount);
+        gSurfelFreeIndexBuffer[freeSurfelCount] = surfelIndex;
+    }
 }
 
 // Calculate offset of cell to surfel buffer.

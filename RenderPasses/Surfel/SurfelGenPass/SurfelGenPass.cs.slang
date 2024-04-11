@@ -23,7 +23,7 @@ RWStructuredBuffer<uint> gCellToSurfelBuffer;
 
 Texture2D<float> gDepth;
 Texture2D<float4> gNormal;
-Texture2D<uint> gCoverage;
+Texture2D<uint2> gCoverage;
 Texture2D<uint4> gPackedHitInfo;
 Texture2D<float4> gRaster;
 
@@ -54,7 +54,7 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
     if (depth == 1)
         return;
 
-    uint coverageData = gCoverage[tilePos];
+    uint coverageData = gCoverage[tilePos].x;
     float coverage = f16tof32((coverageData & 0xFFFF0000) >> 16);
     uint x = (coverageData & 0x000000F0) >> 4;
     uint y = (coverageData & 0x0000000F) >> 0;
@@ -70,48 +70,70 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
 
     if (cellInfo.surfelCount < kPerCellSurfelLimit)
     {
-        if (groupThreadID.x == x && groupThreadID.y == y && coverage <= kCoverageThreshold)
+        if (groupThreadID.x == x && groupThreadID.y == y)
         {
-            const float chance = pow(depth, kChancePower);
-            RandomState randomState = initRandomState(pixelPos, gFrameIndex);
-
-            if (getNextFloat(randomState) < chance * kChaneMultiply)
+            if (coverage <= kCoverageThreshold)
             {
-                int freeSurfelCount;
-                gSurfelCounter.InterlockedAdd(SURFEL_COUNTER_FREE_SURFEL, -1, freeSurfelCount);
+                const float chance = pow(depth, kChancePower);
+                RandomState randomState = initRandomState(pixelPos, gFrameIndex);
 
-                if (0 < freeSurfelCount && freeSurfelCount <= kTotalSurfelLimit)
+                if (getNextFloat(randomState) < chance * kChaneMultiply)
                 {
-                    uint validSurfelCount;
-                    gSurfelCounter.InterlockedAdd(SURFEL_COUNTER_VALID_SURFEL, 1, validSurfelCount);
+                    int freeSurfelCount;
+                    gSurfelCounter.InterlockedAdd(SURFEL_COUNTER_FREE_SURFEL, -1, freeSurfelCount);
 
-                    if (validSurfelCount < kTotalSurfelLimit)
+                    if (0 < freeSurfelCount && freeSurfelCount <= kTotalSurfelLimit)
                     {
-                        uint newIndex = gSurfelFreeIndexBuffer[freeSurfelCount - 1];
-                        uint4 packedHitInfo = getPixelInfo(pixelPos);
+                        uint validSurfelCount;
+                        gSurfelCounter.InterlockedAdd(SURFEL_COUNTER_VALID_SURFEL, 1, validSurfelCount);
 
-                        float3 normal = gNormal[pixelPos].xyz;
-                        float3 surfelColor = randomizeColor(gRaster[pixelPos].xyz, randomState);
-                        // float3 surfelColor = randomizeColor(pseudocolor(TriangleHit(packedHitInfo).instanceID.index), randomState);
+                        if (validSurfelCount < kTotalSurfelLimit)
+                        {
+                            uint newIndex = gSurfelFreeIndexBuffer[freeSurfelCount - 1];
+                            uint4 packedHitInfo = getPixelInfo(pixelPos);
 
-                        float radius = calcSurfelRadius(
-                            distance(gScene.camera.getPosition(), worldPos),
-                            gFOVy,
-                            gResolution
-                        );
+                            float3 normal = gNormal[pixelPos].xyz;
+                            // float3 surfelColor = randomizeColor(gRaster[pixelPos].xyz, randomState);
+                            float3 surfelColor = randomizeColor(pseudocolor(TriangleHit(packedHitInfo).instanceID.index), randomState);
 
-                        Surfel newSurfel = {
-                            worldPos,
-                            normal,
-                            radius,
-                            surfelColor,
-                            packedHitInfo
-                        };
+                            float radius = calcSurfelRadius(
+                                distance(gScene.camera.getPosition(), worldPos),
+                                gFOVy,
+                                gResolution
+                            );
 
-                        gSurfelValidIndexBuffer[validSurfelCount] = newIndex;
-                        gSurfelBuffer[newIndex] = newSurfel;
+                            Surfel newSurfel = {
+                                worldPos,
+                                normal,
+                                radius,
+                                surfelColor,
+                                packedHitInfo
+                            };
+
+                            gSurfelValidIndexBuffer[validSurfelCount] = newIndex;
+                            gSurfelBuffer[newIndex] = newSurfel;
+                        }
                     }
                 }
+            }
+        }
+    }
+
+    if (cellInfo.surfelCount > 0)
+    {
+        if (groupThreadID.x == x && groupThreadID.y == y)
+        {
+            if (coverage > 1.f)
+            {
+                uint contributionData = gCoverage[tilePos].y;
+                float maxContribution = f16tof32((contributionData & 0xFFFF0000) >> 16);
+                uint maxContributionSurfelIndex = (contributionData & 0x0000FFFF) >> 0;
+
+                uint toDestroySurfelIndex = gCellToSurfelBuffer[cellInfo.cellToSurfelBufferOffset + maxContributionSurfelIndex];
+                Surfel toDestroySurfel = gSurfelBuffer[toDestroySurfelIndex];
+
+                toDestroySurfel.radius = 0;
+                gSurfelBuffer[toDestroySurfelIndex] = toDestroySurfel;
             }
         }
     }

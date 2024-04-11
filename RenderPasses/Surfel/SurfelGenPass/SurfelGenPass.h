@@ -38,4 +38,6 @@ private:
 
     std::unordered_map<Input::Key, bool> mMovement;
     bool mIsMoving;
+
+    std::vector<float> mPlotData;
 };

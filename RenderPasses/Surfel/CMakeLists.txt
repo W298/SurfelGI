@@ -22,7 +22,7 @@ target_sources(Surfel PRIVATE
 
     SurfelCoveragePass/SurfelCoveragePass.cpp
     SurfelCoveragePass/SurfelCoveragePass.h
-    SurfelCoveragePass/SurfelCoveragePass.hlsl
+    SurfelCoveragePass/SurfelCoveragePass.cs.slang
 
     SurfelGenPass/SurfelGenPass.cpp
     SurfelGenPass/SurfelGenPass.h

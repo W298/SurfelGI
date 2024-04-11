@@ -26,6 +26,8 @@ SurfelGenPass::SurfelGenPass(ref<Device> pDevice, const Properties& props) : Ren
     mMovement[Input::Key::R] = false;
 
     mIsMoving = false;
+
+    mPlotData = std::vector<float>(1000, 0.f);
 }
 
 RenderPassReflection SurfelGenPass::reflect(const CompileData& compileData)
@@ -40,7 +42,7 @@ RenderPassReflection SurfelGenPass::reflect(const CompileData& compileData)
         .format(ResourceFormat::RGBA32Float)
         .bindFlags(ResourceBindFlags::ShaderResource);
     reflector.addInput("coverage", "coverage texture")
-        .format(ResourceFormat::R32Uint)
+        .format(ResourceFormat::RG32Uint)
         .bindFlags(ResourceBindFlags::ShaderResource)
         .texture2D(compileData.defaultTexDims.x / kTileSize.x, compileData.defaultTexDims.y / kTileSize.y);
     reflector.addInput("packedHitInfo", "packed hit info texture")
@@ -145,15 +147,25 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
     mFrameIndex++;
 }
 
+static float plotFunc(void* data, int i)
+{
+    return static_cast<float*>(data)[i];
+}
+
 void SurfelGenPass::renderUI(Gui::Widgets& widget)
 {
     widget.text("Frame index\t\t" + std::to_string(mFrameIndex));
 
     if (mReadBackValid)
     {
-        widget.text("Valid surfel count\t\t" + std::to_string(mpReadBackBuffer->getElement<uint>(0)));
-        widget.text("Free surfel count\t\t" + std::to_string(mpReadBackBuffer->getElement<int>(1)));
-        widget.text("Valid cell count\t\t" + std::to_string(mpReadBackBuffer->getElement<uint>(2)));
+        std::rotate(mPlotData.begin(), mPlotData.begin() + 1, mPlotData.end());
+        const uint validSurfelCount = mpReadBackBuffer->getElement<uint>(0);
+        mPlotData[mPlotData.size() - 1] = (float)validSurfelCount / kTotalSurfelLimit;
+
+        widget.graph("", plotFunc, mPlotData.data(), mPlotData.size(), 0, 0, 1);
+        widget.text("Valid surfel count\t\t" + std::to_string(validSurfelCount));
+        widget.text("Free surfel count\t\t" + std::to_string(mpReadBackBuffer->getElement<int>(2)));
+        widget.text("Valid cell count\t\t" + std::to_string(mpReadBackBuffer->getElement<uint>(3)));
     }
 
     widget.dummy("#spacer0", {1, 20});

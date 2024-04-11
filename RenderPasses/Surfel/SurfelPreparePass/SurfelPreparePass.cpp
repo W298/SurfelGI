@@ -26,27 +26,30 @@ void SurfelPreparePass::execute(RenderContext* pRenderContext, const RenderData&
     auto& dict = renderData.getDictionary();
     if (!dict.keyExists("surfelBuffer"))
         createSurfelBuffer(dict);
-    if (!dict.keyExists("surfelFreeIndexBuffer"))
-        createSurfelFreeIndexBuffer(dict);
-    if (!dict.keyExists("surfelValidIndexBuffer"))
-        createSurfelValidIndexBuffer(dict);
+
+    if (!dict.keyExists("surfelValidIndexBuffer") || !dict.keyExists("surfelDirtyIndexBuffer") ||
+        !dict.keyExists("surfelFreeIndexBuffer"))
+        createSurfelIndexBuffer(dict);
+
     if (!dict.keyExists("surfelCounter"))
         createSurfelCounter(dict);
+
     if (!dict.keyExists("cellInfoBuffer"))
         createCellInfoBuffer(dict);
+
     if (!dict.keyExists("cellToSurfelBuffer"))
         createCellToSurfelBuffer(dict);
 
     if (mpComputePass)
     {
         auto var = mpComputePass->getRootVar();
-
-        var["gSurfelBuffer"] = dict.getValue<ref<Buffer>>("surfelBuffer");
         var["gSurfelCounter"] = dict.getValue<ref<Buffer>>("surfelCounter");
-        var["gCellInfoBuffer"] = dict.getValue<ref<Buffer>>("cellInfoBuffer");
-        var["gCellToSurfelBuffer"] = dict.getValue<ref<Buffer>>("cellToSurfelBuffer");
 
         mpComputePass->execute(pRenderContext, uint3(1));
+        pRenderContext->copyResource(
+            dict.getValue<ref<Buffer>>("surfelDirtyIndexBuffer").get(),
+            dict.getValue<ref<Buffer>>("surfelValidIndexBuffer").get()
+        );
     }
 }
 
@@ -58,25 +61,35 @@ void SurfelPreparePass::createSurfelBuffer(Dictionary& dict)
     dict["surfelBuffer"] = surfelBuffer;
 }
 
-void SurfelPreparePass::createSurfelFreeIndexBuffer(Dictionary& dict)
+void SurfelPreparePass::createSurfelIndexBuffer(Dictionary& dict)
 {
-    uint* freeIndexBuffer = new uint[kTotalSurfelLimit];
-    std::iota(freeIndexBuffer, freeIndexBuffer + kTotalSurfelLimit, 0);
-
-    const ref<Buffer> surfelFreeIndexBuffer = mpDevice->createStructuredBuffer(
-        sizeof(uint), kTotalSurfelLimit, ResourceBindFlags::UnorderedAccess, MemoryType::DeviceLocal, freeIndexBuffer, false
-    );
-    dict["surfelFreeIndexBuffer"] = surfelFreeIndexBuffer;
-
-    delete[] freeIndexBuffer;
-}
-
-void SurfelPreparePass::createSurfelValidIndexBuffer(Dictionary& dict)
-{
+    // surfelValidIndexBuffer
     const ref<Buffer> surfelValidIndexBuffer = mpDevice->createStructuredBuffer(
         sizeof(uint), kTotalSurfelLimit, ResourceBindFlags::UnorderedAccess, MemoryType::DeviceLocal, nullptr, false
     );
     dict["surfelValidIndexBuffer"] = surfelValidIndexBuffer;
+
+    // surfelDirtyIndexBuffer
+    const ref<Buffer> surfelDirtyIndexBuffer = mpDevice->createStructuredBuffer(
+        sizeof(uint), kTotalSurfelLimit, ResourceBindFlags::ShaderResource, MemoryType::DeviceLocal, nullptr, false
+    );
+    dict["surfelDirtyIndexBuffer"] = surfelDirtyIndexBuffer;
+
+    // surfelFreeIndexBuffer
+    uint* freeIndexBuffer = new uint[kTotalSurfelLimit];
+    std::iota(freeIndexBuffer, freeIndexBuffer + kTotalSurfelLimit, 0);
+
+    const ref<Buffer> surfelFreeIndexBuffer = mpDevice->createStructuredBuffer(
+        sizeof(uint),
+        kTotalSurfelLimit,
+        ResourceBindFlags::UnorderedAccess,
+        MemoryType::DeviceLocal,
+        freeIndexBuffer,
+        false
+    );
+    dict["surfelFreeIndexBuffer"] = surfelFreeIndexBuffer;
+
+    delete[] freeIndexBuffer;
 }
 
 void SurfelPreparePass::createSurfelCounter(Dictionary& dict)

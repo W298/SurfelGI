@@ -23,7 +23,7 @@ RenderPassReflection SurfelCoveragePass::reflect(const CompileData& compileData)
 
     // Output
     reflector.addOutput("coverage", "coverage texture")
-        .format(ResourceFormat::R32Uint)
+        .format(ResourceFormat::RG32Uint)
         .bindFlags(ResourceBindFlags::UnorderedAccess)
         .texture2D(compileData.defaultTexDims.x / kTileSize.x, compileData.defaultTexDims.y / kTileSize.y);
 
@@ -82,7 +82,7 @@ void SurfelCoveragePass::setScene(RenderContext* pRenderContext, const ref<Scene
     {
         mpComputePass = ComputePass::create(
             mpDevice,
-            "RenderPasses/Surfel/SurfelCoveragePass/SurfelCoveragePass.hlsl",
+            "RenderPasses/Surfel/SurfelCoveragePass/SurfelCoveragePass.cs.slang",
             "csMain",
             mpScene->getSceneDefines()
         );
