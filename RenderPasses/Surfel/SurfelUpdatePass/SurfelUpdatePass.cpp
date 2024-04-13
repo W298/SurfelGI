@@ -40,6 +40,8 @@ void SurfelUpdatePass::execute(RenderContext* pRenderContext, const RenderData& 
         var["gSurfelFreeIndexBuffer"] = dict.getValue<ref<Buffer>>("surfelFreeIndexBuffer");
 
         var["gSurfelCounter"] = dict.getValue<ref<Buffer>>("surfelCounter");
+        var["gSurfelConfig"] = dict.getValue<ref<Buffer>>("surfelConfig");
+
         var["gCellInfoBuffer"] = dict.getValue<ref<Buffer>>("cellInfoBuffer");
 
         mpCollectCellInfoPass->execute(pRenderContext, uint3(kTotalSurfelLimit, 1, 1));

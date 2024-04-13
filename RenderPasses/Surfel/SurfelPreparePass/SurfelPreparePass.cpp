@@ -40,6 +40,15 @@ void SurfelPreparePass::execute(RenderContext* pRenderContext, const RenderData&
     if (!dict.keyExists("cellToSurfelBuffer"))
         createCellToSurfelBuffer(dict);
 
+    if (!dict.keyExists("surfelConfig"))
+    {
+        const SurfelConfig initData = SurfelConfig();
+        const ref<Buffer> surfelConfig = mpDevice->createBuffer(
+            sizeof(SurfelConfig), ResourceBindFlags::ShaderResource, MemoryType::DeviceLocal, &initData
+        );
+        dict["surfelConfig"] = surfelConfig;
+    }
+
     if (mpComputePass)
     {
         auto var = mpComputePass->getRootVar();

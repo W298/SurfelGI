@@ -65,10 +65,10 @@ float calcRadius(float area, float distance, float fovy, uint2 resolution)
     return distance * sinTheta;
 }
 
-float calcSurfelRadius(float distance, float fovy, uint2 resolution)
+float calcSurfelRadius(float distance, float fovy, uint2 resolution, float area)
 {
 #if VARIABLE_SURFEL_RADIUS
-    return min(calcRadiusApprox(kSurfelTargetArea, distance, fovy, resolution), kCellUnit);
+    return min(calcRadiusApprox(area, distance, fovy, resolution), kCellUnit);
 #else
     return kSurfelStaticRadius;
 #endif

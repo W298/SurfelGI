@@ -17,7 +17,10 @@ cbuffer CB
 RWStructuredBuffer<Surfel> gSurfelBuffer;
 RWStructuredBuffer<uint> gSurfelFreeIndexBuffer;
 RWStructuredBuffer<uint> gSurfelValidIndexBuffer;
+
 RWByteAddressBuffer gSurfelCounter;
+ByteAddressBuffer gSurfelConfig;
+
 RWStructuredBuffer<CellInfo> gCellInfoBuffer;
 RWStructuredBuffer<uint> gCellToSurfelBuffer;
 
@@ -51,6 +54,7 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
     uint2 pixelPos = dispatchThreadId.xy;
 
     RandomState randomState = initRandomState(pixelPos, gFrameIndex);
+    SurfelConfig config = gSurfelConfig.Load<SurfelConfig>(0);
 
     float depth = gDepth[pixelPos];
     if (depth == 1)
@@ -99,7 +103,8 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
                             float radius = calcSurfelRadius(
                                 distance(gScene.camera.getPosition(), worldPos),
                                 gFOVy,
-                                gResolution
+                                gResolution,
+                                config.surfelTargetArea
                             );
 
                             Surfel newSurfel = {

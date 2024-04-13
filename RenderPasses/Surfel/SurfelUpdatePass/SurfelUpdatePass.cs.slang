@@ -17,6 +17,8 @@ RWStructuredBuffer<uint> gSurfelValidIndexBuffer;
 RWStructuredBuffer<uint> gSurfelFreeIndexBuffer;
 
 RWByteAddressBuffer gSurfelCounter;
+ByteAddressBuffer gSurfelConfig;
+
 RWStructuredBuffer<CellInfo> gCellInfoBuffer;
 RWStructuredBuffer<uint> gCellToSurfelBuffer;
 
@@ -27,6 +29,8 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
     uint dirtySurfelCount = gSurfelCounter.Load(SURFEL_COUNTER_DIRTY_SURFEL);
     if (dispatchThreadId.x >= dirtySurfelCount)
         return;
+
+    SurfelConfig config = gSurfelConfig.Load<SurfelConfig>(0);
 
     uint surfelIndex = gSurfelDirtyIndexBuffer[dispatchThreadId.x];
     Surfel surfel = gSurfelBuffer[surfelIndex];
@@ -49,7 +53,8 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
         surfel.radius = calcSurfelRadius(
             distance(gScene.camera.getPosition(), surfel.position),
             gFOVy,
-            gResolution
+            gResolution,
+            config.surfelTargetArea
         );
 
         // Calculate number of surfels located at cell.

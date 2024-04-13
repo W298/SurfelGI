@@ -17,7 +17,6 @@ static const float kChanceMultiply = 0.7f;
 static const float kPlacementThreshold = 1e-12f;
 static const float kRemovalThreshold = 1.0f;
 static const float kSurfelStaticRadius = 0.008f;
-static const float kSurfelTargetArea = 2000.0f;
 static const float kCellUnit = 0.02f;
 static const uint3 kCellDimension = uint3(400, 400, 400);
 static const uint kCellCount = kCellDimension.x * kCellDimension.y * kCellDimension.z;
@@ -37,6 +36,11 @@ struct CellInfo
 {
     uint surfelCount;
     uint cellToSurfelBufferOffset;
+};
+
+struct SurfelConfig
+{
+    float surfelTargetArea = 2000.0f;
 };
 
 #endif

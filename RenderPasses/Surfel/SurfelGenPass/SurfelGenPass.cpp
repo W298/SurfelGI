@@ -1,7 +1,12 @@
 #include "SurfelGenPass.h"
-#include "../RenderPasses/Surfel/SurfelTypes.hlsli"
 #include "RenderGraph/RenderPassHelpers.h"
 #include "Utils/Math/FalcorMath.h"
+#include "../SurfelTypes.hlsli"
+
+namespace 
+{
+SurfelConfig configValue = SurfelConfig();
+} // namespace
 
 SurfelGenPass::SurfelGenPass(ref<Device> pDevice, const Properties& props) : RenderPass(pDevice)
 {
@@ -84,7 +89,11 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
     {
         auto var = mpComputePass->getRootVar();
         auto& dict = renderData.getDictionary();
-        ref<Buffer> surfelCounter = dict.getValue<ref<Buffer>>("surfelCounter");
+
+        if (!mpCounter)
+            mpCounter = dict.getValue<ref<Buffer>>("surfelCounter");
+        if (!mpConfig)
+            mpConfig = dict.getValue<ref<Buffer>>("surfelConfig");
 
         if (mIsMoving)
         {
@@ -126,7 +135,10 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
         var["gSurfelBuffer"] = dict.getValue<ref<Buffer>>("surfelBuffer");
         var["gSurfelFreeIndexBuffer"] = dict.getValue<ref<Buffer>>("surfelFreeIndexBuffer");
         var["gSurfelValidIndexBuffer"] = dict.getValue<ref<Buffer>>("surfelValidIndexBuffer");
-        var["gSurfelCounter"] = surfelCounter;
+
+        var["gSurfelCounter"] = mpCounter;
+        var["gSurfelConfig"] = mpConfig;
+
         var["gCellInfoBuffer"] = dict.getValue<ref<Buffer>>("cellInfoBuffer");
         var["gCellToSurfelBuffer"] = dict.getValue<ref<Buffer>>("cellToSurfelBuffer");
 
@@ -141,10 +153,15 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
         pRenderContext->clearUAV(pSurfel->getUAV().get(), float4(0));
         mpComputePass->execute(pRenderContext, uint3(resolution, 1));
 
-        pRenderContext->copyResource(mpReadBackBuffer.get(), surfelCounter.get());
+        pRenderContext->copyResource(mpReadBackBuffer.get(), mpCounter.get());
 
-        if (mMovement[Input::Key::R])
+        if (mApply)
+        {
             pRenderContext->copyResource(dict.getValue<ref<Buffer>>("surfelBuffer").get(), mpEmpty.get());
+            mpConfig->setBlob(&configValue, 0, sizeof(SurfelConfig));
+
+            mApply = false;
+        }
 
         pRenderContext->submit(false);
         pRenderContext->signal(mpFence.get());
@@ -180,6 +197,10 @@ void SurfelGenPass::renderUI(Gui::Widgets& widget)
 
     widget.text("Total surfel limit\t\t" + std::to_string(kTotalSurfelLimit));
     widget.text("Per cell surfel limit\t\t" + std::to_string(kPerCellSurfelLimit));
+
+    widget.var("Target area size", configValue.surfelTargetArea, 200.0f, 3600.0f, 20.0f);
+    if (widget.button("Apply"))
+        mApply = true;
 }
 
 void SurfelGenPass::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
