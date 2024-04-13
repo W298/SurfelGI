@@ -90,7 +90,7 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex : SV_Gr
 
     uint coverageData = 0;
     coverageData |= ((f32tof16(coverage) & 0x0000FFFF) << 16);
-    coverageData |= ((0 & 0x000000FF) << 8);
+    coverageData |= ((getNextUInt(randomState, 255) & 0x000000FF) << 8);
     coverageData |= ((groupThreadID.x & 0x0000000F) << 4);
     coverageData |= ((groupThreadID.y & 0x0000000F) << 0);
 

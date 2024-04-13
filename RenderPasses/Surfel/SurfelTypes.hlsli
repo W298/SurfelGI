@@ -12,12 +12,12 @@
 static const uint2 kTileSize = uint2(16, 16);
 static const uint kTotalSurfelLimit = 409600;
 static const uint kPerCellSurfelLimit = 64;
-static const uint kChancePower = 4;
-static const float kChanceMultiply = 1.0f;
+static const uint kChancePower = 1;
+static const float kChanceMultiply = 0.7f;
 static const float kPlacementThreshold = 1e-12f;
 static const float kRemovalThreshold = 1.0f;
 static const float kSurfelStaticRadius = 0.008f;
-static const float kSurfelTargetArea = 1200.0f;
+static const float kSurfelTargetArea = 2000.0f;
 static const float kCellUnit = 0.02f;
 static const uint3 kCellDimension = uint3(400, 400, 400);
 static const uint kCellCount = kCellDimension.x * kCellDimension.y * kCellDimension.z;

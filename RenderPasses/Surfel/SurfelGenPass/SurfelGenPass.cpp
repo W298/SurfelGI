@@ -19,6 +19,10 @@ SurfelGenPass::SurfelGenPass(ref<Device> pDevice, const Properties& props) : Ren
     );
     mReadBackValid = false;
 
+    mpEmpty = mpDevice->createStructuredBuffer(
+        sizeof(Surfel), kTotalSurfelLimit, ResourceBindFlags::UnorderedAccess, MemoryType::DeviceLocal, nullptr, false
+    );
+
     mMovement[Input::Key::Right] = false;
     mMovement[Input::Key::Up] = false;
     mMovement[Input::Key::Down] = false;
@@ -138,6 +142,10 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
         mpComputePass->execute(pRenderContext, uint3(resolution, 1));
 
         pRenderContext->copyResource(mpReadBackBuffer.get(), surfelCounter.get());
+
+        if (mMovement[Input::Key::R])
+            pRenderContext->copyResource(dict.getValue<ref<Buffer>>("surfelBuffer").get(), mpEmpty.get());
+
         pRenderContext->submit(false);
         pRenderContext->signal(mpFence.get());
 

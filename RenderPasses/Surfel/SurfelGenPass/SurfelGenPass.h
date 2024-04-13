@@ -36,6 +36,8 @@ private:
     ref<Buffer> mpReadBackBuffer;
     bool mReadBackValid;
 
+    ref<Buffer> mpEmpty;
+
     std::unordered_map<Input::Key, bool> mMovement;
     bool mIsMoving;
 
