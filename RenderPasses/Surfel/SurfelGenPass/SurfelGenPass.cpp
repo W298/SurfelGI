@@ -1,9 +1,9 @@
 #include "SurfelGenPass.h"
 #include "RenderGraph/RenderPassHelpers.h"
 #include "Utils/Math/FalcorMath.h"
-#include "../SurfelTypes.hlsli"
+#include "../SurfelResource.h"
 
-namespace 
+namespace
 {
 SurfelConfig configValue = SurfelConfig();
 } // namespace
@@ -91,9 +91,9 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
         auto& dict = renderData.getDictionary();
 
         if (!mpCounter)
-            mpCounter = dict.getValue<ref<Buffer>>("surfelCounter");
+            mpCounter = getSurfelCounter(mpDevice, dict);
         if (!mpConfig)
-            mpConfig = dict.getValue<ref<Buffer>>("surfelConfig");
+            mpConfig = getSurfelConfig(mpDevice, dict);
 
         if (mIsMoving)
         {
@@ -132,15 +132,14 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
         var["CB"]["gFrameIndex"] = mFrameIndex;
         var["CB"]["gCameraPos"] = mpScene->getCamera()->getPosition();
 
-        var["gSurfelBuffer"] = dict.getValue<ref<Buffer>>("surfelBuffer");
-        var["gSurfelFreeIndexBuffer"] = dict.getValue<ref<Buffer>>("surfelFreeIndexBuffer");
-        var["gSurfelValidIndexBuffer"] = dict.getValue<ref<Buffer>>("surfelValidIndexBuffer");
+        var[kSurfelBufferVarName] = getSurfelBuffer(mpDevice, dict);
+        var[kSurfelFreeIndexBufferVarName] = getSurfelFreeIndexBuffer(mpDevice, dict);
+        var[kSurfelValidIndexBufferVarName] = getSurfelValidIndexBuffer(mpDevice, dict);
+        var[kCellInfoBufferVarName] = getCellInfoBuffer(mpDevice, dict);
+        var[kCellToSurfelBufferVarName] = getCellToSurfelBuffer(mpDevice, dict);
 
-        var["gSurfelCounter"] = mpCounter;
-        var["gSurfelConfig"] = mpConfig;
-
-        var["gCellInfoBuffer"] = dict.getValue<ref<Buffer>>("cellInfoBuffer");
-        var["gCellToSurfelBuffer"] = dict.getValue<ref<Buffer>>("cellToSurfelBuffer");
+        var[kSurfelCounterVarName] = mpCounter;
+        var[kSurfelConfigVarName] = mpConfig;
 
         var["gDepth"] = pDepth;
         var["gNormal"] = pNormal;
@@ -157,9 +156,8 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
 
         if (mApply)
         {
-            pRenderContext->copyResource(dict.getValue<ref<Buffer>>("surfelBuffer").get(), mpEmpty.get());
+            pRenderContext->copyResource(getSurfelBuffer(mpDevice, dict).get(), mpEmpty.get());
             mpConfig->setBlob(&configValue, 0, sizeof(SurfelConfig));
-
             mApply = false;
         }
 
@@ -188,17 +186,19 @@ void SurfelGenPass::renderUI(Gui::Widgets& widget)
         mPlotData[mPlotData.size() - 1] = (float)validSurfelCount / kTotalSurfelLimit;
 
         widget.graph("", plotFunc, mPlotData.data(), mPlotData.size(), 0, 0, 1);
-        widget.text("Valid surfel count\t\t" + std::to_string(validSurfelCount));
-        widget.text("Free surfel count\t\t" + std::to_string(mpReadBackBuffer->getElement<int>(2)));
-        widget.text("Valid cell count\t\t" + std::to_string(mpReadBackBuffer->getElement<uint>(3)));
+        widget.text("Presented surfel\t\t" + std::to_string(validSurfelCount) + " / " + std::to_string(kTotalSurfelLimit));
+        widget.text("Cell containing surfel\t\t" + std::to_string(mpReadBackBuffer->getElement<uint>(3)));
+        widget.text("Shortage\t\t" + std::to_string(mpReadBackBuffer->getElement<int>(2)));
     }
 
-    widget.dummy("#spacer0", {1, 20});
+    widget.text("Cell dimension\t\t" + std::to_string(kCellDimension.x) + "x" + std::to_string(kCellDimension.y) + "x" + std::to_string(kCellDimension.z));
 
-    widget.text("Total surfel limit\t\t" + std::to_string(kTotalSurfelLimit));
-    widget.text("Per cell surfel limit\t\t" + std::to_string(kPerCellSurfelLimit));
+    widget.dummy("#spacer0", { 1, 20 });
 
     widget.var("Target area size", configValue.surfelTargetArea, 200.0f, 3600.0f, 20.0f);
+    widget.var("Cell unit", configValue.cellUnit, 0.005f, 0.1f);
+    widget.var("Per cell surfel limit", configValue.perCellSurfelLimit, 2u, 256u, 1u);
+
     if (widget.button("Apply"))
         mApply = true;
 }

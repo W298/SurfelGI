@@ -67,14 +67,14 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
 
     float3 worldPos = unProject(pixelPos * gInvResolution, depth, gInvViewProj);
 
-    int3 cellPos = getCellPos(worldPos, gCameraPos);
+    int3 cellPos = getCellPos(worldPos, gCameraPos, config.cellUnit);
     if (!isCellValid(cellPos))
         return;
 
     uint flattenIndex = getFlattenCellIndex(cellPos);
     CellInfo cellInfo = gCellInfoBuffer[flattenIndex];
 
-    if (cellInfo.surfelCount < kPerCellSurfelLimit)
+    if (cellInfo.surfelCount < config.perCellSurfelLimit)
     {
         if (groupThreadID.x == x && groupThreadID.y == y)
         {
@@ -104,7 +104,8 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
                                 distance(gScene.camera.getPosition(), worldPos),
                                 gFOVy,
                                 gResolution,
-                                config.surfelTargetArea
+                                config.surfelTargetArea,
+                                config.cellUnit
                             );
 
                             Surfel newSurfel = {

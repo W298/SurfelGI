@@ -2,6 +2,7 @@ add_plugin(Surfel)
 
 target_sources(Surfel PRIVATE
     SurfelBase.cpp
+    SurfelResource.h
 
     HashUtils.hlsli
     Random.hlsli

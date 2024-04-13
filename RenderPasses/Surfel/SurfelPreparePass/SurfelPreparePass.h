@@ -26,11 +26,5 @@ public:
     virtual bool onKeyEvent(const KeyboardEvent& keyEvent) override { return false; }
 
 private:
-    void createSurfelBuffer(Dictionary& dict);
-    void createSurfelIndexBuffer(Dictionary& dict);
-    void createSurfelCounter(Dictionary& dict);
-    void createCellInfoBuffer(Dictionary& dict);
-    void createCellToSurfelBuffer(Dictionary& dict);
-
     ref<ComputePass> mpComputePass;
 };

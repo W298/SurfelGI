@@ -54,15 +54,16 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
             distance(gScene.camera.getPosition(), surfel.position),
             gFOVy,
             gResolution,
-            config.surfelTargetArea
+            config.surfelTargetArea,
+            config.cellUnit
         );
 
         // Calculate number of surfels located at cell.
-        int3 cellPos = getCellPos(surfel.position, gCameraPos);
+        int3 cellPos = getCellPos(surfel.position, gCameraPos, config.cellUnit);
         for (uint i = 0; i < 27; ++i)
         {
             int3 neighborPos = cellPos + neighborOffset[i];
-            if (isSurfelIntersectCell(surfel, neighborPos, gCameraPos))
+            if (isSurfelIntersectCell(surfel, neighborPos, gCameraPos, config.cellUnit))
             {
                 uint flattenIndex = getFlattenCellIndex(neighborPos);
                 InterlockedAdd(gCellInfoBuffer[flattenIndex].surfelCount, 1);
@@ -110,14 +111,16 @@ void updateCellToSurfelBuffer(uint3 dispatchThreadId: SV_DispatchThreadID)
     if (dispatchThreadId.x >= vaildSurfelCount)
         return;
 
+    SurfelConfig config = gSurfelConfig.Load<SurfelConfig>(0);
+
     uint surfelIndex = gSurfelValidIndexBuffer[dispatchThreadId.x];
     Surfel surfel = gSurfelBuffer[surfelIndex];
 
-    int3 cellPos = getCellPos(surfel.position, gCameraPos);
+    int3 cellPos = getCellPos(surfel.position, gCameraPos, config.cellUnit);
     for (uint i = 0; i < 27; ++i)
     {
         int3 neighborPos = cellPos + neighborOffset[i];
-        if (isSurfelIntersectCell(surfel, neighborPos, gCameraPos))
+        if (isSurfelIntersectCell(surfel, neighborPos, gCameraPos, config.cellUnit))
         {
             uint flattenIndex = getFlattenCellIndex(neighborPos);
 

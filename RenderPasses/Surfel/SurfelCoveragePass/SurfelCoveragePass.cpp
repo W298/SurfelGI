@@ -1,5 +1,5 @@
 #include "SurfelCoveragePass.h"
-#include "../SurfelTypes.hlsli"
+#include "../SurfelResource.h"
 
 SurfelCoveragePass::SurfelCoveragePass(ref<Device> pDevice, const Properties& props) : RenderPass(pDevice)
 {
@@ -56,9 +56,11 @@ void SurfelCoveragePass::execute(RenderContext* pRenderContext, const RenderData
         var["CB"]["gFrameIndex"] = mFrameIndex;
         var["CB"]["gCameraPos"] = mpScene->getCamera()->getPosition();
 
-        var["gSurfelBuffer"] = dict.getValue<ref<Buffer>>("surfelBuffer");
-        var["gCellInfoBuffer"] = dict.getValue<ref<Buffer>>("cellInfoBuffer");
-        var["gCellToSurfelBuffer"] = dict.getValue<ref<Buffer>>("cellToSurfelBuffer");
+        var[kSurfelBufferVarName] = getSurfelBuffer(mpDevice, dict);
+        var[kCellInfoBufferVarName] = getCellInfoBuffer(mpDevice, dict);
+        var[kCellToSurfelBufferVarName] = getCellToSurfelBuffer(mpDevice, dict);
+
+        var[kSurfelConfigVarName] = getSurfelConfig(mpDevice, dict);
 
         var["gDepth"] = pDepth;
         var["gNormal"] = pNormal;

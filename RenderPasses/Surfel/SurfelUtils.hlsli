@@ -65,12 +65,12 @@ float calcRadius(float area, float distance, float fovy, uint2 resolution)
     return distance * sinTheta;
 }
 
-float calcSurfelRadius(float distance, float fovy, uint2 resolution, float area)
+float calcSurfelRadius(float distance, float fovy, uint2 resolution, float area, float cellUnit)
 {
 #if VARIABLE_SURFEL_RADIUS
-    return min(calcRadiusApprox(area, distance, fovy, resolution), kCellUnit);
+    return min(calcRadiusApprox(area, distance, fovy, resolution), cellUnit);
 #else
-    return kSurfelStaticRadius;
+    return STATIC_SURFEL_RADIUS;
 #endif
 }
 
@@ -82,10 +82,10 @@ float3 randomizeColor(float3 color, inout RandomState randomState)
     return 0.99f * (color * strength) + 0.01f * randomColor;
 }
 
-int3 getCellPos(float3 posW, float3 cameraPosW)
+int3 getCellPos(float3 posW, float3 cameraPosW, float cellUnit)
 {
     float3 posC = posW - cameraPosW;
-    posC /= kCellUnit;
+    posC /= cellUnit;
     return (int3)round(posC);
 }
 
@@ -107,13 +107,13 @@ bool isCellValid(int3 cellPos)
     return true;
 }
 
-bool isSurfelIntersectCell(Surfel surfel, int3 cellPos, float3 cameraPosW)
+bool isSurfelIntersectCell(Surfel surfel, int3 cellPos, float3 cameraPosW, float cellUnit)
 {
     if (!isCellValid(cellPos))
         return false;
 
-    float3 minPosW = cellPos * kCellUnit - float3(kCellUnit, kCellCount, kCellCount) / 2.0f + cameraPosW;
-    float3 maxPosW = cellPos * kCellUnit + float3(kCellUnit, kCellCount, kCellCount) / 2.0f + cameraPosW;
+    float3 minPosW = cellPos * cellUnit - float3(cellUnit, cellUnit, cellUnit) / 2.0f + cameraPosW;
+    float3 maxPosW = cellPos * cellUnit + float3(cellUnit, cellUnit, cellUnit) / 2.0f + cameraPosW;
     float3 closePoint = min(max(surfel.position, minPosW), maxPosW);
 
     float dist = distance(closePoint, surfel.position);

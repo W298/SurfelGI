@@ -1,6 +1,6 @@
 #include "SurfelUpdatePass.h"
-#include "../RenderPasses/Surfel/SurfelTypes.hlsli"
 #include "Utils/Math/FalcorMath.h"
+#include "../SurfelResource.h"
 
 SurfelUpdatePass::SurfelUpdatePass(ref<Device> pDevice, const Properties& props) : RenderPass(pDevice)
 {
@@ -33,16 +33,14 @@ void SurfelUpdatePass::execute(RenderContext* pRenderContext, const RenderData& 
         var["CB"]["gResolution"] = renderData.getDefaultTextureDims();
         var["CB"]["gFOVy"] = mFOVy;
 
-        var["gSurfelBuffer"] = dict.getValue<ref<Buffer>>("surfelBuffer");
-        
-        var["gSurfelDirtyIndexBuffer"] = dict.getValue<ref<Buffer>>("surfelDirtyIndexBuffer");
-        var["gSurfelValidIndexBuffer"] = dict.getValue<ref<Buffer>>("surfelValidIndexBuffer");
-        var["gSurfelFreeIndexBuffer"] = dict.getValue<ref<Buffer>>("surfelFreeIndexBuffer");
+        var[kSurfelBufferVarName] = getSurfelBuffer(mpDevice, dict);
+        var[kSurfelDirtyIndexBufferVarName] = getSurfelDirtyIndexBuffer(mpDevice, dict);
+        var[kSurfelValidIndexBufferVarName] = getSurfelValidIndexBuffer(mpDevice, dict);
+        var[kSurfelFreeIndexBufferVarName] = getSurfelFreeIndexBuffer(mpDevice, dict);
+        var[kCellInfoBufferVarName] = getCellInfoBuffer(mpDevice, dict);
 
-        var["gSurfelCounter"] = dict.getValue<ref<Buffer>>("surfelCounter");
-        var["gSurfelConfig"] = dict.getValue<ref<Buffer>>("surfelConfig");
-
-        var["gCellInfoBuffer"] = dict.getValue<ref<Buffer>>("cellInfoBuffer");
+        var[kSurfelCounterVarName] = getSurfelCounter(mpDevice, dict);
+        var[kSurfelConfigVarName] = getSurfelConfig(mpDevice, dict);
 
         mpCollectCellInfoPass->execute(pRenderContext, uint3(kTotalSurfelLimit, 1, 1));
     }
@@ -53,8 +51,8 @@ void SurfelUpdatePass::execute(RenderContext* pRenderContext, const RenderData& 
 
         var["CB"]["gCameraPos"] = mpScene->getCamera()->getPosition();
 
-        var["gSurfelCounter"] = dict.getValue<ref<Buffer>>("surfelCounter");
-        var["gCellInfoBuffer"] = dict.getValue<ref<Buffer>>("cellInfoBuffer");
+        var[kCellInfoBufferVarName] = getCellInfoBuffer(mpDevice, dict);
+        var[kSurfelCounterVarName] = getSurfelCounter(mpDevice, dict);
 
         mpAccumulateCellInfoPass->execute(pRenderContext, uint3(kCellCount, 1, 1));
     }
@@ -65,11 +63,13 @@ void SurfelUpdatePass::execute(RenderContext* pRenderContext, const RenderData& 
 
         var["CB"]["gCameraPos"] = mpScene->getCamera()->getPosition();
 
-        var["gSurfelBuffer"] = dict.getValue<ref<Buffer>>("surfelBuffer");
-        var["gSurfelValidIndexBuffer"] = dict.getValue<ref<Buffer>>("surfelValidIndexBuffer");
-        var["gSurfelCounter"] = dict.getValue<ref<Buffer>>("surfelCounter");
-        var["gCellInfoBuffer"] = dict.getValue<ref<Buffer>>("cellInfoBuffer");
-        var["gCellToSurfelBuffer"] = dict.getValue<ref<Buffer>>("cellToSurfelBuffer");
+        var[kSurfelBufferVarName] = getSurfelBuffer(mpDevice, dict);
+        var[kSurfelValidIndexBufferVarName] = getSurfelValidIndexBuffer(mpDevice, dict);
+        var[kCellInfoBufferVarName] = getCellInfoBuffer(mpDevice, dict);
+        var[kCellToSurfelBufferVarName] = getCellToSurfelBuffer(mpDevice, dict);
+
+        var[kSurfelCounterVarName] = getSurfelCounter(mpDevice, dict);
+        var[kSurfelConfigVarName] = getSurfelConfig(mpDevice, dict);
 
         mpUpdateCellToSurfelBuffer->execute(pRenderContext, uint3(kTotalSurfelLimit, 1, 1));
     }

@@ -14,6 +14,8 @@ RWStructuredBuffer<Surfel> gSurfelBuffer;
 RWStructuredBuffer<CellInfo> gCellInfoBuffer;
 RWStructuredBuffer<uint> gCellToSurfelBuffer;
 
+ByteAddressBuffer gSurfelConfig;
+
 Texture2D<float> gDepth;
 Texture2D<float4> gNormal;
 
@@ -37,6 +39,7 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex : SV_Gr
     uint2 pixelPos = dispatchThreadId.xy;
 
     RandomState randomState = initRandomState(pixelPos, gFrameIndex);
+    SurfelConfig config = gSurfelConfig.Load<SurfelConfig>(0);
 
     float depth = gDepth[pixelPos];
     if (depth == 1)
@@ -44,7 +47,7 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex : SV_Gr
 
     float3 worldPos = unProject(pixelPos * gInvResolution, depth, gInvViewProj);
 
-    int3 cellPos = getCellPos(worldPos, gCameraPos);
+    int3 cellPos = getCellPos(worldPos, gCameraPos, config.cellUnit);
     if (!isCellValid(cellPos))
         return;
 

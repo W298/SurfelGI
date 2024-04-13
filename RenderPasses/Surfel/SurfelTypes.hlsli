@@ -3,6 +3,7 @@
 
 #define USE_RAYTRACE_AS_PRIMITIVE_PICK      0
 #define VARIABLE_SURFEL_RADIUS              1
+#define STATIC_SURFEL_RADIUS                0.008f
 
 #define SURFEL_COUNTER_VALID_SURFEL         0
 #define SURFEL_COUNTER_DIRTY_SURFEL         4
@@ -11,13 +12,10 @@
 
 static const uint2 kTileSize = uint2(16, 16);
 static const uint kTotalSurfelLimit = 409600;
-static const uint kPerCellSurfelLimit = 64;
 static const uint kChancePower = 1;
 static const float kChanceMultiply = 0.7f;
 static const float kPlacementThreshold = 1e-12f;
 static const float kRemovalThreshold = 1.0f;
-static const float kSurfelStaticRadius = 0.008f;
-static const float kCellUnit = 0.02f;
 static const uint3 kCellDimension = uint3(400, 400, 400);
 static const uint kCellCount = kCellDimension.x * kCellDimension.y * kCellDimension.z;
 
@@ -41,6 +39,8 @@ struct CellInfo
 struct SurfelConfig
 {
     float surfelTargetArea = 2000.0f;
+    float cellUnit = 0.02f;
+    uint perCellSurfelLimit = 64;
 };
 
 #endif
