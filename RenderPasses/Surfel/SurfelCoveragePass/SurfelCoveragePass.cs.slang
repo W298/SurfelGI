@@ -4,6 +4,7 @@
 
 cbuffer CB
 {
+    uint2 gResolution;
     float2 gInvResolution;
     float4x4 gInvViewProj;
     uint gFrameIndex;
@@ -34,6 +35,9 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex : SV_Gr
         groupShareMaxContribution = 0;
     }
     GroupMemoryBarrierWithGroupSync();
+
+    if (dispatchThreadId.x >= gResolution.x || dispatchThreadId.y >= gResolution.y)
+        return;
 
     uint2 tilePos = groupdId.xy;
     uint2 pixelPos = dispatchThreadId.xy;
@@ -108,7 +112,7 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex : SV_Gr
     GroupMemoryBarrierWithGroupSync();
 
     float groupMinCoverage = f16tof32((groupShareMinCoverage & 0xFFFF0000) >> 16);
-    gDebug[pixelPos] = float4(step(kRemovalThreshold, groupMinCoverage), 0, 0, 1);
+    gDebug[pixelPos] = float4(step(kRemovalThreshold, groupMinCoverage), step(groupMinCoverage, kPlacementThreshold), 0, 1);
 
     gCoverage[tilePos] = uint2(groupShareMinCoverage, groupShareMaxContribution);
 }

@@ -25,7 +25,7 @@ RenderPassReflection SurfelCoveragePass::reflect(const CompileData& compileData)
     reflector.addOutput("coverage", "coverage texture")
         .format(ResourceFormat::RG32Uint)
         .bindFlags(ResourceBindFlags::UnorderedAccess)
-        .texture2D(compileData.defaultTexDims.x / kTileSize.x, compileData.defaultTexDims.y / kTileSize.y);
+        .texture2D(div_round_up(compileData.defaultTexDims.x, kTileSize.x), div_round_up(compileData.defaultTexDims.y, kTileSize.y));
 
     reflector.addOutput("debug", "debug texture")
         .format(ResourceFormat::RGBA32Float)
@@ -51,6 +51,7 @@ void SurfelCoveragePass::execute(RenderContext* pRenderContext, const RenderData
         auto var = mpComputePass->getRootVar();
         auto& dict = renderData.getDictionary();
 
+        var["CB"]["gResolution"] = resolution;
         var["CB"]["gInvResolution"] = float2(1.f / resolution.x, 1.f / resolution.y);
         var["CB"]["gInvViewProj"] = mpScene->getCamera()->getInvViewProjMatrix();
         var["CB"]["gFrameIndex"] = mFrameIndex;

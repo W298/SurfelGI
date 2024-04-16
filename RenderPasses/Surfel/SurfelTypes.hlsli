@@ -13,8 +13,8 @@
 static const uint2 kTileSize = uint2(16, 16);
 static const uint kTotalSurfelLimit = 409600;
 static const uint kChancePower = 1;
-static const float kChanceMultiply = 0.7f;
-static const float kPlacementThreshold = 1e-12f;
+static const float kChanceMultiply = 0.3f;
+static const float kPlacementThreshold = 0;
 static const float kRemovalThreshold = 1.0f;
 static const uint3 kCellDimension = uint3(400, 400, 400);
 static const uint kCellCount = kCellDimension.x * kCellDimension.y * kCellDimension.z;
@@ -41,6 +41,7 @@ struct SurfelConfig
     float surfelTargetArea = 2000.0f;
     float cellUnit = 0.02f;
     uint perCellSurfelLimit = 64;
+    float surfelVisualRadius = 0.7f;
 };
 
 #endif

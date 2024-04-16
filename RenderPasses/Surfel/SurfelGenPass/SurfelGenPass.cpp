@@ -53,7 +53,7 @@ RenderPassReflection SurfelGenPass::reflect(const CompileData& compileData)
     reflector.addInput("coverage", "coverage texture")
         .format(ResourceFormat::RG32Uint)
         .bindFlags(ResourceBindFlags::ShaderResource)
-        .texture2D(compileData.defaultTexDims.x / kTileSize.x, compileData.defaultTexDims.y / kTileSize.y);
+        .texture2D(div_round_up(compileData.defaultTexDims.x, kTileSize.x), div_round_up(compileData.defaultTexDims.y, kTileSize.y));
     reflector.addInput("packedHitInfo", "packed hit info texture")
         .format(ResourceFormat::RGBA32Uint)
         .bindFlags(ResourceBindFlags::ShaderResource);
@@ -195,9 +195,13 @@ void SurfelGenPass::renderUI(Gui::Widgets& widget)
 
     widget.dummy("#spacer0", { 1, 20 });
 
-    widget.var("Target area size", configValue.surfelTargetArea, 200.0f, 3600.0f, 20.0f);
+    widget.slider("Target area size", configValue.surfelTargetArea, 200.0f, 4800.0f);
     widget.var("Cell unit", configValue.cellUnit, 0.005f, 0.1f);
-    widget.var("Per cell surfel limit", configValue.perCellSurfelLimit, 2u, 256u, 1u);
+    widget.slider("Per cell surfel limit", configValue.perCellSurfelLimit, 2u, 1024u);
+
+    widget.dummy("#spacer0", { 1, 20 });
+
+    widget.slider("Surfel visual radius", configValue.surfelVisualRadius, 0.0f, 1.0f);
 
     if (widget.button("Apply"))
         mApply = true;

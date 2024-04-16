@@ -50,6 +50,9 @@ uint4 getPixelInfo(uint2 pixelPos)
 [numthreads(16, 16, 1)]
 void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV_GroupThreadID, uint3 groupdId: SV_GroupID)
 {
+    if (dispatchThreadId.x >= gResolution.x || dispatchThreadId.y >= gResolution.y)
+        return;
+
     uint2 tilePos = groupdId.xy;
     uint2 pixelPos = dispatchThreadId.xy;
 
@@ -99,6 +102,7 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
                             float3 normal = gNormal[pixelPos].xyz;
                             // float3 surfelColor = randomizeColor(gRaster[pixelPos].xyz, randomState);
                             float3 surfelColor = randomizeColor(pseudocolor(TriangleHit(packedHitInfo).instanceID.index), randomState);
+                            // float3 surfelColor = (pseudocolor(cellPos.x) + pseudocolor(cellPos.y) + pseudocolor(cellPos.z)) / 3.0f;
 
                             float radius = calcSurfelRadius(
                                 distance(gScene.camera.getPosition(), worldPos),
@@ -161,7 +165,7 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
         float3 bias = worldPos - surfel.position;
         float dist2 = dot(bias, bias);
 
-        if (dist2 < surfel.radius * surfel.radius)
+        if (dist2 < pow(surfel.radius * config.surfelVisualRadius, 2))
         {
             float3 normal = normalize(surfel.normal);
 
