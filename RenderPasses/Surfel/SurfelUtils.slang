@@ -1,11 +1,9 @@
-#ifndef SURFEL_UTILS_H
-#define SURFEL_UTILS_H
-
+#pragma once
 #define PI 3.14159265f
 
-#include "SurfelTypes.hlsli"
-#include "Random.hlsli"
-#include "HashUtils.hlsli"
+import RenderPasses.Surfel.SurfelTypes;
+import RenderPasses.Surfel.Random;
+import RenderPasses.Surfel.HashUtils;
 
 static const int3 neighborOffset[27] =
 {
@@ -67,16 +65,15 @@ float calcRadius(float area, float distance, float fovy, uint2 resolution)
 
 float calcSurfelRadius(float distance, float fovy, uint2 resolution, float area, float cellUnit)
 {
-#if VARIABLE_SURFEL_RADIUS
-    return min(calcRadiusApprox(area, distance, fovy, resolution), cellUnit);
-#else
-    return STATIC_SURFEL_RADIUS;
-#endif
+    if (kVariableSurfelRadius)
+        return min(calcRadiusApprox(area, distance, fovy, resolution), cellUnit);
+
+    return kStaticSurfelRadius;
 }
 
-float3 randomizeColor(float3 color, inout RandomState randomState)
+float3 randomizeColor(float3 color, inout RNG randomState)
 {
-    float3 randomColor = getNextFloat3(randomState);
+    float3 randomColor = randomState.next_float3();
     float strength = clamp(length(randomColor), 0.1f, 0.9f);
 
     return 0.99f * (color * strength) + 0.01f * randomColor;
@@ -125,5 +122,3 @@ float3 pseudocolor(uint value)
     uint h = jenkinsHash(value);
     return (uint3(h, h >> 8, h >> 16) & 0xff) / 255.f;
 }
-
-#endif

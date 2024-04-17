@@ -1,5 +1,5 @@
-#include "../SurfelTypes.hlsli"
-#include "../SurfelUtils.hlsli"
+import RenderPasses.Surfel.SurfelTypes;
+import RenderPasses.Surfel.SurfelUtils;
 
 import Scene.Scene;
 
@@ -26,7 +26,7 @@ RWStructuredBuffer<uint> gCellToSurfelBuffer;
 [numthreads(32, 1, 1)]
 void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
 {
-    uint dirtySurfelCount = gSurfelCounter.Load(SURFEL_COUNTER_DIRTY_SURFEL);
+    uint dirtySurfelCount = gSurfelCounter.Load((int)SurfelCounterOffset::DirtySurfel);
     if (dispatchThreadId.x >= dirtySurfelCount)
         return;
 
@@ -40,7 +40,7 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
     {
         // Copy surfel index if radius is not zero.
         uint validSurfelCount;
-        gSurfelCounter.InterlockedAdd(SURFEL_COUNTER_VALID_SURFEL, 1, validSurfelCount);
+        gSurfelCounter.InterlockedAdd((int)SurfelCounterOffset::ValidSurfel, 1, validSurfelCount);
         gSurfelValidIndexBuffer[validSurfelCount] = surfelIndex;
 
         // Update surfel position and normal.
@@ -76,7 +76,7 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
     else
     {
         int freeSurfelCount;
-        gSurfelCounter.InterlockedAdd(SURFEL_COUNTER_FREE_SURFEL, 1, freeSurfelCount);
+        gSurfelCounter.InterlockedAdd((int)SurfelCounterOffset::FreeSurfel, 1, freeSurfelCount);
         gSurfelFreeIndexBuffer[freeSurfelCount] = surfelIndex;
     }
 }
@@ -94,7 +94,7 @@ void accumulateCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
 
     // Calculate offsets.
     gSurfelCounter.InterlockedAdd(
-        SURFEL_COUNTER_CELL,
+        (int)SurfelCounterOffset::Cell,
         gCellInfoBuffer[flattenIndex].surfelCount,
         gCellInfoBuffer[flattenIndex].cellToSurfelBufferOffset
     );
@@ -107,7 +107,7 @@ void accumulateCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
 [numthreads(32, 1, 1)]
 void updateCellToSurfelBuffer(uint3 dispatchThreadId: SV_DispatchThreadID)
 {
-    uint vaildSurfelCount = gSurfelCounter.Load(SURFEL_COUNTER_VALID_SURFEL);
+    uint vaildSurfelCount = gSurfelCounter.Load((int)SurfelCounterOffset::ValidSurfel);
     if (dispatchThreadId.x >= vaildSurfelCount)
         return;
 

@@ -1,6 +1,6 @@
-#include "../Random.hlsli"
-#include "../SurfelTypes.hlsli"
-#include "../SurfelUtils.hlsli"
+import RenderPasses.Surfel.Random;
+import RenderPasses.Surfel.SurfelTypes;
+import RenderPasses.Surfel.SurfelUtils;
 
 cbuffer CB
 {
@@ -42,7 +42,9 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex : SV_Gr
     uint2 tilePos = groupdId.xy;
     uint2 pixelPos = dispatchThreadId.xy;
 
-    RandomState randomState = initRandomState(pixelPos, gFrameIndex);
+    RNG randomState;
+    randomState.init(pixelPos, gFrameIndex);
+
     SurfelConfig config = gSurfelConfig.Load<SurfelConfig>(0);
 
     float depth = gDepth[pixelPos];
@@ -61,7 +63,7 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex : SV_Gr
     float coverage = 0.f;
 
     float maxContribution = 0.f;
-    uint maxContributionSurfelIndex = getNextUInt(randomState, cellInfo.surfelCount);
+    uint maxContributionSurfelIndex = randomState.next_uint(cellInfo.surfelCount);
 
     for (uint i = 0; i < cellInfo.surfelCount; ++i)
     {
@@ -97,7 +99,7 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex : SV_Gr
 
     uint coverageData = 0;
     coverageData |= ((f32tof16(coverage) & 0x0000FFFF) << 16);
-    coverageData |= ((getNextUInt(randomState, 255) & 0x000000FF) << 8);
+    coverageData |= ((randomState.next_uint(255) & 0x000000FF) << 8);
     coverageData |= ((groupThreadID.x & 0x0000000F) << 4);
     coverageData |= ((groupThreadID.y & 0x0000000F) << 0);
 

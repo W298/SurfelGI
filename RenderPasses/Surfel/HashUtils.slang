@@ -1,5 +1,4 @@
-#ifndef HASH_UTILS_H
-#define HASH_UITLS_H
+#pragma once
 
 /**
  * 32-bit (non-cryptographic) hash function by Robert Jenkins.
@@ -16,5 +15,3 @@ uint jenkinsHash(uint a)
     a = (a ^ 0xb55a4f09) ^ (a >> 16);
     return a;
 }
-
-#endif

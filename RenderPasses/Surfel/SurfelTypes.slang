@@ -1,21 +1,25 @@
-#ifndef SURFEL_TYPES_H
-#define SURFEL_TYPES_H
+#pragma once
+#include "Utils/HostDeviceShared.slangh"
 
-#define USE_RAYTRACE_AS_PRIMITIVE_PICK      0
-#define VARIABLE_SURFEL_RADIUS              1
-#define STATIC_SURFEL_RADIUS                0.008f
+BEGIN_NAMESPACE_FALCOR
 
-#define SURFEL_COUNTER_VALID_SURFEL         0
-#define SURFEL_COUNTER_DIRTY_SURFEL         4
-#define SURFEL_COUNTER_FREE_SURFEL          8
-#define SURFEL_COUNTER_CELL                 12
+enum class SurfelCounterOffset : int
+{
+    ValidSurfel = 0,
+    DirtySurfel = 4,
+    FreeSurfel = 8,
+    Cell = 12
+};
 
 static const uint2 kTileSize = uint2(16, 16);
 static const uint kTotalSurfelLimit = 409600;
 static const uint kChancePower = 1;
 static const float kChanceMultiply = 0.3f;
+static const bool useRaytraceAsPrimitivePick = false;
+static const bool kVariableSurfelRadius = true;
+static const float kStaticSurfelRadius = 0.008f;
 static const float kPlacementThreshold = 0;
-static const float kRemovalThreshold = 1.0f;
+static const float kRemovalThreshold = 1.5f;
 static const uint3 kCellDimension = uint3(400, 400, 400);
 static const uint kCellCount = kCellDimension.x * kCellDimension.y * kCellDimension.z;
 
@@ -44,4 +48,4 @@ struct SurfelConfig
     float surfelVisualRadius = 0.7f;
 };
 
-#endif
+END_NAMESPACE_FALCOR

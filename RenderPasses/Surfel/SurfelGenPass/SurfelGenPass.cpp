@@ -97,7 +97,7 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
 
         if (mIsMoving)
         {
-            const AnimationController* pAnimationController = mpScene->getAnimationController();
+            /*const AnimationController* pAnimationController = mpScene->getAnimationController();
             const GeometryInstanceData& instance = mpScene->getGeometryInstance(698);
             const float4x4& instanceTransform = pAnimationController->getGlobalMatrices()[instance.globalMatrixID];
 
@@ -119,7 +119,7 @@ void SurfelGenPass::execute(RenderContext* pRenderContext, const RenderData& ren
             finalTransform.setRotation(rotation);
             finalTransform.setScaling(scale);
 
-            mpScene->updateNodeTransform(instance.globalMatrixID, finalTransform.getMatrix());
+            mpScene->updateNodeTransform(instance.globalMatrixID, finalTransform.getMatrix());*/
         }
 
         mpScene->setRaytracingShaderData(pRenderContext, var);

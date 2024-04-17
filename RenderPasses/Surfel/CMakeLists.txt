@@ -4,10 +4,10 @@ target_sources(Surfel PRIVATE
     SurfelBase.cpp
     SurfelResource.h
 
-    HashUtils.hlsli
-    Random.hlsli
-    SurfelTypes.hlsli
-    SurfelUtils.hlsli
+    HashUtils.slang
+    Random.slang
+    SurfelTypes.slang
+    SurfelUtils.slang
 
     SurfelGBuffer/SurfelGBuffer.cpp
     SurfelGBuffer/SurfelGBuffer.h
@@ -15,7 +15,7 @@ target_sources(Surfel PRIVATE
 
     SurfelPreparePass/SurfelPreparePass.cpp
     SurfelPreparePass/SurfelPreparePass.h
-    SurfelPreparePass/SurfelPreparePass.hlsl
+    SurfelPreparePass/SurfelPreparePass.cs.slang
 
     SurfelUpdatePass/SurfelUpdatePass.cpp
     SurfelUpdatePass/SurfelUpdatePass.h

@@ -1,6 +1,6 @@
-#include "../Random.hlsli"
-#include "../SurfelTypes.hlsli"
-#include "../SurfelUtils.hlsli"
+import RenderPasses.Surfel.Random;
+import RenderPasses.Surfel.SurfelTypes;
+import RenderPasses.Surfel.SurfelUtils;
 
 import Scene.RaytracingInline;
 
@@ -34,17 +34,18 @@ RWTexture2D<float4> gSurfel;
 
 uint4 getPixelInfo(uint2 pixelPos)
 {
-#if USE_RAYTRACE_AS_PRIMITIVE_PICK
-    const Ray ray = gScene.camera.computeRayPinhole(pixelPos, gResolution);
-    SceneRayQuery<0> sceneRayQuery;
+    if (useRaytraceAsPrimitivePick)
+    {
+        const Ray ray = gScene.camera.computeRayPinhole(pixelPos, gResolution);
+        SceneRayQuery<0> sceneRayQuery;
 
-    HitInfo hit;
-    float hitT;
-    sceneRayQuery.traceRay(ray, hit, hitT, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xff);
-    return hit.getTriangleHit().pack();
-#else
+        HitInfo hit;
+        float hitT;
+        sceneRayQuery.traceRay(ray, hit, hitT, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xff);
+        return hit.getTriangleHit().pack();
+    }
+
     return gPackedHitInfo[pixelPos];
-#endif
 }
 
 [numthreads(16, 16, 1)]
@@ -56,12 +57,19 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
     uint2 tilePos = groupdId.xy;
     uint2 pixelPos = dispatchThreadId.xy;
 
-    RandomState randomState = initRandomState(pixelPos, gFrameIndex);
+    RNG randomState;
+    randomState.init(pixelPos, gFrameIndex);
+
     SurfelConfig config = gSurfelConfig.Load<SurfelConfig>(0);
 
     float depth = gDepth[pixelPos];
     if (depth == 1)
+    {
+        const float3 ray = gScene.camera.computeRayPinhole(pixelPos, gResolution).dir;
+        gSurfel[pixelPos] = float4(gScene.envMap.eval(ray), 1);
+
         return;
+    }
 
     uint coverageData = gCoverage[tilePos].x;
     float coverage = f16tof32((coverageData & 0xFFFF0000) >> 16);
@@ -84,15 +92,15 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
             if (coverage <= kPlacementThreshold)
             {
                 const float chance = pow(depth, kChancePower);
-                if (getNextFloat(randomState) < chance * kChanceMultiply)
+                if (randomState.next_float() < chance * kChanceMultiply)
                 {
                     int freeSurfelCount;
-                    gSurfelCounter.InterlockedAdd(SURFEL_COUNTER_FREE_SURFEL, -1, freeSurfelCount);
+                    gSurfelCounter.InterlockedAdd((int)SurfelCounterOffset::FreeSurfel, -1, freeSurfelCount);
 
                     if (0 < freeSurfelCount && freeSurfelCount <= kTotalSurfelLimit)
                     {
                         uint validSurfelCount;
-                        gSurfelCounter.InterlockedAdd(SURFEL_COUNTER_VALID_SURFEL, 1, validSurfelCount);
+                        gSurfelCounter.InterlockedAdd((int)SurfelCounterOffset::ValidSurfel, 1, validSurfelCount);
 
                         if (validSurfelCount < kTotalSurfelLimit)
                         {
@@ -136,7 +144,7 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
             if (coverage > kRemovalThreshold)
             {
                 const float chance = pow(depth, kChancePower);
-                if (getNextFloat(randomState) < chance * kChanceMultiply)
+                if (randomState.next_float() < chance * kChanceMultiply)
                 {
                     uint contributionData = gCoverage[tilePos].y;
                     float maxContribution = f16tof32((contributionData & 0xFFFF0000) >> 16);

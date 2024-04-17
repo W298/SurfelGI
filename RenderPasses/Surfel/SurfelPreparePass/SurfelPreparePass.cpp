@@ -9,7 +9,7 @@ SurfelPreparePass::SurfelPreparePass(ref<Device> pDevice, const Properties& prop
         FALCOR_THROW("SceneDebugger requires Shader Model 6.5 support.");
 
     mpComputePass =
-        ComputePass::create(mpDevice, "RenderPasses/Surfel/SurfelPreparePass/SurfelPreparePass.hlsl", "csMain");
+        ComputePass::create(mpDevice, "RenderPasses/Surfel/SurfelPreparePass/SurfelPreparePass.cs.slang", "csMain");
 }
 
 RenderPassReflection SurfelPreparePass::reflect(const CompileData& compileData)

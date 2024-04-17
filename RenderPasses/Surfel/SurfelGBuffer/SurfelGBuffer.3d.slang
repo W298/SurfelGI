@@ -1,4 +1,4 @@
-#include "../SurfelUtils.hlsli"
+import RenderPasses.Surfel.SurfelUtils;
 
 import Scene.Raster;
 
