@@ -25,6 +25,12 @@ DirectIlluminationPass::DirectIlluminationPass(ref<Device> pDevice, const Proper
 
     // Create FBO.
     mpFbo = Fbo::create(mpDevice);
+
+    // Create SampleGenerator.
+    mpSampleGenerator = SampleGenerator::create(mpDevice, SAMPLE_GENERATOR_UNIFORM);
+    FALCOR_ASSERT(mpSampleGenerator);
+
+    mFrameIndex = 0;
 }
 
 RenderPassReflection DirectIlluminationPass::reflect(const CompileData& compileData)
@@ -41,8 +47,6 @@ void DirectIlluminationPass::execute(RenderContext* pRenderContext, const Render
 {
     const auto& pOutput = renderData.getTexture("raster");
 
-    FALCOR_ASSERT(pOutput);
-
     if (!mpDepth)
     {
         // Create depth buffer.
@@ -57,6 +61,12 @@ void DirectIlluminationPass::execute(RenderContext* pRenderContext, const Render
         );
     }
 
+    FALCOR_ASSERT(mpDepth && pOutput);
+
+    auto var = mpVars->getRootVar();
+    var["CB"]["gResolution"] = renderData.getDefaultTextureDims();
+    var["CB"]["gFrameIndex"] = mFrameIndex;
+
     mpFbo->attachColorTarget(pOutput, 0);
     mpFbo->attachDepthStencilTarget(mpDepth);
 
@@ -67,6 +77,8 @@ void DirectIlluminationPass::execute(RenderContext* pRenderContext, const Render
 
     if (mpScene)
         mpScene->rasterize(pRenderContext, mpState.get(), mpVars.get(), mpRasterState, mpRasterState);
+
+    mFrameIndex++;
 }
 
 void DirectIlluminationPass::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
@@ -84,9 +96,14 @@ void DirectIlluminationPass::setScene(RenderContext* pRenderContext, const ref<S
         desc.addTypeConformances(mpScene->getTypeConformances());
 
         mpProgram = Program::create(mpDevice, desc, mpScene->getSceneDefines());
+        mpProgram->addDefines(mpSampleGenerator->getDefines());
+
         mpState->setProgram(mpProgram);
 
         // Create program vars.
         mpVars = ProgramVars::create(mpDevice, mpProgram.get());
+
+        // Bind SampleGenerator to vars.
+        mpSampleGenerator->bindShaderData(mpVars->getRootVar());
     }
 }

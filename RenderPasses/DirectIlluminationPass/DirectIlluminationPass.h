@@ -26,11 +26,14 @@ public:
     virtual bool onKeyEvent(const KeyboardEvent& keyEvent) override { return false; }
 
 private:
-    ref<Scene> mpScene;
-    ref<GraphicsState> mpState;
-    ref<Program> mpProgram;
-    ref<ProgramVars> mpVars;
-    ref<Fbo> mpFbo;
-    ref<Texture> mpDepth;
-    ref<RasterizerState> mpRasterState;
+    ref<Scene>              mpScene;
+    ref<GraphicsState>      mpState;
+    ref<Program>            mpProgram;
+    ref<ProgramVars>        mpVars;
+    ref<Fbo>                mpFbo;
+    ref<Texture>            mpDepth;
+    ref<RasterizerState>    mpRasterState;
+    ref<SampleGenerator>    mpSampleGenerator;
+
+    uint                    mFrameIndex;
 };

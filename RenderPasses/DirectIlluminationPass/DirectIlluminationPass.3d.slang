@@ -1,4 +1,12 @@
 import Scene.Raster;
+import Utils.Sampling.SampleGenerator;
+import Rendering.Lights.LightHelpers;
+
+cbuffer CB
+{
+    uint2 gResolution;
+    uint gFrameIndex;
+}
 
 VSOut vsMain(VSIn vIn)
 {
@@ -9,27 +17,29 @@ float4 psMain(VSOut vOut, uint triangleIndex: SV_PrimitiveID) : SV_TARGET
 {
     float3 faceNormal = gScene.getFaceNormalW(vOut.instanceID, triangleIndex);
     VertexData v = prepareVertexData(vOut, faceNormal);
-    ImplicitLodTextureSampler lod = ImplicitLodTextureSampler();
-
-    uint numLights = gScene.getLightCount();
-    float3 lightDir = gScene.getLight(0).dirW;
+    let lod = ExplicitLodTextureSampler(0.f);
 
     float3 viewDir = normalize(gScene.camera.getPosition() - v.posW);
     ShadingData sd = gScene.materials.prepareShadingData(v, vOut.materialID, viewDir, lod);
+    IMaterialInstance mi = gScene.materials.getMaterialInstance(sd, lod);
 
-    IMaterialInstance mi = gScene.materials.getMaterialInstance(sd, lod, 0);
-    BSDFProperties bsdfProperties = mi.getProperties(sd);
+    float3 clipPosition = vOut.posH.xyz / vOut.posH.w;
+    clipPosition.xy += 1.0f;
+    clipPosition.xy /= 2.0f;
+    uint2 pixelPos = uint2(clipPosition.x * gResolution.x, clipPosition.y * gResolution.y);
 
-    float3 diffuseAlbedo = bsdfProperties.diffuseReflectionAlbedo;
-    float3 specularAlbedo = bsdfProperties.specularReflectionAlbedo;
+    SampleGenerator sg = SampleGenerator(pixelPos, gFrameIndex);
 
-    float3 diffuse = saturate(dot(v.normalW, -lightDir)) * diffuseAlbedo;
+    AnalyticLightSample ls;
+    if (!sampleDirectionalLight(sd.posW, gScene.getLight(0), ls))
+        return float4(0);
 
-    float3 r = normalize(2 * v.normalW * dot(v.normalW, -lightDir) + lightDir);
-    float3 c = normalize(gScene.camera.getPosition() - v.posW);
-    float3 specular = pow(saturate(dot(r, c)), 1.2f) * specularAlbedo;
+    const uint lobeTypes = mi.getLobeTypes(sd);
+    const bool hasReflection = lobeTypes & uint(LobeType::Reflection);
+    const bool hasTransmission = lobeTypes & uint(LobeType::Transmission);
+    float NdotL = dot(sd.getOrientedFaceNormal(), ls.dir);
+    if ((NdotL <= kMinCosTheta && !hasTransmission) || (NdotL >= -kMinCosTheta && !hasReflection))
+        return float4(0);
 
-    float3 ambient = diffuseAlbedo * float3(0.08f, 0.08f, 0.08f) + specularAlbedo * float3(0.08f, 0.08f, 0.08f);
-
-    return float4(diffuse + specular + ambient, 1);
+    return float4(mi.eval(sd, ls.dir, sg) * ls.Li * 1, 1);
 }
