@@ -94,11 +94,11 @@ uint getFlattenCellIndex(int3 cellPos)
 
 bool isCellValid(int3 cellPos)
 {
-    if (abs(cellPos.x) > kCellDimension.x / 2)
+    if (abs(cellPos.x) >= kCellDimension.x / 2)
         return false;
-    if (abs(cellPos.y) > kCellDimension.y / 2)
+    if (abs(cellPos.y) >= kCellDimension.y / 2)
         return false;
-    if (abs(cellPos.z) > kCellDimension.z / 2)
+    if (abs(cellPos.z) >= kCellDimension.z / 2)
         return false;
 
     return true;
