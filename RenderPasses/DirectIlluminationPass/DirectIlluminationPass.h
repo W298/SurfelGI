@@ -33,6 +33,7 @@ private:
     ref<Fbo>                mpFbo;
     ref<Texture>            mpDepth;
     ref<RasterizerState>    mpRasterState;
+
     ref<SampleGenerator>    mpSampleGenerator;
 
     uint                    mFrameIndex;

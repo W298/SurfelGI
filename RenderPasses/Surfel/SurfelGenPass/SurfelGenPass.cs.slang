@@ -65,9 +65,7 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
     float depth = gDepth[pixelPos];
     if (depth == 1)
     {
-        const float3 ray = gScene.camera.computeRayPinhole(pixelPos, gResolution).dir;
-        gSurfel[pixelPos] = float4(gScene.envMap.eval(ray), 1);
-
+        gSurfel[pixelPos] = gRaster[pixelPos];
         return;
     }
 

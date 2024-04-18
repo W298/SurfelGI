@@ -4,17 +4,17 @@
 
 using namespace Falcor;
 
-class SurfelDebugPass : public RenderPass
+class SurfelDirectLightingPass : public RenderPass
 {
 public:
-    FALCOR_PLUGIN_CLASS(SurfelDebugPass, "SurfelDebugPass", "Surfel coverage pass");
+    FALCOR_PLUGIN_CLASS(SurfelDirectLightingPass, "SurfelDirectLightingPass", "Direct lighting pass for SurfelGI");
 
-    static ref<SurfelDebugPass> create(ref<Device> pDevice, const Properties& props)
+    static ref<SurfelDirectLightingPass> create(ref<Device> pDevice, const Properties& props)
     {
-        return make_ref<SurfelDebugPass>(pDevice, props);
+        return make_ref<SurfelDirectLightingPass>(pDevice, props);
     }
 
-    SurfelDebugPass(ref<Device> pDevice, const Properties& props);
+    SurfelDirectLightingPass(ref<Device> pDevice, const Properties& props);
 
     virtual Properties getProperties() const override { return {}; }
     virtual RenderPassReflection reflect(const CompileData& compileData) override;
@@ -26,7 +26,12 @@ public:
     virtual bool onKeyEvent(const KeyboardEvent& keyEvent) override { return false; }
 
 private:
-    ref<Scene> mpScene;
-    ref<ComputePass> mpComputePass;
-    uint mFrameIndex;
+    ref<Scene>              mpScene;
+    ref<ComputeState>       mpState;
+    ref<Program>            mpProgram;
+    ref<ProgramVars>        mpVars;
+
+    ref<SampleGenerator>    mpSampleGenerator;
+
+    uint                    mFrameIndex;
 };

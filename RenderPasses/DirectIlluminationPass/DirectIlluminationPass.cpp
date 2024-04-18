@@ -26,7 +26,6 @@ DirectIlluminationPass::DirectIlluminationPass(ref<Device> pDevice, const Proper
     // Create FBO.
     mpFbo = Fbo::create(mpDevice);
 
-    // Create SampleGenerator.
     mpSampleGenerator = SampleGenerator::create(mpDevice, SAMPLE_GENERATOR_UNIFORM);
     FALCOR_ASSERT(mpSampleGenerator);
 
@@ -103,7 +102,8 @@ void DirectIlluminationPass::setScene(RenderContext* pRenderContext, const ref<S
         // Create program vars.
         mpVars = ProgramVars::create(mpDevice, mpProgram.get());
 
-        // Bind SampleGenerator to vars.
-        mpSampleGenerator->bindShaderData(mpVars->getRootVar());
+        auto var = mpVars->getRootVar();
+
+        mpSampleGenerator->bindShaderData(var);
     }
 }

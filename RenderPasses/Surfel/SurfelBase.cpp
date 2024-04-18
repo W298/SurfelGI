@@ -4,7 +4,7 @@
 #include "SurfelUpdatePass/SurfelUpdatePass.h"
 #include "SurfelCoveragePass/SurfelCoveragePass.h"
 #include "SurfelGenPass/SurfelGenPass.h"
-#include "SurfelDebugPass/SurfelDebugPass.h"
+#include "SurfelDirectLightingPass/SurfelDirectLightingPass.h"
 
 extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
 {
@@ -13,5 +13,5 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
     registry.registerClass<RenderPass, SurfelUpdatePass>();
     registry.registerClass<RenderPass, SurfelCoveragePass>();
     registry.registerClass<RenderPass, SurfelGenPass>();
-    registry.registerClass<RenderPass, SurfelDebugPass>();
+    registry.registerClass<RenderPass, SurfelDirectLightingPass>();
 }
