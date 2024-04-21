@@ -41,29 +41,24 @@ RenderPassReflection SurfelGI::reflect(const CompileData& compileData)
     reflectInput(reflector, compileData.defaultTexDims);
     reflectOutput(reflector, compileData.defaultTexDims);
 
+    if (math::any(mFrameDim != compileData.defaultTexDims))
+    {
+        mIsResourceDirty = true;
+        mFrameDim = compileData.defaultTexDims;
+    }
+
     return reflector;
 }
 
 void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderData)
 {
     if (!mpScene)
-        return;
-
-    if (!mpOutputTexture)
-        mpOutputTexture = renderData.getTexture(kOutputTextureName);
-
-    const uint2 newFrameDim = uint2(mpOutputTexture->getWidth(), mpOutputTexture->getHeight());
-    if (math::any(mFrameDim != newFrameDim))
-    {
-        mIsResourceDirty = true;
-        mFrameDim = newFrameDim;
-    }
+        return; 
 
     if (mIsResourceDirty)
     {
-        createTextureResources(newFrameDim);
+        createTextureResources(mFrameDim);
         bindResources(renderData);
-
         mIsResourceDirty = false;
     }
 
@@ -357,6 +352,8 @@ void SurfelGI::bindResources(const RenderData& renderData)
     const auto& pNormalTexture = renderData.getTexture(kNormalTextureName);
     const auto& pPackedHitInfoTexture = renderData.getTexture(kPackedHitInfoTextureName);
     const auto& pDirectLightingTexture = renderData.getTexture(kDirectLightingTextureName);
+
+    mpOutputTexture = renderData.getTexture(kOutputTextureName);
 
     // Prepare Pass
     {
