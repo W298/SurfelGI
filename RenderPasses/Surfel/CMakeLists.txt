@@ -32,6 +32,13 @@ target_sources(Surfel PRIVATE
     SurfelDirectLightingPass/SurfelDirectLightingPass.cpp
     SurfelDirectLightingPass/SurfelDirectLightingPass.h
     SurfelDirectLightingPass/SurfelDirectLightingPass.cs.slang
+
+    SurfelGI/SurfelGI.cpp
+    SurfelGI/SurfelGI.h
+    SurfelGI/SurfelPreparePass.cs.slang
+    SurfelGI/SurfelUpdatePass.cs.slang
+    SurfelGI/SurfelCoveragePass.cs.slang
+    SurfelGI/SurfelGenPass.cs.slang
 )
 
 target_copy_shaders(Surfel RenderPasses/Surfel)
