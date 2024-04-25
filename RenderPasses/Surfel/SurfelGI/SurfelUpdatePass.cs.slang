@@ -11,16 +11,16 @@ cbuffer CB
 }
 
 RWStructuredBuffer<Surfel> gSurfelBuffer;
-
 StructuredBuffer<uint> gSurfelDirtyIndexBuffer;
 RWStructuredBuffer<uint> gSurfelValidIndexBuffer;
 RWStructuredBuffer<uint> gSurfelFreeIndexBuffer;
+RWStructuredBuffer<CellInfo> gCellInfoBuffer;
+RWStructuredBuffer<uint> gCellToSurfelBuffer;
+
+RWStructuredBuffer<SurfelRay> gSurfelRayBuffer;
 
 RWByteAddressBuffer gSurfelCounter;
 ByteAddressBuffer gSurfelConfig;
-
-RWStructuredBuffer<CellInfo> gCellInfoBuffer;
-RWStructuredBuffer<uint> gCellToSurfelBuffer;
 
 // Calculate how much surfels are located at cell.
 [numthreads(32, 1, 1)]
@@ -68,6 +68,24 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
                 uint flattenIndex = getFlattenCellIndex(neighborPos);
                 InterlockedAdd(gCellInfoBuffer[flattenIndex].surfelCount, 1);
             }
+        }
+
+        // Ray allocation.
+        uint rayOffset = 0;
+        uint rayRequestCount = 1;
+        gSurfelCounter.InterlockedAdd((int)SurfelCounterOffset::RequestedRay, rayRequestCount, rayOffset);
+
+        if (rayOffset < kRayBudget)
+        {
+            // TODO: Add rayOffset, rayCount to Surfel Data.
+            surfel.rayOffset = rayOffset;
+            surfel.rayCount = rayRequestCount;
+
+            SurfelRay initialSurfelRay;
+            initialSurfelRay.surfelIndex = surfelIndex;
+
+            for (uint rayIndex = 0; rayIndex < rayRequestCount; ++rayIndex)
+                gSurfelRayBuffer[rayOffset + rayIndex] = initialSurfelRay;
         }
 
         // Write back to buffer.

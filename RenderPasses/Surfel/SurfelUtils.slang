@@ -122,3 +122,39 @@ float3 pseudocolor(uint value)
     uint h = jenkinsHash(value);
     return (uint3(h, h >> 8, h >> 16) & 0xff) / 255.f;
 }
+
+float3x3 get_tangentspace(in float3 normal)
+{
+    // Choose a helper vector for the cross product
+    float3 helper = abs(normal.x) > 0.99 ? float3(0, 0, 1) : float3(1, 0, 0);
+
+    // Generate vectors
+    float3 tangent = normalize(cross(normal, helper));
+    float3 binormal = normalize(cross(normal, tangent));
+    return float3x3(tangent, binormal, normal);
+}
+
+// Point on hemisphere with uniform distribution
+float3 hemispherepoint_uniform(float u, float v) {
+    float phi = v * 2 * PI;
+    float cosTheta = 1 - u;
+    float sinTheta = sqrt(1 - cosTheta * cosTheta);
+    return float3(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
+}
+// Point on hemisphere with cosine-weighted distribution
+float3 hemispherepoint_cos(float u, float v) {
+    float phi = v * 2 * PI;
+    float cosTheta = sqrt(1 - u);
+    float sinTheta = sqrt(1 - cosTheta * cosTheta);
+    return float3(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
+}
+// Get random hemisphere sample in world-space along the normal (uniform distribution)
+float3 sample_hemisphere_uniform(in float3 normal, inout RNG rng)
+{
+    return mul(hemispherepoint_uniform(rng.next_float(), rng.next_float()), get_tangentspace(normal));
+}
+// Get random hemisphere sample in world-space along the normal (cosine-weighted distribution)
+float3 sample_hemisphere_cos(in float3 normal, inout RNG rng)
+{
+    return mul(hemispherepoint_cos(rng.next_float(), rng.next_float()), get_tangentspace(normal));
+}

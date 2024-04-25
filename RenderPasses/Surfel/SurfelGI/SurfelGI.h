@@ -33,7 +33,7 @@ private:
     void createPasses();
 
     void createBufferResources();
-    void createTextureResources(const uint2 frameDim);
+    void createTextureResources();
 
     void bindResources(const RenderData& renderData);
 
@@ -47,8 +47,11 @@ private:
     bool mReadBackValid;
     bool mApply;
 
+    std::vector<float> mPlotData;
+
     ref<Scene> mpScene;
     ref<Fence> mpFence;
+    ref<SampleGenerator> mpSampleGenerator;
 
     ref<ComputePass> mpPreparePass;
     ref<ComputePass> mpCollectCellInfoPass;
@@ -56,6 +59,13 @@ private:
     ref<ComputePass> mpUpdateCellToSurfelBuffer;
     ref<ComputePass> mpSurfelCoveragePass;
     ref<ComputePass> mpSurfelGenerationPass;
+
+    struct
+    {
+        ref<Program> pProgram;
+        ref<RtBindingTable> pBindingTable;
+        ref<RtProgramVars> pVars;
+    } mRtPass;
 
     ref<Texture> mpCoverageTexture;
     ref<Texture> mpOutputTexture;
@@ -67,11 +77,11 @@ private:
     ref<Buffer> mpCellInfoBuffer;
     ref<Buffer> mpCellToSurfelBuffer;
 
+    ref<Buffer> mpSurfelRayBuffer;
+
     ref<Buffer> mpSurfelCounter;
     ref<Buffer> mpSurfelConfig;
 
     ref<Buffer> mpEmptySurfelBuffer;
     ref<Buffer> mpReadBackBuffer;
-
-    std::vector<float> mPlotData;
 };

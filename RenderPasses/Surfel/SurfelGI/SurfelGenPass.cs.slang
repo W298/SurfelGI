@@ -12,6 +12,7 @@ cbuffer CB
     float4x4 gInvViewProj;
     uint gFrameIndex;
     float3 gCameraPos;
+    float gSurfelVisualRadius;
 }
 
 RWStructuredBuffer<Surfel> gSurfelBuffer;
@@ -168,10 +169,14 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
         uint surfelIndex = gCellToSurfelBuffer[cellInfo.cellToSurfelBufferOffset + i];
         Surfel surfel = gSurfelBuffer[surfelIndex];
 
+        // TODO: For testing...
+        if (surfel.rayCount == 0)
+            continue;
+
         float3 bias = worldPos - surfel.position;
         float dist2 = dot(bias, bias);
 
-        if (dist2 < pow(surfel.radius * config.surfelVisualRadius, 2))
+        if (dist2 < pow(surfel.radius * gSurfelVisualRadius, 2))
         {
             float3 normal = normalize(surfel.normal);
 
@@ -180,7 +185,8 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
             {
                 if (surfelIndex > top)
                 {
-                    topColor = surfel.color;
+                    // TODO: For testing...
+                    topColor = (surfel.rayCount == 1 ? float3(1, 0, 0) : float3(0, 1, 0));
                     top = surfelIndex;
                     noSurfel = false;
                 }

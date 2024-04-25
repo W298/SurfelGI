@@ -4,6 +4,11 @@
 
 namespace
 {
+float plotFunc(void* data, int i)
+{
+    return static_cast<float*>(data)[i];
+}
+
 const std::string kOutputTextureName = "output";
 const std::string kDepthTextureName = "depth";
 const std::string kNormalTextureName = "normal";
@@ -16,10 +21,13 @@ const std::string kSurfelDirtyIndexBufferVarName = "gSurfelDirtyIndexBuffer";
 const std::string kSurfelFreeIndexBufferVarName = "gSurfelFreeIndexBuffer";
 const std::string kCellInfoBufferVarName = "gCellInfoBuffer";
 const std::string kCellToSurfelBufferVarName = "gCellToSurfelBuffer";
+const std::string kSurfelRayBufferVarName = "gSurfelRayBuffer";
 const std::string kSurfelCounterVarName = "gSurfelCounter";
 const std::string kSurfelConfigVarName = "gSurfelConfig";
 
 SurfelConfig configValue = SurfelConfig();
+
+float surfelVisualRadius = 0.7f;
 } // namespace
 
 SurfelGI::SurfelGI(ref<Device> pDevice, const Properties& props) : RenderPass(pDevice)
@@ -32,6 +40,7 @@ SurfelGI::SurfelGI(ref<Device> pDevice, const Properties& props) : RenderPass(pD
         FALCOR_THROW("SurfelGI requires Raytracing Tier 1.1 support.");
 
     mpFence = mpDevice->createFence();
+    mpSampleGenerator = SampleGenerator::create(mpDevice, SAMPLE_GENERATOR_UNIFORM);
 }
 
 RenderPassReflection SurfelGI::reflect(const CompileData& compileData)
@@ -53,11 +62,11 @@ RenderPassReflection SurfelGI::reflect(const CompileData& compileData)
 void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderData)
 {
     if (!mpScene)
-        return; 
+        return;
 
     if (mIsResourceDirty)
     {
-        createTextureResources(mFrameDim);
+        createTextureResources();
         bindResources(renderData);
         mIsResourceDirty = false;
     }
@@ -103,6 +112,14 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
         mpUpdateCellToSurfelBuffer->execute(pRenderContext, uint3(kTotalSurfelLimit, 1, 1));
     }
 
+    // Surfel RayTrace Pass
+    {
+        auto var = mRtPass.pVars->getRootVar();
+        var["CB"]["gFrameIndex"] = mFrameIndex;
+
+        mpScene->raytrace(pRenderContext, mRtPass.pProgram.get(), mRtPass.pVars, uint3(kRayBudget, 1, 1));
+    }
+
     // Surfel Coverage Pass
     {
         auto var = mpSurfelCoveragePass->getRootVar();
@@ -129,6 +146,7 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
         var["CB"]["gInvViewProj"] = mInvViewProj;
         var["CB"]["gFrameIndex"] = mFrameIndex;
         var["CB"]["gCameraPos"] = mCamPos;
+        var["CB"]["gSurfelVisualRadius"] = surfelVisualRadius;
 
         pRenderContext->clearUAV(mpOutputTexture->getUAV().get(), float4(0));
         mpSurfelGenerationPass->execute(pRenderContext, uint3(mFrameDim, 1));
@@ -154,14 +172,10 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
     mFrameIndex++;
 }
 
-static float plotFunc(void* data, int i)
-{
-    return static_cast<float*>(data)[i];
-}
-
 void SurfelGI::renderUI(Gui::Widgets& widget)
 {
-    widget.text("Frame index\t\t" + std::to_string(mFrameIndex));
+    widget.text("Frame index");
+    widget.text(std::to_string(mFrameIndex), true);
 
     if (mReadBackValid)
     {
@@ -170,17 +184,16 @@ void SurfelGI::renderUI(Gui::Widgets& widget)
         mPlotData[mPlotData.size() - 1] = (float)validSurfelCount / kTotalSurfelLimit;
 
         widget.graph("", plotFunc, mPlotData.data(), mPlotData.size(), 0, 0, 1);
-        widget.text(
-            "Presented surfel\t\t" + std::to_string(validSurfelCount) + " / " + std::to_string(kTotalSurfelLimit)
-        );
-        widget.text("Cell containing surfel\t\t" + std::to_string(mpReadBackBuffer->getElement<uint>(3)));
-        widget.text("Shortage\t\t" + std::to_string(mpReadBackBuffer->getElement<int>(2)));
-    }
 
-    widget.text(
-        "Cell dimension\t\t" + std::to_string(kCellDimension.x) + "x" + std::to_string(kCellDimension.y) + "x" +
-        std::to_string(kCellDimension.z)
-    );
+        widget.text("Presented surfel");
+        widget.text(std::to_string(validSurfelCount) + " / " + std::to_string(kTotalSurfelLimit), true);
+
+        widget.text("Cell containing surfel");
+        widget.text(std::to_string(mpReadBackBuffer->getElement<uint>(3)), true);
+
+        widget.text("Shortage");
+        widget.text(std::to_string(mpReadBackBuffer->getElement<int>(2)), true);
+    }
 
     widget.dummy("#spacer0", {1, 20});
 
@@ -188,12 +201,12 @@ void SurfelGI::renderUI(Gui::Widgets& widget)
     widget.var("Cell unit", configValue.cellUnit, 0.005f, 0.1f);
     widget.slider("Per cell surfel limit", configValue.perCellSurfelLimit, 2u, 1024u);
 
-    widget.dummy("#spacer0", {1, 20});
-
-    widget.slider("Surfel visual radius", configValue.surfelVisualRadius, 0.0f, 1.0f);
-
     if (widget.button("Apply"))
         mApply = true;
+
+    widget.dummy("#spacer0", {1, 20});
+
+    widget.slider("Surfel visual radius", surfelVisualRadius, 0.0f, 1.0f);
 }
 
 void SurfelGI::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
@@ -238,8 +251,10 @@ void SurfelGI::reflectOutput(RenderPassReflection& reflector, uint2 resolution)
 
 void SurfelGI::createPasses()
 {
+    // Prepare Pass
     mpPreparePass = ComputePass::create(mpDevice, "RenderPasses/Surfel/SurfelGI/SurfelPreparePass.cs.slang", "csMain");
 
+    // Update Pass (Collect Cell Info Pass)
     mpCollectCellInfoPass = ComputePass::create(
         mpDevice,
         "RenderPasses/Surfel/SurfelGI/SurfelUpdatePass.cs.slang",
@@ -247,6 +262,7 @@ void SurfelGI::createPasses()
         mpScene->getSceneDefines()
     );
 
+    // Update Pass (Accumulate Cell Info Pass)
     mpAccumulateCellInfoPass = ComputePass::create(
         mpDevice,
         "RenderPasses/Surfel/SurfelGI/SurfelUpdatePass.cs.slang",
@@ -254,6 +270,7 @@ void SurfelGI::createPasses()
         mpScene->getSceneDefines()
     );
 
+    // Update Pass (Update Cell To Surfel buffer Pass)
     mpUpdateCellToSurfelBuffer = ComputePass::create(
         mpDevice,
         "RenderPasses/Surfel/SurfelGI/SurfelUpdatePass.cs.slang",
@@ -261,10 +278,39 @@ void SurfelGI::createPasses()
         mpScene->getSceneDefines()
     );
 
+    // Surfel RayTrace Pass
+    {
+        ProgramDesc desc;
+        desc.addShaderModules(mpScene->getShaderModules());
+        desc.addShaderLibrary("RenderPasses/Surfel/SurfelGI/SurfelRayTrace.rt.slang");
+        desc.setMaxPayloadSize(72u);
+        desc.setMaxAttributeSize(mpScene->getRaytracingMaxAttributeSize());
+        desc.setMaxTraceRecursionDepth(2u);
+
+        mRtPass.pBindingTable = RtBindingTable::create(2, 2, mpScene->getGeometryCount());
+        mRtPass.pBindingTable->setRayGen(desc.addRayGen("rayGen"));
+        mRtPass.pBindingTable->setMiss(0, desc.addMiss("scatterMiss"));
+
+        mRtPass.pBindingTable->setHitGroup(
+            0,
+            mpScene->getGeometryIDs(Scene::GeometryType::TriangleMesh),
+            desc.addHitGroup("scatterTriangleMeshClosestHit", "scatterTriangleMeshAnyHit")
+        );
+
+        mRtPass.pProgram = Program::create(mpDevice, desc, mpScene->getSceneDefines());
+        mRtPass.pProgram->addDefines(mpSampleGenerator->getDefines());
+        mRtPass.pProgram->setTypeConformances(mpScene->getTypeConformances());
+
+        mRtPass.pVars = RtProgramVars::create(mpDevice, mRtPass.pProgram, mRtPass.pBindingTable);
+        mpSampleGenerator->bindShaderData(mRtPass.pVars->getRootVar());
+    }
+
+    // Surfel Coverage Pass
     mpSurfelCoveragePass = ComputePass::create(
         mpDevice, "RenderPasses/Surfel/SurfelGI/SurfelCoveragePass.cs.slang", "csMain", mpScene->getSceneDefines()
     );
 
+    // Surfel Generation Pass
     mpSurfelGenerationPass = ComputePass::create(
         mpDevice, "RenderPasses/Surfel/SurfelGI/SurfelGenPass.cs.slang", "csMain", mpScene->getSceneDefines()
     );
@@ -313,6 +359,10 @@ void SurfelGI::createBufferResources()
         false
     );
 
+    mpSurfelRayBuffer = mpDevice->createStructuredBuffer(
+        sizeof(SurfelRay), kRayBudget, ResourceBindFlags::UnorderedAccess, MemoryType::DeviceLocal, nullptr, false
+    );
+
     mpSurfelCounter = mpDevice->createBuffer(
         sizeof(uint) * _countof(kInitialStatus),
         ResourceBindFlags::UnorderedAccess,
@@ -333,11 +383,11 @@ void SurfelGI::createBufferResources()
     );
 }
 
-void SurfelGI::createTextureResources(const uint2 frameDim)
+void SurfelGI::createTextureResources()
 {
     mpCoverageTexture = mpDevice->createTexture2D(
-        div_round_up(frameDim.x, kTileSize.x),
-        div_round_up(frameDim.y, kTileSize.y),
+        div_round_up(mFrameDim.x, kTileSize.x),
+        div_round_up(mFrameDim.y, kTileSize.y),
         ResourceFormat::RG32Uint,
         1,
         Resource::kMaxPossible,
@@ -371,6 +421,8 @@ void SurfelGI::bindResources(const RenderData& renderData)
         var[kSurfelFreeIndexBufferVarName] = mpSurfelFreeIndexBuffer;
         var[kCellInfoBufferVarName] = mpCellInfoBuffer;
 
+        var[kSurfelRayBufferVarName] = mpSurfelRayBuffer;
+
         var[kSurfelCounterVarName] = mpSurfelCounter;
         var[kSurfelConfigVarName] = mpSurfelConfig;
     }
@@ -394,6 +446,19 @@ void SurfelGI::bindResources(const RenderData& renderData)
 
         var[kSurfelCounterVarName] = mpSurfelCounter;
         var[kSurfelConfigVarName] = mpSurfelConfig;
+    }
+
+    // Surfel RayTrace Pass
+    {
+        auto var = mRtPass.pVars->getRootVar();
+
+        var[kSurfelBufferVarName] = mpSurfelBuffer;
+        var[kCellInfoBufferVarName] = mpCellInfoBuffer;
+        var[kCellToSurfelBufferVarName] = mpCellToSurfelBuffer;
+
+        var[kSurfelRayBufferVarName] = mpSurfelRayBuffer;
+
+        var[kSurfelCounterVarName] = mpSurfelCounter;
     }
 
     // Surfel Coverage Pass

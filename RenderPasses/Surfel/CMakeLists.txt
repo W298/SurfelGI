@@ -37,6 +37,7 @@ target_sources(Surfel PRIVATE
     SurfelGI/SurfelGI.h
     SurfelGI/SurfelPreparePass.cs.slang
     SurfelGI/SurfelUpdatePass.cs.slang
+    SurfelGI/SurfelRayTrace.rt.slang
     SurfelGI/SurfelCoveragePass.cs.slang
     SurfelGI/SurfelGenPass.cs.slang
 )
