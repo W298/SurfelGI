@@ -14,7 +14,8 @@ enum class SurfelCounterOffset : int
 
 static const uint2 kTileSize = uint2(16, 16);
 static const uint kTotalSurfelLimit = 409600;
-static const uint kRayBudget = 4096;
+static const uint kRayBudget = 40960;
+static const float kRayTMax = 3.402823466e+38F;
 static const uint kChancePower = 1;
 static const float kChanceMultiply = 0.3f;
 static const bool useRaytraceAsPrimitivePick = false;

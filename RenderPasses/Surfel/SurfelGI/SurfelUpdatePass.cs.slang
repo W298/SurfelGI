@@ -77,7 +77,6 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
 
         if (rayOffset < kRayBudget)
         {
-            // TODO: Add rayOffset, rayCount to Surfel Data.
             surfel.rayOffset = rayOffset;
             surfel.rayCount = rayRequestCount;
 

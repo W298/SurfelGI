@@ -1,7 +1,6 @@
-#define FLT_MAX 3.402823466e+38F
-
 import Scene.Raytracing;
 import Utils.Sampling.SampleGenerator;
+import Rendering.Lights.LightHelpers;
 
 import RenderPasses.Surfel.Random;
 import RenderPasses.Surfel.SurfelTypes;
@@ -15,7 +14,23 @@ cbuffer CB
 struct Payload
 {
     float3 radiance;
+    float3 thp;
+    uint pathLength;
+    float3 origin;
+    float3 direction;
     bool terminated;
+
+    SampleGenerator sg;
+
+    __init(SampleGenerator sg)
+    {
+        this.radiance = float3(0, 0, 0);
+        this.thp = float3(1, 1, 1);
+        this.pathLength = 0;
+        this.origin = float3(0, 0, 0);
+        this.direction = float3(0, 0, 0);
+        this.terminated = false;
+    }
 }
 
 RWStructuredBuffer<Surfel> gSurfelBuffer;
@@ -26,15 +41,87 @@ RWStructuredBuffer<SurfelRay> gSurfelRayBuffer;
 
 RWByteAddressBuffer gSurfelCounter;
 
+float3 evalAnalyticLight(const ShadingData sd, const IMaterialInstance mi, inout SampleGenerator sg)
+{
+    const uint lightCount = gScene.getLightCount();
+    if (lightCount == 0)
+        return float3(0.f);
+
+    RNG rng;
+    rng.init(DispatchRaysIndex().xx, gFrameIndex);
+
+    const uint lightIndex = rng.next_uint(lightCount - 1);
+    float invPdf = lightCount;
+
+    AnalyticLightSample ls;
+    if (!sampleLight(sd.posW, gScene.getLight(lightIndex), sg, ls))
+        return float3(0.f);
+
+    const uint lobeTypes = mi.getLobeTypes(sd);
+    const bool hasReflection = lobeTypes & uint(LobeType::Reflection);
+    const bool hasTransmission = lobeTypes & uint(LobeType::Transmission);
+    float NdotL = dot(sd.getOrientedFaceNormal(), ls.dir);
+    if ((NdotL <= kMinCosTheta && !hasTransmission) || (NdotL >= -kMinCosTheta && !hasReflection))
+        return float3(0.f);
+
+    return mi.eval(sd, ls.dir, sg) * ls.Li * invPdf;
+}
+
+void handleHit(TriangleHit triangleHit, inout Payload payload)
+{
+    VertexData v = gScene.getVertexData(triangleHit);
+    uint materialID = gScene.getMaterialID(triangleHit.instanceID);
+    let lod = ExplicitLodTextureSampler(0.f);
+    ShadingData sd = gScene.materials.prepareShadingData(v, materialID, -payload.direction, lod);
+    let mi = gScene.materials.getMaterialInstance(sd, lod);
+
+    float3 Lr = evalAnalyticLight(sd, mi, payload.sg);
+
+    payload.radiance += payload.thp * Lr;
+    payload.terminated = true;
+
+    // TODO: For testing ray generation...
+    //int3 cellPos = getCellPos(v.posW, gScene.camera.getPosition(), 0.02f);
+    //if (!isCellValid(cellPos))
+    //    return;
+
+    //uint flattenIndex = getFlattenCellIndex(cellPos);
+    //CellInfo cellInfo = gCellInfoBuffer[flattenIndex];
+
+    //for (uint i = 0; i < cellInfo.surfelCount; ++i)
+    //{
+    //    uint surfelIndex = gCellToSurfelBuffer[cellInfo.cellToSurfelBufferOffset + i];
+    //    Surfel surfel = gSurfelBuffer[surfelIndex];
+
+    //    if (surfel.rayCount == 1)
+    //        continue;
+
+    //    float3 bias = v.posW - surfel.position;
+    //    float dist2 = dot(bias, bias);
+
+    //    if (dist2 < pow(surfel.radius, 2))
+    //    {
+    //        float3 normal = normalize(surfel.normal);
+
+    //        float dotN = dot(v.normalW, normal);
+    //        if (dotN > 0)
+    //            surfel.rayCount = 2;
+    //    }
+
+    //    gSurfelBuffer[surfelIndex] = surfel;
+    //}
+}
+
 // Miss Shaders
 
 [shader("miss")]
 void scatterMiss(inout Payload payload)
 {
-    payload.terminated = true;
+    // Env light accumulation.
+    float3 Le = gScene.envMap.eval(-payload.direction);
+    payload.radiance += payload.thp * Le;
 
-    // TODO: Env light accumulation.
-    float3 Le = gScene.envMap.eval(WorldRayDirection());
+    payload.terminated = true;
 }
 
 // Hit Shaders
@@ -56,38 +143,7 @@ void scatterTriangleMeshClosestHit(inout Payload payload, BuiltInTriangleInterse
     triangleHit.instanceID = getGeometryInstanceID();
     triangleHit.primitiveIndex = PrimitiveIndex();
     triangleHit.barycentrics = attribs.barycentrics;
-
-    VertexData v = gScene.getVertexData(triangleHit);
-    int3 cellPos = getCellPos(v.posW, gScene.camera.getPosition(), 0.02f);
-    if (!isCellValid(cellPos))
-        return;
-
-    uint flattenIndex = getFlattenCellIndex(cellPos);
-    CellInfo cellInfo = gCellInfoBuffer[flattenIndex];
-
-    // TODO: For testing...
-    for (uint i = 0; i < cellInfo.surfelCount; ++i)
-    {
-        uint surfelIndex = gCellToSurfelBuffer[cellInfo.cellToSurfelBufferOffset + i];
-        Surfel surfel = gSurfelBuffer[surfelIndex];
-
-        if (surfel.rayCount == 1)
-            continue;
-
-        float3 bias = v.posW - surfel.position;
-        float dist2 = dot(bias, bias);
-
-        if (dist2 < pow(surfel.radius, 2))
-        {
-            float3 normal = normalize(surfel.normal);
-
-            float dotN = dot(v.normalW, normal);
-            if (dotN > 0)
-                surfel.rayCount = 2;
-        }
-
-        gSurfelBuffer[surfelIndex] = surfel;
-    }
+    handleHit(triangleHit, payload);
 }
 
 // Ray Generation
@@ -100,26 +156,47 @@ void rayGen()
         return;
 
     uint rayIndex = DispatchRaysIndex().x;
+    uint2 rayIndex2 = uint2(rayIndex, rayIndex);
     SurfelRay surfelRay = gSurfelRayBuffer[rayIndex];
-    Surfel surfel = gSurfelBuffer[surfelRay.surfelIndex];
+    const Surfel surfel = gSurfelBuffer[surfelRay.surfelIndex];
 
     RNG rng;
-    rng.init(DispatchRaysIndex().xx, gFrameIndex);
+    rng.init(rayIndex2, gFrameIndex);
 
     RayDesc ray;
     ray.Origin = surfel.position;
-    ray.TMin = 0.0001;
-    ray.TMax = FLT_MAX;
+    ray.TMin = 0.f;
+    ray.TMax = kRayTMax;
     ray.Direction = normalize(sample_hemisphere_cos(surfel.normal, rng));
 
-    surfelRay.direction = ray.Direction;
+    SampleGenerator sg = SampleGenerator(rayIndex2, gFrameIndex);
 
-    uint rayFlags = RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_FORCE_OPAQUE | RAY_FLAG_CULL_BACK_FACING_TRIANGLES;
+    Payload payload = Payload(sg);
+    payload.origin = ray.Origin;
+    payload.direction = ray.Direction;
 
-    Payload payload;
+    // Direct Lighting
+    {
+        TriangleHit baseHit = TriangleHit(surfel.packedHitInfo);
+        VertexData v = gScene.getVertexData(baseHit);
+        uint materialID = gScene.getMaterialID(baseHit.instanceID);
+        let lod = ExplicitLodTextureSampler(0.f);
+        const float3 direction = gScene.camera.getPosition() - surfel.position;
+        ShadingData sd = gScene.materials.prepareShadingData(v, materialID, direction, lod);
+        let mi = gScene.materials.getMaterialInstance(sd, lod);
+
+        BSDFSample bsdfSample;
+        if (mi.sample(sd, sg, bsdfSample, false))
+            payload.thp *= bsdfSample.weight;
+
+        float3 Lr = evalAnalyticLight(sd, mi, payload.sg);
+        payload.radiance += payload.thp * Lr;
+    }
+
+    // In-Direct Lighting
     TraceRay(
         gScene.rtAccel,
-        rayFlags,
+        RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_FORCE_OPAQUE | RAY_FLAG_CULL_BACK_FACING_TRIANGLES,
         0xff,
         0,  /* hitIdx */
         rayTypeCount,
@@ -127,4 +204,9 @@ void rayGen()
         ray,
         payload
     );
+
+    surfelRay.direction = ray.Direction;
+    surfelRay.radiance = payload.radiance;
+
+    gSurfelRayBuffer[rayIndex] = surfelRay;
 }

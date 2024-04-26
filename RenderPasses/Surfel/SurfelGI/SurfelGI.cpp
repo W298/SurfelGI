@@ -487,6 +487,8 @@ void SurfelGI::bindResources(const RenderData& renderData)
         var[kCellInfoBufferVarName] = mpCellInfoBuffer;
         var[kCellToSurfelBufferVarName] = mpCellToSurfelBuffer;
 
+        var[kSurfelRayBufferVarName] = mpSurfelRayBuffer;
+
         var[kSurfelCounterVarName] = mpSurfelCounter;
         var[kSurfelConfigVarName] = mpSurfelConfig;
 

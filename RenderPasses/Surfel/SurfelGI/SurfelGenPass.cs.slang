@@ -18,12 +18,13 @@ cbuffer CB
 RWStructuredBuffer<Surfel> gSurfelBuffer;
 RWStructuredBuffer<uint> gSurfelFreeIndexBuffer;
 RWStructuredBuffer<uint> gSurfelValidIndexBuffer;
+RWStructuredBuffer<CellInfo> gCellInfoBuffer;
+RWStructuredBuffer<uint> gCellToSurfelBuffer;
+
+RWStructuredBuffer<SurfelRay> gSurfelRayBuffer;
 
 RWByteAddressBuffer gSurfelCounter;
 ByteAddressBuffer gSurfelConfig;
-
-RWStructuredBuffer<CellInfo> gCellInfoBuffer;
-RWStructuredBuffer<uint> gCellToSurfelBuffer;
 
 Texture2D<float> gDepth;
 Texture2D<float4> gNormal;
@@ -185,8 +186,11 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
             {
                 if (surfelIndex > top)
                 {
-                    // TODO: For testing...
-                    topColor = (surfel.rayCount == 1 ? float3(1, 0, 0) : float3(0, 1, 0));
+                    // TODO: For testing ray generation...
+                    // topColor = (surfel.rayCount == 1 ? float3(1, 0, 0) : float3(0, 1, 0));
+
+                    topColor = gSurfelRayBuffer[surfel.rayOffset].radiance;
+
                     top = surfelIndex;
                     noSurfel = false;
                 }
