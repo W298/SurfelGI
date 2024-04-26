@@ -183,10 +183,13 @@ void SurfelGI::renderUI(Gui::Widgets& widget)
         const uint validSurfelCount = mpReadBackBuffer->getElement<uint>(0);
         mPlotData[mPlotData.size() - 1] = (float)validSurfelCount / kTotalSurfelLimit;
 
-        widget.graph("", plotFunc, mPlotData.data(), mPlotData.size(), 0, 0, 1);
+        widget.graph("", plotFunc, mPlotData.data(), mPlotData.size(), 0, 0, 1, 0, 50u);
 
         widget.text("Presented surfel");
         widget.text(std::to_string(validSurfelCount) + " / " + std::to_string(kTotalSurfelLimit), true);
+
+        widget.text("Ray Budget");
+        widget.text(std::to_string(mpReadBackBuffer->getElement<uint>(4)) + " / " + std::to_string(kRayBudget), true);
 
         widget.text("Cell containing surfel");
         widget.text(std::to_string(mpReadBackBuffer->getElement<uint>(3)), true);
@@ -290,11 +293,18 @@ void SurfelGI::createPasses()
         mRtPass.pBindingTable = RtBindingTable::create(2, 2, mpScene->getGeometryCount());
         mRtPass.pBindingTable->setRayGen(desc.addRayGen("rayGen"));
         mRtPass.pBindingTable->setMiss(0, desc.addMiss("scatterMiss"));
+        mRtPass.pBindingTable->setMiss(1, desc.addMiss("shadowMiss"));
 
         mRtPass.pBindingTable->setHitGroup(
             0,
             mpScene->getGeometryIDs(Scene::GeometryType::TriangleMesh),
             desc.addHitGroup("scatterTriangleMeshClosestHit", "scatterTriangleMeshAnyHit")
+        );
+
+        mRtPass.pBindingTable->setHitGroup(
+            1,
+            mpScene->getGeometryIDs(Scene::GeometryType::TriangleMesh),
+            desc.addHitGroup("", "shadowTriangleMeshAnyHit")
         );
 
         mRtPass.pProgram = Program::create(mpDevice, desc, mpScene->getSceneDefines());

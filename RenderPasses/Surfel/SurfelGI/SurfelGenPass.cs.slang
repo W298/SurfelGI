@@ -186,10 +186,12 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
             {
                 if (surfelIndex > top)
                 {
-                    // TODO: For testing ray generation...
-                    // topColor = (surfel.rayCount == 1 ? float3(1, 0, 0) : float3(0, 1, 0));
-
-                    topColor = gSurfelRayBuffer[surfel.rayOffset].radiance;
+                    topColor = float3(0, 0, 0);
+                    for (uint rayIndex = 0; rayIndex < surfel.rayCount; ++rayIndex)
+                    {
+                        float3 radiance = gSurfelRayBuffer[surfel.rayOffset + rayIndex].radiance;
+                        topColor += (1.f / surfel.rayCount) * (radiance - topColor);
+                    }
 
                     top = surfelIndex;
                     noSurfel = false;

@@ -13,5 +13,5 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID)
     gSurfelCounter.Store((int)SurfelCounterOffset::Cell, 0);
 
     // TODO: For testing...
-    //gSurfelCounter.Store((int)SurfelCounterOffset::RequestedRay, 0);
+    gSurfelCounter.Store((int)SurfelCounterOffset::RequestedRay, 0);
 }
