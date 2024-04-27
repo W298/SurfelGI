@@ -126,15 +126,66 @@ float3 evalAnalyticLight(const ShadingData sd, const IMaterialInstance mi, inout
 void handleHit(TriangleHit triangleHit, inout ScatterPayload scatterPayload)
 {
     VertexData v = gScene.getVertexData(triangleHit);
-    uint materialID = gScene.getMaterialID(triangleHit.instanceID);
-    let lod = ExplicitLodTextureSampler(0.f);
-    ShadingData sd = gScene.materials.prepareShadingData(v, materialID, -scatterPayload.direction, lod);
-    let mi = gScene.materials.getMaterialInstance(sd, lod);
 
-    float3 Lr = evalAnalyticLight(sd, mi, scatterPayload.sg);
+    int3 cellPos = getCellPos(v.posW, gScene.camera.getPosition(), 0.02f);
+    if (!isCellValid(cellPos))
+        return;
 
-    scatterPayload.radiance += scatterPayload.thp * Lr;
-    scatterPayload.terminated = true;
+    uint flattenIndex = getFlattenCellIndex(cellPos);
+    CellInfo cellInfo = gCellInfoBuffer[flattenIndex];
+
+    float4 acc = float4(0, 0, 0, 0);
+    for (uint i = 0; i < cellInfo.surfelCount; ++i)
+    {
+        uint surfelIndex = gCellToSurfelBuffer[cellInfo.cellToSurfelBufferOffset + i];
+        Surfel surfel = gSurfelBuffer[surfelIndex];
+
+        // TODO: Fix selecting surfel
+        if (surfel.accumulated > 16*16*16*16)
+        {
+            float3 bias = v.posW - surfel.position;
+            float dist2 = dot(bias, bias);
+
+            if (dist2 < surfel.radius * surfel.radius)
+            {
+                float3 normal = normalize(surfel.normal);
+
+                float dotN = dot(v.normalW, normal);
+                if (dotN > 0)
+                {
+                    float dist = sqrt(dist2);
+                    float contribution = 1.f;
+
+                    contribution *= saturate(dotN);
+                    contribution *= saturate(1 - dist / surfel.radius);
+                    contribution = smoothstep(0, 1, contribution);
+
+                    acc += float4(surfel.radiance, 1.f) * contribution;
+                }
+            }
+        }
+    }
+
+    if (acc.w > 0)
+    {
+        acc.xyz /= acc.w;
+
+        scatterPayload.radiance += scatterPayload.thp * acc.xyz;
+        scatterPayload.terminated = true;
+    }
+    else
+    {
+        uint materialID = gScene.getMaterialID(triangleHit.instanceID);
+        let lod = ExplicitLodTextureSampler(0.f);
+        ShadingData sd = gScene.materials.prepareShadingData(v, materialID, -scatterPayload.direction, lod);
+        let mi = gScene.materials.getMaterialInstance(sd, lod);
+
+        float3 Lr = evalAnalyticLight(sd, mi, scatterPayload.sg);
+
+        scatterPayload.radiance += scatterPayload.thp * Lr;
+
+        // TODO: Multiple-Bounce
+    }
 }
 
 // Miss Shaders

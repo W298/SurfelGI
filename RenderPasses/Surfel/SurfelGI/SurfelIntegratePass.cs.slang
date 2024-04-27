@@ -21,15 +21,6 @@ Texture2D<uint4> gPackedHitInfo;
 
 RWTexture2D<float4> gOutput;
 
-struct MultiscaleMeanEstimatorData
-{
-    float3 mean;
-    float3 shortMean;
-    float vbbr;
-    float3 variance;
-    float inconsistency;
-};
-
 [numthreads(32, 32, 1)]
 void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV_GroupThreadID, uint3 groupdId: SV_GroupID)
 {

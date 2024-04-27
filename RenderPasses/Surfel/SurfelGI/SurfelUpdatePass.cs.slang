@@ -72,7 +72,7 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
 
         // Ray allocation.
         uint rayOffset = 0;
-        uint rayRequestCount = 64;
+        uint rayRequestCount = 16;
         gSurfelCounter.InterlockedAdd((int)SurfelCounterOffset::RequestedRay, rayRequestCount, rayOffset);
 
         if (rayOffset < kRayBudget)
