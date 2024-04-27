@@ -21,13 +21,14 @@ const std::string kSurfelDirtyIndexBufferVarName = "gSurfelDirtyIndexBuffer";
 const std::string kSurfelFreeIndexBufferVarName = "gSurfelFreeIndexBuffer";
 const std::string kCellInfoBufferVarName = "gCellInfoBuffer";
 const std::string kCellToSurfelBufferVarName = "gCellToSurfelBuffer";
-const std::string kSurfelRayBufferVarName = "gSurfelRayBuffer";
+const std::string kSurfelRayResultBufferVarName = "gSurfelRayResultBuffer";
 const std::string kSurfelCounterVarName = "gSurfelCounter";
 const std::string kSurfelConfigVarName = "gSurfelConfig";
 
 SurfelConfig configValue = SurfelConfig();
 
 float surfelVisualRadius = 0.7f;
+bool collectDirectLighting = false;
 } // namespace
 
 SurfelGI::SurfelGI(ref<Device> pDevice, const Properties& props) : RenderPass(pDevice)
@@ -116,6 +117,7 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
     {
         auto var = mRtPass.pVars->getRootVar();
         var["CB"]["gFrameIndex"] = mFrameIndex;
+        var["CB"]["gCollectDirectLighting"] = collectDirectLighting;
 
         mpScene->raytrace(pRenderContext, mRtPass.pProgram.get(), mRtPass.pVars, uint3(kRayBudget, 1, 1));
     }
@@ -176,17 +178,21 @@ void SurfelGI::renderUI(Gui::Widgets& widget)
 
     if (mReadBackValid)
     {
-        std::rotate(mPlotData.begin(), mPlotData.begin() + 1, mPlotData.end());
         const uint validSurfelCount = mpReadBackBuffer->getElement<uint>(0);
+        const uint requestedRayCount = mpReadBackBuffer->getElement<uint>(4);
+
+        std::rotate(mPlotData.begin(), mPlotData.begin() + 1, mPlotData.end());
         mPlotData[mPlotData.size() - 1] = (float)validSurfelCount / kTotalSurfelLimit;
 
-        widget.graph("", plotFunc, mPlotData.data(), mPlotData.size(), 0, 0, 1, 0, 50u);
+        widget.graph("", plotFunc, mPlotData.data(), mPlotData.size(), 0, 0, FLT_MAX, 0, 50u);
 
         widget.text("Presented surfel");
         widget.text(std::to_string(validSurfelCount) + " / " + std::to_string(kTotalSurfelLimit), true);
+        widget.text("(" + std::to_string(validSurfelCount * 100.0f / kTotalSurfelLimit) + " %)", true);
 
         widget.text("Ray Budget");
-        widget.text(std::to_string(mpReadBackBuffer->getElement<uint>(4)) + " / " + std::to_string(kRayBudget), true);
+        widget.text(std::to_string(requestedRayCount) + " / " + std::to_string(kRayBudget), true);
+        widget.text("(" + std::to_string(requestedRayCount * 100.0f / kRayBudget) + " %)", true);
 
         widget.text("Cell containing surfel");
         widget.text(std::to_string(mpReadBackBuffer->getElement<uint>(3)), true);
@@ -207,6 +213,7 @@ void SurfelGI::renderUI(Gui::Widgets& widget)
     widget.dummy("#spacer0", {1, 20});
 
     widget.slider("Surfel visual radius", surfelVisualRadius, 0.0f, 1.0f);
+    widget.checkbox("Direct Lighting (Surfel)", collectDirectLighting);
 }
 
 void SurfelGI::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
@@ -357,8 +364,8 @@ void SurfelGI::createBufferResources()
         false
     );
 
-    mpSurfelRayBuffer = mpDevice->createStructuredBuffer(
-        sizeof(SurfelRay), kRayBudget, ResourceBindFlags::UnorderedAccess, MemoryType::DeviceLocal, nullptr, false
+    mpSurfelRayResultBuffer = mpDevice->createStructuredBuffer(
+        sizeof(SurfelRayResult), kRayBudget, ResourceBindFlags::UnorderedAccess, MemoryType::DeviceLocal, nullptr, false
     );
 
     mpSurfelCounter = mpDevice->createBuffer(
@@ -381,10 +388,7 @@ void SurfelGI::createBufferResources()
     );
 }
 
-void SurfelGI::createTextureResources()
-{
-    
-}
+void SurfelGI::createTextureResources() {}
 
 void SurfelGI::bindResources(const RenderData& renderData)
 {
@@ -407,7 +411,7 @@ void SurfelGI::bindResources(const RenderData& renderData)
         var[kSurfelFreeIndexBufferVarName] = mpSurfelFreeIndexBuffer;
         var[kCellInfoBufferVarName] = mpCellInfoBuffer;
 
-        var[kSurfelRayBufferVarName] = mpSurfelRayBuffer;
+        var[kSurfelRayResultBufferVarName] = mpSurfelRayResultBuffer;
 
         var[kSurfelCounterVarName] = mpSurfelCounter;
         var[kSurfelConfigVarName] = mpSurfelConfig;
@@ -442,7 +446,7 @@ void SurfelGI::bindResources(const RenderData& renderData)
         var[kCellInfoBufferVarName] = mpCellInfoBuffer;
         var[kCellToSurfelBufferVarName] = mpCellToSurfelBuffer;
 
-        var[kSurfelRayBufferVarName] = mpSurfelRayBuffer;
+        var[kSurfelRayResultBufferVarName] = mpSurfelRayResultBuffer;
 
         var[kSurfelCounterVarName] = mpSurfelCounter;
     }
@@ -471,7 +475,7 @@ void SurfelGI::bindResources(const RenderData& renderData)
         var[kCellInfoBufferVarName] = mpCellInfoBuffer;
         var[kCellToSurfelBufferVarName] = mpCellToSurfelBuffer;
 
-        var[kSurfelRayBufferVarName] = mpSurfelRayBuffer;
+        var[kSurfelRayResultBufferVarName] = mpSurfelRayResultBuffer;
 
         var[kSurfelConfigVarName] = mpSurfelConfig;
 

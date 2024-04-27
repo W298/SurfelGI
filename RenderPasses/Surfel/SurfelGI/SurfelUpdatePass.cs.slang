@@ -17,7 +17,7 @@ RWStructuredBuffer<uint> gSurfelFreeIndexBuffer;
 RWStructuredBuffer<CellInfo> gCellInfoBuffer;
 RWStructuredBuffer<uint> gCellToSurfelBuffer;
 
-RWStructuredBuffer<SurfelRay> gSurfelRayBuffer;
+RWStructuredBuffer<SurfelRayResult> gSurfelRayResultBuffer;
 
 RWByteAddressBuffer gSurfelCounter;
 ByteAddressBuffer gSurfelConfig;
@@ -72,7 +72,7 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
 
         // Ray allocation.
         uint rayOffset = 0;
-        uint rayRequestCount = 2;
+        uint rayRequestCount = 64;
         gSurfelCounter.InterlockedAdd((int)SurfelCounterOffset::RequestedRay, rayRequestCount, rayOffset);
 
         if (rayOffset < kRayBudget)
@@ -80,11 +80,11 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
             surfel.rayOffset = rayOffset;
             surfel.rayCount = rayRequestCount;
 
-            SurfelRay initialSurfelRay;
-            initialSurfelRay.surfelIndex = surfelIndex;
+            SurfelRayResult initSurfelRayResult;
+            initSurfelRayResult.surfelIndex = surfelIndex;
 
             for (uint rayIndex = 0; rayIndex < rayRequestCount; ++rayIndex)
-                gSurfelRayBuffer[rayOffset + rayIndex] = initialSurfelRay;
+                gSurfelRayResultBuffer[rayOffset + rayIndex] = initSurfelRayResult;
         }
 
         // Write back to buffer.

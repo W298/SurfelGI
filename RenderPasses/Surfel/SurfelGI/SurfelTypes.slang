@@ -14,7 +14,7 @@ enum class SurfelCounterOffset : int
 
 static const uint2 kTileSize = uint2(16, 16);
 static const uint kTotalSurfelLimit = 409600;
-static const uint kRayBudget = 40960;
+static const uint kRayBudget = 409600 * 10;
 static const float kRayTMax = 3.402823466e+38F;
 static const uint kChancePower = 1;
 static const float kChanceMultiply = 0.3f;
@@ -32,8 +32,9 @@ struct Surfel
     float3 position;
     float3 normal;
     float radius;
-    float3 color;
     uint4 packedHitInfo;
+    float3 radiance;
+    uint accumulated;
     uint rayOffset;
     uint rayCount;
 };
@@ -52,7 +53,7 @@ struct SurfelConfig
     float surfelVisualRadius = 0.7f;
 };
 
-struct SurfelRay
+struct SurfelRayResult
 {
     float3 direction;
     float depth;

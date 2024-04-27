@@ -13,13 +13,22 @@ RWStructuredBuffer<Surfel> gSurfelBuffer;
 RWStructuredBuffer<CellInfo> gCellInfoBuffer;
 RWStructuredBuffer<uint> gCellToSurfelBuffer;
 
-RWStructuredBuffer<SurfelRay> gSurfelRayBuffer;
+RWStructuredBuffer<SurfelRayResult> gSurfelRayResultBuffer;
 
 ByteAddressBuffer gSurfelConfig;
 
 Texture2D<uint4> gPackedHitInfo;
 
 RWTexture2D<float4> gOutput;
+
+struct MultiscaleMeanEstimatorData
+{
+    float3 mean;
+    float3 shortMean;
+    float vbbr;
+    float3 variance;
+    float inconsistency;
+};
 
 [numthreads(32, 32, 1)]
 void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV_GroupThreadID, uint3 groupdId: SV_GroupID)
@@ -47,6 +56,24 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
     uint flattenIndex = getFlattenCellIndex(cellPos);
     CellInfo cellInfo = gCellInfoBuffer[flattenIndex];
 
+    // Moving average radiance
+    for (uint i = 0; i < cellInfo.surfelCount; ++i)
+    {
+        uint surfelIndex = gCellToSurfelBuffer[cellInfo.cellToSurfelBufferOffset + i];
+        Surfel surfel = gSurfelBuffer[surfelIndex];
+
+        for (uint rayIndex = 0; rayIndex < surfel.rayCount; ++rayIndex)
+        {
+            float3 rayRadiance = gSurfelRayResultBuffer[surfel.rayOffset + rayIndex].radiance;
+            float weight = 1.0f / ++surfel.accumulated;
+
+            surfel.radiance = lerp(surfel.radiance, rayRadiance, weight);
+        }
+
+        // Write back to buffer
+        gSurfelBuffer[surfelIndex] = surfel;
+    }
+
     // Visualize
     float3 topColor = float3(0, 0, 0);
     uint top = 0;
@@ -73,13 +100,7 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV
             {
                 if (surfelIndex > top)
                 {
-                    topColor = float3(0, 0, 0);
-                    for (uint rayIndex = 0; rayIndex < surfel.rayCount; ++rayIndex)
-                    {
-                        float3 radiance = gSurfelRayBuffer[surfel.rayOffset + rayIndex].radiance;
-                        topColor += (1.f / surfel.rayCount) * (radiance - topColor);
-                    }
-
+                    topColor = surfel.radiance;
                     top = surfelIndex;
                     noSurfel = false;
                 }

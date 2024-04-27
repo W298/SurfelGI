@@ -148,24 +148,17 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex: SV_Gro
                         {
                             uint newIndex = gSurfelFreeIndexBuffer[freeSurfelCount - 1];
 
-                            float3 normal = v.normalW;
-                            float3 surfelColor = randomizeColor(pseudocolor(triangleHit.instanceID.index), randomState);
-
-                            float radius = calcSurfelRadius(
+                            Surfel newSurfel;
+                            newSurfel.position = v.posW;
+                            newSurfel.normal = v.normalW;
+                            newSurfel.radius = calcSurfelRadius(
                                 distance(gScene.camera.getPosition(), v.posW),
                                 gFOVy,
                                 gResolution,
                                 config.surfelTargetArea,
                                 config.cellUnit
                             );
-
-                            Surfel newSurfel = {
-                                v.posW,
-                                normal,
-                                radius,
-                                surfelColor,
-                                hitInfo.data
-                            };
+                            newSurfel.packedHitInfo = hitInfo.data;
 
                             gSurfelValidIndexBuffer[validSurfelCount] = newIndex;
                             gSurfelBuffer[newIndex] = newSurfel;

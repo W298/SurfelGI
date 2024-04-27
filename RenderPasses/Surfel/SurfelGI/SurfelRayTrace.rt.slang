@@ -10,6 +10,7 @@ import RenderPasses.Surfel.SurfelGI.SurfelUtils;
 cbuffer CB
 {
     uint gFrameIndex;
+    bool gCollectDirectLighting;
 }
 
 struct ScatterPayload
@@ -43,7 +44,7 @@ RWStructuredBuffer<Surfel> gSurfelBuffer;
 RWStructuredBuffer<CellInfo> gCellInfoBuffer;
 RWStructuredBuffer<uint> gCellToSurfelBuffer;
 
-RWStructuredBuffer<SurfelRay> gSurfelRayBuffer;
+RWStructuredBuffer<SurfelRayResult> gSurfelRayResultBuffer;
 
 RWByteAddressBuffer gSurfelCounter;
 
@@ -197,8 +198,8 @@ void rayGen()
 
     uint rayIndex = DispatchRaysIndex().x;
     uint2 rayIndex2 = uint2(rayIndex, rayIndex);
-    SurfelRay surfelRay = gSurfelRayBuffer[rayIndex];
-    const Surfel surfel = gSurfelBuffer[surfelRay.surfelIndex];
+    SurfelRayResult surfelRayResult = gSurfelRayResultBuffer[rayIndex];
+    const Surfel surfel = gSurfelBuffer[surfelRayResult.surfelIndex];
 
     RNG rng;
     rng.init(rayIndex2, gFrameIndex);
@@ -210,6 +211,7 @@ void rayGen()
     scatterPayload.direction = normalize(sample_hemisphere_cos(surfel.normal, rng));
 
     // Direct Lighting (for Debugging)
+    if (gCollectDirectLighting)
     {
         TriangleHit baseHit = TriangleHit(surfel.packedHitInfo);
         VertexData v = gScene.getVertexData(baseHit);
@@ -230,6 +232,7 @@ void rayGen()
     // In-Direct Lighting
     traceScatterRay(scatterPayload);
 
-    surfelRay.radiance = scatterPayload.radiance;
-    gSurfelRayBuffer[rayIndex] = surfelRay;
+    // Write back to buffer
+    surfelRayResult.radiance = scatterPayload.radiance;
+    gSurfelRayResultBuffer[rayIndex] = surfelRayResult;
 }

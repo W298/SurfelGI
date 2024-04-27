@@ -76,7 +76,7 @@ private:
     ref<Buffer> mpCellInfoBuffer;
     ref<Buffer> mpCellToSurfelBuffer;
 
-    ref<Buffer> mpSurfelRayBuffer;
+    ref<Buffer> mpSurfelRayResultBuffer;
 
     ref<Buffer> mpSurfelCounter;
     ref<Buffer> mpSurfelConfig;
