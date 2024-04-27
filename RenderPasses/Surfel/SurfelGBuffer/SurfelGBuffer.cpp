@@ -1,7 +1,6 @@
 #include "SurfelGBuffer.h"
 
 const ChannelList SurfelGBuffer::kChannels = {
-    {"normal", "gNormal", "Normal", true, ResourceFormat::RGBA32Float},
     {"packedHitInfo", "gPackedHitInfo", "Packed Hit Info", true, ResourceFormat::RGBA32Uint},
     {"instanceIDVisual", "gInstanceIDVisual", "Instance ID Visualization", true, ResourceFormat::RGBA32Float},
 };

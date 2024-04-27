@@ -1,4 +1,4 @@
-import RenderPasses.Surfel.SurfelUtils;
+import RenderPasses.Surfel.HashUtils;
 
 import Scene.Raster;
 
@@ -12,9 +12,8 @@ struct GBufferVSOut
 
 struct GBufferPSOut
 {
-    float4 normal : SV_TARGET0;
-    uint4 packedHitInfo : SV_TARGET1;
-    float4 instanceIDVisual : SV_TARGET2;
+    uint4 packedHitInfo : SV_TARGET0;
+    float4 instanceIDVisual : SV_TARGET1;
 };
 
 GBufferVSOut vsMain(VSIn vIn)
@@ -41,7 +40,6 @@ GBufferPSOut psMain(GBufferVSOut vOut, uint triangleIndex: SV_PrimitiveID, float
     triangleHit.barycentrics = barycentrics.yz;
 
     GBufferPSOut psOut = {
-        float4(vOut.normalW, 1),
         triangleHit.pack(),
         float4(pseudocolor(vOut.instanceID.index), 1)
     };

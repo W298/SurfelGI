@@ -18,7 +18,6 @@ static const uint kRayBudget = 40960;
 static const float kRayTMax = 3.402823466e+38F;
 static const uint kChancePower = 1;
 static const float kChanceMultiply = 0.3f;
-static const bool useRaytraceAsPrimitivePick = false;
 static const bool kVariableSurfelRadius = true;
 static const float kStaticSurfelRadius = 0.008f;
 static const float kPlacementThreshold = 0;

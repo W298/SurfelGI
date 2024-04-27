@@ -1,6 +1,6 @@
 #include "SurfelGI.h"
 #include "Utils/Math/FalcorMath.h"
-#include "../SurfelTypes.slang"
+#include "SurfelTypes.slang"
 
 namespace
 {
@@ -120,20 +120,6 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
         mpScene->raytrace(pRenderContext, mRtPass.pProgram.get(), mRtPass.pVars, uint3(kRayBudget, 1, 1));
     }
 
-    // Surfel Coverage Pass
-    {
-        auto var = mpSurfelCoveragePass->getRootVar();
-
-        var["CB"]["gResolution"] = mFrameDim;
-        var["CB"]["gInvResolution"] = float2(1.f / mFrameDim.x, 1.f / mFrameDim.y);
-        var["CB"]["gInvViewProj"] = mInvViewProj;
-        var["CB"]["gFrameIndex"] = mFrameIndex;
-        var["CB"]["gCameraPos"] = mCamPos;
-
-        pRenderContext->clearUAV(mpCoverageTexture->getUAV().get(), uint4(0));
-        mpSurfelCoveragePass->execute(pRenderContext, uint3(mFrameDim, 1));
-    }
-
     // Surfel Generation Pass
     {
         auto var = mpSurfelGenerationPass->getRootVar();
@@ -146,10 +132,21 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
         var["CB"]["gInvViewProj"] = mInvViewProj;
         var["CB"]["gFrameIndex"] = mFrameIndex;
         var["CB"]["gCameraPos"] = mCamPos;
+
+        mpSurfelGenerationPass->execute(pRenderContext, uint3(mFrameDim, 1));
+    }
+
+    // Surfel Integrate Pass
+    {
+        auto var = mpSurfelIntegratePass->getRootVar();
+
+        mpScene->setRaytracingShaderData(pRenderContext, var);
+
+        var["CB"]["gResolution"] = mFrameDim;
         var["CB"]["gSurfelVisualRadius"] = surfelVisualRadius;
 
         pRenderContext->clearUAV(mpOutputTexture->getUAV().get(), float4(0));
-        mpSurfelGenerationPass->execute(pRenderContext, uint3(mFrameDim, 1));
+        mpSurfelIntegratePass->execute(pRenderContext, uint3(mFrameDim, 1));
     }
 
     // Read Back
@@ -231,17 +228,8 @@ void SurfelGI::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
 
 void SurfelGI::reflectInput(RenderPassReflection& reflector, uint2 resolution)
 {
-    reflector.addInput(kDepthTextureName, "depth texture")
-        .format(ResourceFormat::D32Float)
-        .bindFlags(ResourceBindFlags::ShaderResource);
-    reflector.addInput(kNormalTextureName, "normal texture")
-        .format(ResourceFormat::RGBA32Float)
-        .bindFlags(ResourceBindFlags::ShaderResource);
     reflector.addInput(kPackedHitInfoTextureName, "packed hit info texture")
         .format(ResourceFormat::RGBA32Uint)
-        .bindFlags(ResourceBindFlags::ShaderResource);
-    reflector.addInput(kDirectLightingTextureName, "direct lighting texture")
-        .format(ResourceFormat::RGBA32Float)
         .bindFlags(ResourceBindFlags::ShaderResource);
 }
 
@@ -315,14 +303,14 @@ void SurfelGI::createPasses()
         mpSampleGenerator->bindShaderData(mRtPass.pVars->getRootVar());
     }
 
-    // Surfel Coverage Pass
-    mpSurfelCoveragePass = ComputePass::create(
-        mpDevice, "RenderPasses/Surfel/SurfelGI/SurfelCoveragePass.cs.slang", "csMain", mpScene->getSceneDefines()
-    );
-
     // Surfel Generation Pass
     mpSurfelGenerationPass = ComputePass::create(
-        mpDevice, "RenderPasses/Surfel/SurfelGI/SurfelGenPass.cs.slang", "csMain", mpScene->getSceneDefines()
+        mpDevice, "RenderPasses/Surfel/SurfelGI/SurfelGenerationPass.cs.slang", "csMain", mpScene->getSceneDefines()
+    );
+
+    // Surfel Integrate Pass
+    mpSurfelIntegratePass = ComputePass::create(
+        mpDevice, "RenderPasses/Surfel/SurfelGI/SurfelIntegratePass.cs.slang", "csMain", mpScene->getSceneDefines()
     );
 }
 
@@ -395,24 +383,12 @@ void SurfelGI::createBufferResources()
 
 void SurfelGI::createTextureResources()
 {
-    mpCoverageTexture = mpDevice->createTexture2D(
-        div_round_up(mFrameDim.x, kTileSize.x),
-        div_round_up(mFrameDim.y, kTileSize.y),
-        ResourceFormat::RG32Uint,
-        1,
-        Resource::kMaxPossible,
-        nullptr,
-        ResourceBindFlags::UnorderedAccess
-    );
+    
 }
 
 void SurfelGI::bindResources(const RenderData& renderData)
 {
-    const auto& pDepthTexture = renderData.getTexture(kDepthTextureName);
-    const auto& pNormalTexture = renderData.getTexture(kNormalTextureName);
     const auto& pPackedHitInfoTexture = renderData.getTexture(kPackedHitInfoTextureName);
-    const auto& pDirectLightingTexture = renderData.getTexture(kDirectLightingTextureName);
-
     mpOutputTexture = renderData.getTexture(kOutputTextureName);
 
     // Prepare Pass
@@ -471,22 +447,6 @@ void SurfelGI::bindResources(const RenderData& renderData)
         var[kSurfelCounterVarName] = mpSurfelCounter;
     }
 
-    // Surfel Coverage Pass
-    {
-        auto var = mpSurfelCoveragePass->getRootVar();
-
-        var[kSurfelBufferVarName] = mpSurfelBuffer;
-        var[kCellInfoBufferVarName] = mpCellInfoBuffer;
-        var[kCellToSurfelBufferVarName] = mpCellToSurfelBuffer;
-
-        var[kSurfelConfigVarName] = mpSurfelConfig;
-
-        var["gDepth"] = pDepthTexture;
-        var["gNormal"] = pNormalTexture;
-
-        var["gCoverage"] = mpCoverageTexture;
-    }
-
     // Surfel Generation Pass
     {
         auto var = mpSurfelGenerationPass->getRootVar();
@@ -497,17 +457,26 @@ void SurfelGI::bindResources(const RenderData& renderData)
         var[kCellInfoBufferVarName] = mpCellInfoBuffer;
         var[kCellToSurfelBufferVarName] = mpCellToSurfelBuffer;
 
-        var[kSurfelRayBufferVarName] = mpSurfelRayBuffer;
-
         var[kSurfelCounterVarName] = mpSurfelCounter;
         var[kSurfelConfigVarName] = mpSurfelConfig;
 
-        var["gDepth"] = pDepthTexture;
-        var["gNormal"] = pNormalTexture;
-        var["gCoverage"] = mpCoverageTexture;
         var["gPackedHitInfo"] = pPackedHitInfoTexture;
-        var["gRaster"] = pDirectLightingTexture;
+    }
 
-        var["gSurfel"] = mpOutputTexture;
+    // Surfel Integrate Pass
+    {
+        auto var = mpSurfelIntegratePass->getRootVar();
+
+        var[kSurfelBufferVarName] = mpSurfelBuffer;
+        var[kCellInfoBufferVarName] = mpCellInfoBuffer;
+        var[kCellToSurfelBufferVarName] = mpCellToSurfelBuffer;
+
+        var[kSurfelRayBufferVarName] = mpSurfelRayBuffer;
+
+        var[kSurfelConfigVarName] = mpSurfelConfig;
+
+        var["gPackedHitInfo"] = pPackedHitInfoTexture;
+
+        var["gOutput"] = mpOutputTexture;
     }
 }

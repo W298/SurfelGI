@@ -1,9 +1,8 @@
 #pragma once
 #define PI 3.14159265f
 
-import RenderPasses.Surfel.SurfelTypes;
 import RenderPasses.Surfel.Random;
-import RenderPasses.Surfel.HashUtils;
+import RenderPasses.Surfel.SurfelGI.SurfelTypes;
 
 static const int3 neighborOffset[27] =
 {
@@ -115,12 +114,6 @@ bool isSurfelIntersectCell(Surfel surfel, int3 cellPos, float3 cameraPosW, float
 
     float dist = distance(closePoint, surfel.position);
     return dist < surfel.radius;
-}
-
-float3 pseudocolor(uint value)
-{
-    uint h = jenkinsHash(value);
-    return (uint3(h, h >> 8, h >> 16) & 0xff) / 255.f;
 }
 
 float3x3 get_tangentspace(in float3 normal)

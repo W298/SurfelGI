@@ -1,4 +1,4 @@
-import RenderPasses.Surfel.SurfelTypes;
+import RenderPasses.Surfel.SurfelGI.SurfelTypes;
 
 RWByteAddressBuffer gSurfelCounter;
 

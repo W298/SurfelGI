@@ -1,5 +1,5 @@
-import RenderPasses.Surfel.SurfelTypes;
-import RenderPasses.Surfel.SurfelUtils;
+import RenderPasses.Surfel.SurfelGI.SurfelTypes;
+import RenderPasses.Surfel.SurfelGI.SurfelUtils;
 
 import Scene.Scene;
 

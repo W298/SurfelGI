@@ -15,3 +15,9 @@ uint jenkinsHash(uint a)
     a = (a ^ 0xb55a4f09) ^ (a >> 16);
     return a;
 }
+
+float3 pseudocolor(uint value)
+{
+    uint h = jenkinsHash(value);
+    return (uint3(h, h >> 8, h >> 16) & 0xff) / 255.f;
+}

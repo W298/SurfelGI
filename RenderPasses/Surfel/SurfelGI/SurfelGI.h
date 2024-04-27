@@ -57,8 +57,8 @@ private:
     ref<ComputePass> mpCollectCellInfoPass;
     ref<ComputePass> mpAccumulateCellInfoPass;
     ref<ComputePass> mpUpdateCellToSurfelBuffer;
-    ref<ComputePass> mpSurfelCoveragePass;
     ref<ComputePass> mpSurfelGenerationPass;
+    ref<ComputePass> mpSurfelIntegratePass;
 
     struct
     {
@@ -67,7 +67,6 @@ private:
         ref<RtProgramVars> pVars;
     } mRtPass;
 
-    ref<Texture> mpCoverageTexture;
     ref<Texture> mpOutputTexture;
 
     ref<Buffer> mpSurfelBuffer;

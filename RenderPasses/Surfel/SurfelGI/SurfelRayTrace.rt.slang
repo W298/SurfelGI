@@ -4,8 +4,8 @@ import Rendering.Lights.LightHelpers;
 import Utils.Geometry.GeometryHelpers;
 
 import RenderPasses.Surfel.Random;
-import RenderPasses.Surfel.SurfelTypes;
-import RenderPasses.Surfel.SurfelUtils;
+import RenderPasses.Surfel.SurfelGI.SurfelTypes;
+import RenderPasses.Surfel.SurfelGI.SurfelUtils;
 
 cbuffer CB
 {
@@ -220,7 +220,7 @@ void rayGen()
         let mi = gScene.materials.getMaterialInstance(sd, lod);
 
         BSDFSample bsdfSample;
-        if (mi.sample(sd, sg, bsdfSample, false))
+        if (mi.sample(sd, sg, bsdfSample, true))
             scatterPayload.thp *= bsdfSample.weight;
 
         float3 Lr = evalAnalyticLight(sd, mi, scatterPayload.sg);
