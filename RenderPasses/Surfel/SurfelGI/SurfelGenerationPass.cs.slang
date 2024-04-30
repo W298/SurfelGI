@@ -26,6 +26,8 @@ ByteAddressBuffer gSurfelConfig;
 
 Texture2D<uint4> gPackedHitInfo;
 
+RWTexture2D<float4> gOutput;
+
 groupshared uint groupShareMinCoverage;
 groupshared uint groupShareMaxContribution;
 
@@ -53,7 +55,11 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex: SV_Gro
 
     HitInfo hitInfo = HitInfo(gPackedHitInfo[pixelPos]);
     if (!hitInfo.isValid())
+    {
+        const float3 direction = gScene.camera.computeRayPinhole(pixelPos, gResolution).dir;
+        gOutput[pixelPos] = float4(gScene.envMap.eval(direction), 1);
         return;
+    }
 
     TriangleHit triangleHit = hitInfo.getTriangleHit();
     VertexData v = gScene.getVertexData(triangleHit);
@@ -66,9 +72,10 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex: SV_Gro
     uint flattenIndex = getFlattenCellIndex(cellPos);
     CellInfo cellInfo = gCellInfoBuffer[flattenIndex];
 
-    // Evaluate Coverage.
+    // Evaluate Coverage and Weighted Color Output.
     {
         float coverage = 0.f;
+        float4 outputColor = float4(0, 0, 0, 0);
 
         float maxContribution = 0.f;
         uint maxContributionSurfelIndex = randomState.next_uint(cellInfo.surfelCount);
@@ -94,7 +101,9 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex: SV_Gro
                     contribution *= saturate(dotN);
                     contribution *= saturate(1 - dist / surfel.radius);
                     contribution = smoothstep(0, 1, contribution);
+
                     coverage += contribution;
+                    outputColor += float4(surfel.radiance, 1) * contribution;
 
                     if (maxContribution < contribution)
                     {
@@ -104,6 +113,13 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex: SV_Gro
                 }
             }
         }
+
+        if (outputColor.w > 0)
+        {
+            outputColor.xyz /= outputColor.w;
+            outputColor.w = saturate(outputColor.w);
+        }
+        gOutput[pixelPos] = outputColor;
 
         uint coverageData = 0;
         coverageData |= ((f32tof16(coverage) & 0x0000FFFF) << 16);

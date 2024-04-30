@@ -10,10 +10,7 @@ float plotFunc(void* data, int i)
 }
 
 const std::string kOutputTextureName = "output";
-const std::string kDepthTextureName = "depth";
-const std::string kNormalTextureName = "normal";
 const std::string kPackedHitInfoTextureName = "packedHitInfo";
-const std::string kDirectLightingTextureName = "directLighting";
 
 const std::string kSurfelBufferVarName = "gSurfelBuffer";
 const std::string kSurfelValidIndexBufferVarName = "gSurfelValidIndexBuffer";
@@ -135,6 +132,7 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
         var["CB"]["gFrameIndex"] = mFrameIndex;
         var["CB"]["gCameraPos"] = mCamPos;
 
+        pRenderContext->clearUAV(mpOutputTexture->getUAV().get(), float4(0));
         mpSurfelGenerationPass->execute(pRenderContext, uint3(mFrameDim, 1));
     }
 
@@ -147,7 +145,6 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
         var["CB"]["gResolution"] = mFrameDim;
         var["CB"]["gSurfelVisualRadius"] = surfelVisualRadius;
 
-        pRenderContext->clearUAV(mpOutputTexture->getUAV().get(), float4(0));
         mpSurfelIntegratePass->execute(pRenderContext, uint3(mFrameDim, 1));
     }
 
@@ -203,8 +200,8 @@ void SurfelGI::renderUI(Gui::Widgets& widget)
 
     widget.dummy("#spacer0", {1, 20});
 
-    widget.slider("Target area size", configValue.surfelTargetArea, 200.0f, 4800.0f);
-    widget.var("Cell unit", configValue.cellUnit, 0.005f, 0.1f);
+    widget.slider("Target area size", configValue.surfelTargetArea, 200.0f, 20000.0f);
+    widget.var("Cell unit", configValue.cellUnit, 0.005f, 0.2f);
     widget.slider("Per cell surfel limit", configValue.perCellSurfelLimit, 2u, 1024u);
 
     if (widget.button("Apply"))
@@ -231,6 +228,17 @@ void SurfelGI::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
 
     createPasses();
     createBufferResources();
+}
+
+bool SurfelGI::onKeyEvent(const KeyboardEvent& keyEvent)
+{
+    if (keyEvent.key == Input::Key::L)
+    {
+        mApply = true;
+        return true;
+    }
+
+    return false;
 }
 
 void SurfelGI::reflectInput(RenderPassReflection& reflector, uint2 resolution)
@@ -465,6 +473,8 @@ void SurfelGI::bindResources(const RenderData& renderData)
         var[kSurfelConfigVarName] = mpSurfelConfig;
 
         var["gPackedHitInfo"] = pPackedHitInfoTexture;
+
+        var["gOutput"] = mpOutputTexture;
     }
 
     // Surfel Integrate Pass
@@ -480,7 +490,5 @@ void SurfelGI::bindResources(const RenderData& renderData)
         var[kSurfelConfigVarName] = mpSurfelConfig;
 
         var["gPackedHitInfo"] = pPackedHitInfoTexture;
-
-        var["gOutput"] = mpOutputTexture;
     }
 }

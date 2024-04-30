@@ -141,7 +141,7 @@ void handleHit(TriangleHit triangleHit, inout ScatterPayload scatterPayload)
         Surfel surfel = gSurfelBuffer[surfelIndex];
 
         // TODO: Fix selecting surfel
-        if (surfel.accumulated > 16*16*16*16)
+        if (sampleNext1D(scatterPayload.sg) < smoothstep(0, 60 * 16, surfel.accumulated))
         {
             float3 bias = v.posW - surfel.position;
             float dist2 = dot(bias, bias);
@@ -272,12 +272,11 @@ void rayGen()
         ShadingData sd = gScene.materials.prepareShadingData(v, materialID, direction, lod);
         let mi = gScene.materials.getMaterialInstance(sd, lod);
 
+        scatterPayload.radiance = evalAnalyticLight(sd, mi, scatterPayload.sg);
+
         BSDFSample bsdfSample;
         if (mi.sample(sd, sg, bsdfSample, true))
             scatterPayload.thp *= bsdfSample.weight;
-
-        float3 Lr = evalAnalyticLight(sd, mi, scatterPayload.sg);
-        scatterPayload.radiance += scatterPayload.thp * Lr;
     }
 
     // In-Direct Lighting

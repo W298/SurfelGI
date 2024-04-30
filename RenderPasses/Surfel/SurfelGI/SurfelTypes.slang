@@ -20,8 +20,8 @@ static const uint kChancePower = 1;
 static const float kChanceMultiply = 0.3f;
 static const bool kVariableSurfelRadius = true;
 static const float kStaticSurfelRadius = 0.008f;
-static const float kPlacementThreshold = 0;
-static const float kRemovalThreshold = 1.5f;
+static const float kPlacementThreshold = 2.f;
+static const float kRemovalThreshold = 4.f;
 static const uint3 kCellDimension = uint3(400, 400, 400);
 static const uint kCellCount = kCellDimension.x * kCellDimension.y * kCellDimension.z;
 
@@ -47,10 +47,10 @@ struct CellInfo
 
 struct SurfelConfig
 {
-    float surfelTargetArea = 2000.0f;
-    float cellUnit = 0.02f;
-    uint perCellSurfelLimit = 64;
-    float surfelVisualRadius = 0.7f;
+    float surfelTargetArea = 12000.f;
+    float cellUnit = 0.035f;
+    uint perCellSurfelLimit = 512;
+    float surfelVisualRadius = 1.f;
 };
 
 struct SurfelRayResult

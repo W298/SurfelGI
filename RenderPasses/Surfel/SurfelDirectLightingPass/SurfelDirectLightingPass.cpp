@@ -24,6 +24,10 @@ RenderPassReflection SurfelDirectLightingPass::reflect(const CompileData& compil
         .format(ResourceFormat::RGBA32Uint)
         .bindFlags(ResourceBindFlags::ShaderResource);
 
+    reflector.addInput("indirectLighting", "indirect lighting texture")
+        .format(ResourceFormat::RGBA32Float)
+        .bindFlags(ResourceBindFlags::ShaderResource);
+
     // Output
     reflector.addOutput("output", "output texture")
         .format(ResourceFormat::RGBA32Float)
@@ -35,9 +39,10 @@ RenderPassReflection SurfelDirectLightingPass::reflect(const CompileData& compil
 void SurfelDirectLightingPass::execute(RenderContext* pRenderContext, const RenderData& renderData)
 {
     const auto& pPackedHitInfo = renderData.getTexture("packedHitInfo");
+    const auto& pIndirectLighting = renderData.getTexture("indirectLighting");
     const auto& pOutput = renderData.getTexture("output");
 
-    FALCOR_ASSERT(pPackedHitInfo && pOutput);
+    FALCOR_ASSERT(pPackedHitInfo && pIndirectLighting && pOutput);
 
     if (mpProgram)
     {
@@ -46,8 +51,10 @@ void SurfelDirectLightingPass::execute(RenderContext* pRenderContext, const Rend
 
         var["CB"]["gResolution"] = renderData.getDefaultTextureDims();
         var["CB"]["gFrameIndex"] = mFrameIndex;
+        var["CB"]["gUseIndirectLighting"] = mUseIndirectLighting;
 
         var["gPackedHitInfo"] = pPackedHitInfo;
+        var["gIndirectLighting"] = pIndirectLighting;
         var["gOutput"] = pOutput;
 
         pRenderContext->clearUAV(pOutput->getUAV().get(), float4(0));
@@ -58,6 +65,11 @@ void SurfelDirectLightingPass::execute(RenderContext* pRenderContext, const Rend
     }
 
     mFrameIndex++;
+}
+
+void SurfelDirectLightingPass::renderUI(Gui::Widgets& widget)
+{
+    widget.checkbox("Indirect Lighting", mUseIndirectLighting);
 }
 
 void SurfelDirectLightingPass::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
