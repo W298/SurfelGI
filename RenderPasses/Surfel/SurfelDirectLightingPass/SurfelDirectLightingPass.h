@@ -34,5 +34,6 @@ private:
     ref<SampleGenerator>    mpSampleGenerator;
 
     uint                    mFrameIndex;
-    bool                    mUseIndirectLighting;
+    bool                    mRenderDirectLighting;
+    bool                    mRenderIndirectLighting;
 };

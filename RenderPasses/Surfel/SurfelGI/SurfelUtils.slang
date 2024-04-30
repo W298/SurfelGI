@@ -1,5 +1,5 @@
 #pragma once
-#define PI 3.14159265f
+#include "Utils/Math/MathConstants.slangh"
 
 import RenderPasses.Surfel.Random;
 import RenderPasses.Surfel.SurfelGI.SurfelTypes;
@@ -47,27 +47,24 @@ float3 unProject(float2 uv, float depth, float4x4 invViewProj)
 float calcProjectArea(float radius, float distance, float fovy, uint2 resolution)
 {
     float projRadius = atan(radius / distance) * max(resolution.x, resolution.y) / fovy;
-    return PI * projRadius * projRadius;
+    return M_PI * projRadius * projRadius;
 }
 
 float calcRadiusApprox(float area, float distance, float fovy, uint2 resolution)
 {
-    return distance * tan(sqrt(area / PI) * fovy / max(resolution.x, resolution.y));
+    return distance * tan(sqrt(area / M_PI) * fovy / max(resolution.x, resolution.y));
 }
 
 float calcRadius(float area, float distance, float fovy, uint2 resolution)
 {
-    float cosTheta = 1 - (area * (1 - cos(fovy / 2)) / PI) / (resolution.x * resolution.y);
+    float cosTheta = 1 - (area * (1 - cos(fovy / 2)) / M_PI) / (resolution.x * resolution.y);
     float sinTheta = sqrt(1 - pow(cosTheta, 2));
     return distance * sinTheta;
 }
 
 float calcSurfelRadius(float distance, float fovy, uint2 resolution, float area, float cellUnit)
 {
-    if (kVariableSurfelRadius)
-        return min(calcRadiusApprox(area, distance, fovy, resolution), cellUnit);
-
-    return kStaticSurfelRadius;
+    return min(calcRadiusApprox(area, distance, fovy, resolution), cellUnit);
 }
 
 float3 randomizeColor(float3 color, inout RNG randomState)
@@ -118,35 +115,32 @@ bool isSurfelIntersectCell(Surfel surfel, int3 cellPos, float3 cameraPosW, float
 
 float3x3 get_tangentspace(in float3 normal)
 {
-    // Choose a helper vector for the cross product
     float3 helper = abs(normal.x) > 0.99 ? float3(0, 0, 1) : float3(1, 0, 0);
 
-    // Generate vectors
     float3 tangent = normalize(cross(normal, helper));
     float3 binormal = normalize(cross(normal, tangent));
     return float3x3(tangent, binormal, normal);
 }
 
-// Point on hemisphere with uniform distribution
 float3 hemispherepoint_uniform(float u, float v) {
-    float phi = v * 2 * PI;
+    float phi = v * 2 * M_PI;
     float cosTheta = 1 - u;
     float sinTheta = sqrt(1 - cosTheta * cosTheta);
     return float3(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
 }
-// Point on hemisphere with cosine-weighted distribution
+
 float3 hemispherepoint_cos(float u, float v) {
-    float phi = v * 2 * PI;
+    float phi = v * 2 * M_PI;
     float cosTheta = sqrt(1 - u);
     float sinTheta = sqrt(1 - cosTheta * cosTheta);
     return float3(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
 }
-// Get random hemisphere sample in world-space along the normal (uniform distribution)
+
 float3 sample_hemisphere_uniform(in float3 normal, inout RNG rng)
 {
     return mul(hemispherepoint_uniform(rng.next_float(), rng.next_float()), get_tangentspace(normal));
 }
-// Get random hemisphere sample in world-space along the normal (cosine-weighted distribution)
+
 float3 sample_hemisphere_cos(in float3 normal, inout RNG rng)
 {
     return mul(hemispherepoint_cos(rng.next_float(), rng.next_float()), get_tangentspace(normal));

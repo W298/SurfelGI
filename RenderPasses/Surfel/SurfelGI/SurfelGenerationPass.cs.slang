@@ -1,18 +1,18 @@
+import Scene.Scene;
 import RenderPasses.Surfel.Random;
 import RenderPasses.Surfel.HashUtils;
 import RenderPasses.Surfel.SurfelGI.SurfelTypes;
 import RenderPasses.Surfel.SurfelGI.SurfelUtils;
 
-import Scene.Scene;
-
 cbuffer CB
 {
     uint2 gResolution;
-    float2 gInvResolution;
     float gFOVy;
-    float4x4 gInvViewProj;
     uint gFrameIndex;
-    float3 gCameraPos;
+    float gChanceMultiply;
+    uint gChancePower;
+    float gPlacementThreshold;
+    float gRemovalThreshold;
 }
 
 RWStructuredBuffer<Surfel> gSurfelBuffer;
@@ -25,15 +25,20 @@ RWByteAddressBuffer gSurfelCounter;
 ByteAddressBuffer gSurfelConfig;
 
 Texture2D<uint4> gPackedHitInfo;
-
 RWTexture2D<float4> gOutput;
 
 groupshared uint groupShareMinCoverage;
 groupshared uint groupShareMaxContribution;
 
 [numthreads(16, 16, 1)]
-void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex: SV_GroupIndex, uint3 groupThreadID: SV_GroupThreadID, uint3 groupdId: SV_GroupID)
+void csMain(
+    uint3 dispatchThreadId: SV_DispatchThreadID,
+    uint groupIndex: SV_GroupIndex,
+    uint3 groupThreadID: SV_GroupThreadID,
+    uint3 groupdId: SV_GroupID
+)
 {
+    // Initialize group shared values.
     if (groupIndex == 0)
     {
         groupShareMinCoverage = ~0;
@@ -55,24 +60,22 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex: SV_Gro
 
     HitInfo hitInfo = HitInfo(gPackedHitInfo[pixelPos]);
     if (!hitInfo.isValid())
-    {
-        const float3 direction = gScene.camera.computeRayPinhole(pixelPos, gResolution).dir;
-        gOutput[pixelPos] = float4(gScene.envMap.eval(direction), 1);
         return;
-    }
 
     TriangleHit triangleHit = hitInfo.getTriangleHit();
     VertexData v = gScene.getVertexData(triangleHit);
     float depth = smoothstep(gScene.camera.data.farZ, gScene.camera.data.nearZ, distance(gScene.camera.getPosition(), v.posW));
 
-    int3 cellPos = getCellPos(v.posW, gCameraPos, config.cellUnit);
+    int3 cellPos = getCellPos(v.posW, gScene.camera.getPosition(), config.cellUnit);
     if (!isCellValid(cellPos))
         return;
 
     uint flattenIndex = getFlattenCellIndex(cellPos);
     CellInfo cellInfo = gCellInfoBuffer[flattenIndex];
 
-    // Evaluate Coverage and Weighted Color Output.
+    // Evaluate min coverage value and pixel position.
+    // Also evaluate max contribution and surfel index (for handling over-coverage).
+    // Also evalute weighted color output (indrect lighting).
     {
         float coverage = 0.f;
         float4 outputColor = float4(0, 0, 0, 0);
@@ -147,10 +150,12 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex: SV_Gro
     {
         if (groupThreadID.x == x && groupThreadID.y == y)
         {
-            if (coverage <= kPlacementThreshold)
+            // If seat for surfel in current cell avaliable and coverage is under threshold,
+            // genearte new surfel probabilistically.
+            if (coverage <= gPlacementThreshold)
             {
-                const float chance = pow(depth, kChancePower);
-                if (randomState.next_float() < chance * kChanceMultiply)
+                const float chance = pow(depth, gChancePower);
+                if (randomState.next_float() < chance * gChanceMultiply)
                 {
                     int freeSurfelCount;
                     gSurfelCounter.InterlockedAdd((int)SurfelCounterOffset::FreeSurfel, -1, freeSurfelCount);
@@ -189,10 +194,12 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint groupIndex: SV_Gro
     {
         if (groupThreadID.x == x && groupThreadID.y == y)
         {
-            if (coverage > kRemovalThreshold)
+            // If coverage is upper removal threshold,
+            // remove surfel that most contribute to coverage probabilistically.
+            if (coverage > gRemovalThreshold)
             {
-                const float chance = pow(depth, kChancePower);
-                if (randomState.next_float() < chance * kChanceMultiply)
+                const float chance = pow(depth, gChancePower);
+                if (randomState.next_float() < chance * gChanceMultiply)
                 {
                     uint contributionData = groupShareMaxContribution;
                     float maxContribution = f16tof32((contributionData & 0xFFFF0000) >> 16);

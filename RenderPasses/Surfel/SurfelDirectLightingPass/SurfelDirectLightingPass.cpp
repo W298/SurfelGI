@@ -51,7 +51,8 @@ void SurfelDirectLightingPass::execute(RenderContext* pRenderContext, const Rend
 
         var["CB"]["gResolution"] = renderData.getDefaultTextureDims();
         var["CB"]["gFrameIndex"] = mFrameIndex;
-        var["CB"]["gUseIndirectLighting"] = mUseIndirectLighting;
+        var["CB"]["gRenderDirectLighting"] = mRenderDirectLighting;
+        var["CB"]["gRenderIndirectLighting"] = mRenderIndirectLighting;
 
         var["gPackedHitInfo"] = pPackedHitInfo;
         var["gIndirectLighting"] = pIndirectLighting;
@@ -69,7 +70,8 @@ void SurfelDirectLightingPass::execute(RenderContext* pRenderContext, const Rend
 
 void SurfelDirectLightingPass::renderUI(Gui::Widgets& widget)
 {
-    widget.checkbox("Indirect Lighting", mUseIndirectLighting);
+    widget.checkbox("Direct Lighting", mRenderDirectLighting);
+    widget.checkbox("Indirect Lighting", mRenderIndirectLighting);
 }
 
 void SurfelDirectLightingPass::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)

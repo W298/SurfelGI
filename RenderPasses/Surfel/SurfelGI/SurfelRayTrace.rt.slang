@@ -1,8 +1,9 @@
+#include "Utils/Math/MathConstants.slangh"
+
 import Scene.Raytracing;
 import Utils.Sampling.SampleGenerator;
 import Rendering.Lights.LightHelpers;
 import Utils.Geometry.GeometryHelpers;
-
 import RenderPasses.Surfel.Random;
 import RenderPasses.Surfel.SurfelGI.SurfelTypes;
 import RenderPasses.Surfel.SurfelGI.SurfelUtils;
@@ -10,7 +11,6 @@ import RenderPasses.Surfel.SurfelGI.SurfelUtils;
 cbuffer CB
 {
     uint gFrameIndex;
-    bool gCollectDirectLighting;
 }
 
 struct ScatterPayload
@@ -43,7 +43,6 @@ struct ShadowPayload
 RWStructuredBuffer<Surfel> gSurfelBuffer;
 RWStructuredBuffer<CellInfo> gCellInfoBuffer;
 RWStructuredBuffer<uint> gCellToSurfelBuffer;
-
 RWStructuredBuffer<SurfelRayResult> gSurfelRayResultBuffer;
 
 RWByteAddressBuffer gSurfelCounter;
@@ -77,7 +76,7 @@ void traceScatterRay(inout ScatterPayload scatterPayload)
     RayDesc ray;
     ray.Origin = scatterPayload.origin;
     ray.TMin = 0.f;
-    ray.TMax = kRayTMax;
+    ray.TMax = FLT_MAX;
     ray.Direction = scatterPayload.direction;
 
     TraceRay(
@@ -116,8 +115,7 @@ float3 evalAnalyticLight(const ShadingData sd, const IMaterialInstance mi, inout
         return float3(0.f);
 
     const float3 origin = computeRayOrigin(sd.posW, dot(sd.faceN, ls.dir) >= 0.f ? sd.faceN : -sd.faceN);
-    bool V = traceShadowRay(origin, ls.dir, ls.distance);
-    if (!V)
+    if (!traceShadowRay(origin, ls.dir, ls.distance))
         return float3(0.f);
 
     return mi.eval(sd, ls.dir, sg) * ls.Li * invPdf;
@@ -127,45 +125,49 @@ void handleHit(TriangleHit triangleHit, inout ScatterPayload scatterPayload)
 {
     VertexData v = gScene.getVertexData(triangleHit);
 
-    int3 cellPos = getCellPos(v.posW, gScene.camera.getPosition(), 0.02f);
-    if (!isCellValid(cellPos))
-        return;
-
-    uint flattenIndex = getFlattenCellIndex(cellPos);
-    CellInfo cellInfo = gCellInfoBuffer[flattenIndex];
-
+    // Access radiance of surfels.
     float4 acc = float4(0, 0, 0, 0);
-    for (uint i = 0; i < cellInfo.surfelCount; ++i)
     {
-        uint surfelIndex = gCellToSurfelBuffer[cellInfo.cellToSurfelBufferOffset + i];
-        Surfel surfel = gSurfelBuffer[surfelIndex];
+        int3 cellPos = getCellPos(v.posW, gScene.camera.getPosition(), 0.02f);
+        if (!isCellValid(cellPos))
+            return;
 
-        // TODO: Fix selecting surfel
-        if (sampleNext1D(scatterPayload.sg) < smoothstep(0, 60 * 16, surfel.accumulated))
+        uint flattenIndex = getFlattenCellIndex(cellPos);
+        CellInfo cellInfo = gCellInfoBuffer[flattenIndex];
+
+        for (uint i = 0; i < cellInfo.surfelCount; ++i)
         {
-            float3 bias = v.posW - surfel.position;
-            float dist2 = dot(bias, bias);
+            uint surfelIndex = gCellToSurfelBuffer[cellInfo.cellToSurfelBufferOffset + i];
+            Surfel surfel = gSurfelBuffer[surfelIndex];
 
-            if (dist2 < surfel.radius * surfel.radius)
+            // TODO: Fix selecting surfel
+            if (sampleNext1D(scatterPayload.sg) < smoothstep(0, 60 * 16, surfel.accumulated))
             {
-                float3 normal = normalize(surfel.normal);
+                float3 bias = v.posW - surfel.position;
+                float dist2 = dot(bias, bias);
 
-                float dotN = dot(v.normalW, normal);
-                if (dotN > 0)
+                if (dist2 < surfel.radius * surfel.radius)
                 {
-                    float dist = sqrt(dist2);
-                    float contribution = 1.f;
+                    float3 normal = normalize(surfel.normal);
 
-                    contribution *= saturate(dotN);
-                    contribution *= saturate(1 - dist / surfel.radius);
-                    contribution = smoothstep(0, 1, contribution);
+                    float dotN = dot(v.normalW, normal);
+                    if (dotN > 0)
+                    {
+                        float dist = sqrt(dist2);
+                        float contribution = 1.f;
 
-                    acc += float4(surfel.radiance, 1.f) * contribution;
+                        contribution *= saturate(dotN);
+                        contribution *= saturate(1 - dist / surfel.radius);
+                        contribution = smoothstep(0, 1, contribution);
+
+                        acc += float4(surfel.radiance, 1.f) * contribution;
+                    }
                 }
             }
         }
     }
 
+    // Use radiance surfel if valid, or do path-tracing.
     if (acc.w > 0)
     {
         acc.xyz /= acc.w;
@@ -196,7 +198,6 @@ void scatterMiss(inout ScatterPayload scatterPayload)
     // Env light accumulation.
     float3 Le = gScene.envMap.eval(-scatterPayload.direction);
     scatterPayload.radiance += scatterPayload.thp * Le;
-
     scatterPayload.terminated = true;
 }
 
@@ -248,41 +249,22 @@ void rayGen()
         return;
 
     uint rayIndex = DispatchRaysIndex().x;
-    uint2 rayIndex2 = uint2(rayIndex, rayIndex);
     SurfelRayResult surfelRayResult = gSurfelRayResultBuffer[rayIndex];
     const Surfel surfel = gSurfelBuffer[surfelRayResult.surfelIndex];
 
     RNG rng;
-    rng.init(rayIndex2, gFrameIndex);
+    rng.init(uint2(rayIndex, rayIndex), gFrameIndex);
 
-    SampleGenerator sg = SampleGenerator(rayIndex2, gFrameIndex);
+    SampleGenerator sg = SampleGenerator(uint2(rayIndex, rayIndex), gFrameIndex);
 
     ScatterPayload scatterPayload = ScatterPayload(sg);
     scatterPayload.origin = surfel.position;
     scatterPayload.direction = normalize(sample_hemisphere_cos(surfel.normal, rng));
 
-    // Direct Lighting (for Debugging)
-    if (gCollectDirectLighting)
-    {
-        TriangleHit baseHit = TriangleHit(surfel.packedHitInfo);
-        VertexData v = gScene.getVertexData(baseHit);
-        uint materialID = gScene.getMaterialID(baseHit.instanceID);
-        let lod = ExplicitLodTextureSampler(0.f);
-        const float3 direction = gScene.camera.getPosition() - surfel.position;
-        ShadingData sd = gScene.materials.prepareShadingData(v, materialID, direction, lod);
-        let mi = gScene.materials.getMaterialInstance(sd, lod);
-
-        scatterPayload.radiance = evalAnalyticLight(sd, mi, scatterPayload.sg);
-
-        BSDFSample bsdfSample;
-        if (mi.sample(sd, sg, bsdfSample, true))
-            scatterPayload.thp *= bsdfSample.weight;
-    }
-
-    // In-Direct Lighting
+    // Trace ray.
     traceScatterRay(scatterPayload);
 
-    // Write back to buffer
+    // Write back to buffer.
     surfelRayResult.radiance = scatterPayload.radiance;
     gSurfelRayResultBuffer[rayIndex] = surfelRayResult;
 }

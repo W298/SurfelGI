@@ -1,61 +1,32 @@
 import Scene.Scene;
-
 import RenderPasses.Surfel.SurfelGI.SurfelTypes;
-import RenderPasses.Surfel.SurfelGI.SurfelUtils;
-
-cbuffer CB
-{
-    uint2 gResolution;
-    float gSurfelVisualRadius;
-}
 
 RWStructuredBuffer<Surfel> gSurfelBuffer;
-RWStructuredBuffer<CellInfo> gCellInfoBuffer;
-RWStructuredBuffer<uint> gCellToSurfelBuffer;
-
+RWStructuredBuffer<uint> gSurfelValidIndexBuffer;
 RWStructuredBuffer<SurfelRayResult> gSurfelRayResultBuffer;
 
-ByteAddressBuffer gSurfelConfig;
+RWByteAddressBuffer gSurfelCounter;
 
-Texture2D<uint4> gPackedHitInfo;
-
-[numthreads(32, 32, 1)]
-void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupThreadID: SV_GroupThreadID, uint3 groupdId: SV_GroupID)
+// Will be moved at Update Pass later for optimzation.
+[numthreads(32, 1, 1)]
+void csMain(uint3 dispatchThreadId: SV_DispatchThreadID)
 {
-    if (dispatchThreadId.x >= gResolution.x || dispatchThreadId.y >= gResolution.y)
+    uint validSurfelCount = gSurfelCounter.Load((int)SurfelCounterOffset::ValidSurfel);
+    if (dispatchThreadId.x >= validSurfelCount)
         return;
 
-    uint2 pixelPos = dispatchThreadId.xy;
-    SurfelConfig config = gSurfelConfig.Load<SurfelConfig>(0);
+    uint surfelIndex = gSurfelValidIndexBuffer[dispatchThreadId.x];
+    Surfel surfel = gSurfelBuffer[surfelIndex];
 
-    HitInfo hitInfo = HitInfo(gPackedHitInfo[pixelPos]);
-    if (!hitInfo.isValid())
-        return;
-
-    VertexData v = gScene.getVertexData(hitInfo.getTriangleHit());
-
-    int3 cellPos = getCellPos(v.posW, gScene.camera.getPosition(), config.cellUnit);
-    if (!isCellValid(cellPos))
-        return;
-
-    uint flattenIndex = getFlattenCellIndex(cellPos);
-    CellInfo cellInfo = gCellInfoBuffer[flattenIndex];
-
-    // Moving average radiance
-    for (uint i = 0; i < cellInfo.surfelCount; ++i)
+    // Moving average radiance.
+    for (uint rayIndex = 0; rayIndex < surfel.rayCount; ++rayIndex)
     {
-        uint surfelIndex = gCellToSurfelBuffer[cellInfo.cellToSurfelBufferOffset + i];
-        Surfel surfel = gSurfelBuffer[surfelIndex];
+        float3 rayRadiance = gSurfelRayResultBuffer[surfel.rayOffset + rayIndex].radiance;
+        float weight = 1.0f / ++surfel.accumulated;
 
-        for (uint rayIndex = 0; rayIndex < surfel.rayCount; ++rayIndex)
-        {
-            float3 rayRadiance = gSurfelRayResultBuffer[surfel.rayOffset + rayIndex].radiance;
-            float weight = 1.0f / ++surfel.accumulated;
-
-            surfel.radiance = lerp(surfel.radiance, rayRadiance, weight);
-        }
-
-        // Write back to buffer
-        gSurfelBuffer[surfelIndex] = surfel;
+        surfel.radiance = lerp(surfel.radiance, rayRadiance, weight);
     }
+
+    // Write back to buffer.
+    gSurfelBuffer[surfelIndex] = surfel;
 }

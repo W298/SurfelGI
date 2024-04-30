@@ -24,8 +24,12 @@ const std::string kSurfelConfigVarName = "gSurfelConfig";
 
 SurfelConfig configValue = SurfelConfig();
 
-float surfelVisualRadius = 0.7f;
-bool collectDirectLighting = false;
+float chanceMultiply = 0.3f;
+uint chancePower = 1;
+float placementThreshold = 2.f;
+float removalThreshold = 4.f;
+
+float thresholdGap = 2.f;
 } // namespace
 
 SurfelGI::SurfelGI(ref<Device> pDevice, const Properties& props) : RenderPass(pDevice)
@@ -71,7 +75,6 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
 
     mFOVy = focalLengthToFovY(mpScene->getCamera()->getFocalLength(), mpScene->getCamera()->getFrameHeight());
     mCamPos = mpScene->getCamera()->getPosition();
-    mInvViewProj = mpScene->getCamera()->getInvViewProjMatrix();
 
     // Prepare Pass
     {
@@ -114,9 +117,13 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
     {
         auto var = mRtPass.pVars->getRootVar();
         var["CB"]["gFrameIndex"] = mFrameIndex;
-        var["CB"]["gCollectDirectLighting"] = collectDirectLighting;
 
         mpScene->raytrace(pRenderContext, mRtPass.pProgram.get(), mRtPass.pVars, uint3(kRayBudget, 1, 1));
+    }
+
+    // Surfel Integrate Pass
+    {
+        mpSurfelIntegratePass->execute(pRenderContext, uint3(kTotalSurfelLimit, 1, 1));
     }
 
     // Surfel Generation Pass
@@ -126,26 +133,15 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
         mpScene->setRaytracingShaderData(pRenderContext, var);
 
         var["CB"]["gResolution"] = mFrameDim;
-        var["CB"]["gInvResolution"] = float2(1.f / mFrameDim.x, 1.f / mFrameDim.y);
         var["CB"]["gFOVy"] = mFOVy;
-        var["CB"]["gInvViewProj"] = mInvViewProj;
         var["CB"]["gFrameIndex"] = mFrameIndex;
-        var["CB"]["gCameraPos"] = mCamPos;
+        var["CB"]["gChanceMultiply"] = chanceMultiply;
+        var["CB"]["gChancePower"] = chancePower;
+        var["CB"]["gPlacementThreshold"] = placementThreshold;
+        var["CB"]["gRemovalThreshold"] = removalThreshold;
 
         pRenderContext->clearUAV(mpOutputTexture->getUAV().get(), float4(0));
         mpSurfelGenerationPass->execute(pRenderContext, uint3(mFrameDim, 1));
-    }
-
-    // Surfel Integrate Pass
-    {
-        auto var = mpSurfelIntegratePass->getRootVar();
-
-        mpScene->setRaytracingShaderData(pRenderContext, var);
-
-        var["CB"]["gResolution"] = mFrameDim;
-        var["CB"]["gSurfelVisualRadius"] = surfelVisualRadius;
-
-        mpSurfelIntegratePass->execute(pRenderContext, uint3(mFrameDim, 1));
     }
 
     // Read Back
@@ -170,8 +166,35 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
 
 void SurfelGI::renderUI(Gui::Widgets& widget)
 {
+    if (widget.button("Interior 01"))
+    {
+        mpScene->getCamera()->setPosition(float3(0.025316f, 0.144557f, 1.453522f));
+        mpScene->getCamera()->setTarget(float3(-0.219670f, 0.223913f, 0.487249f));
+        mApply = true;
+    }
+    if (widget.button("Interior 02", true))
+    {
+        mpScene->getCamera()->setPosition(float3(0.342360f, 0.352652f, -0.743530f));
+        mpScene->getCamera()->setTarget(float3(-0.047947f, 0.256790f, 0.172151f));
+        mApply = true;
+    }
+    if (widget.button("Interior 03", true))
+    {
+        mpScene->getCamera()->setPosition(float3(-0.0015f, 0.1368f, 1.6774f));
+        mpScene->getCamera()->setTarget(float3(0.0199f, 0.1039f, 2.6768f));
+        mApply = true;
+    }
+    if (widget.button("Interior 04", true))
+    {
+        mpScene->getCamera()->setPosition(float3(-0.2504f, 0.1461f, 1.5002f));
+        mpScene->getCamera()->setTarget(float3(0.3186f, 0.2071f, 0.6802f));
+        mApply = true;
+    }
+
     widget.text("Frame index");
     widget.text(std::to_string(mFrameIndex), true);
+
+    widget.dummy("#spacer0", { 1, 20 });
 
     if (mReadBackValid)
     {
@@ -204,13 +227,26 @@ void SurfelGI::renderUI(Gui::Widgets& widget)
     widget.var("Cell unit", configValue.cellUnit, 0.005f, 0.2f);
     widget.slider("Per cell surfel limit", configValue.perCellSurfelLimit, 2u, 1024u);
 
-    if (widget.button("Apply"))
+    if (widget.button("Regenerate"))
         mApply = true;
 
     widget.dummy("#spacer0", {1, 20});
 
-    widget.slider("Surfel visual radius", surfelVisualRadius, 0.0f, 1.0f);
-    widget.checkbox("Direct Lighting (Surfel)", collectDirectLighting);
+    widget.slider("Chance multiply", chanceMultiply, 0.f, 1.f);
+    widget.slider("Chance power", chancePower, 0u, 8u);
+
+    if (widget.slider("Threshold gap", thresholdGap, 0.f, 4.f))
+    {
+        removalThreshold = placementThreshold + thresholdGap;
+    }
+    if (widget.slider("Placement threshold", placementThreshold, 0.f, 10.0f))
+    {
+        removalThreshold = placementThreshold + thresholdGap;
+    }
+    else if (widget.slider("Removal threshold", removalThreshold, 0.f, 20.0f))
+    {
+        placementThreshold = removalThreshold - thresholdGap;
+    }
 }
 
 void SurfelGI::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
@@ -418,7 +454,6 @@ void SurfelGI::bindResources(const RenderData& renderData)
         var[kSurfelValidIndexBufferVarName] = mpSurfelValidIndexBuffer;
         var[kSurfelFreeIndexBufferVarName] = mpSurfelFreeIndexBuffer;
         var[kCellInfoBufferVarName] = mpCellInfoBuffer;
-
         var[kSurfelRayResultBufferVarName] = mpSurfelRayResultBuffer;
 
         var[kSurfelCounterVarName] = mpSurfelCounter;
@@ -453,7 +488,6 @@ void SurfelGI::bindResources(const RenderData& renderData)
         var[kSurfelBufferVarName] = mpSurfelBuffer;
         var[kCellInfoBufferVarName] = mpCellInfoBuffer;
         var[kCellToSurfelBufferVarName] = mpCellToSurfelBuffer;
-
         var[kSurfelRayResultBufferVarName] = mpSurfelRayResultBuffer;
 
         var[kSurfelCounterVarName] = mpSurfelCounter;
@@ -473,7 +507,6 @@ void SurfelGI::bindResources(const RenderData& renderData)
         var[kSurfelConfigVarName] = mpSurfelConfig;
 
         var["gPackedHitInfo"] = pPackedHitInfoTexture;
-
         var["gOutput"] = mpOutputTexture;
     }
 
@@ -482,13 +515,9 @@ void SurfelGI::bindResources(const RenderData& renderData)
         auto var = mpSurfelIntegratePass->getRootVar();
 
         var[kSurfelBufferVarName] = mpSurfelBuffer;
-        var[kCellInfoBufferVarName] = mpCellInfoBuffer;
-        var[kCellToSurfelBufferVarName] = mpCellToSurfelBuffer;
-
+        var[kSurfelValidIndexBufferVarName] = mpSurfelValidIndexBuffer;
         var[kSurfelRayResultBufferVarName] = mpSurfelRayResultBuffer;
 
-        var[kSurfelConfigVarName] = mpSurfelConfig;
-
-        var["gPackedHitInfo"] = pPackedHitInfoTexture;
+        var[kSurfelCounterVarName] = mpSurfelCounter;
     }
 }

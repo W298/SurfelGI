@@ -1,7 +1,6 @@
+import Scene.Scene;
 import RenderPasses.Surfel.SurfelGI.SurfelTypes;
 import RenderPasses.Surfel.SurfelGI.SurfelUtils;
-
-import Scene.Scene;
 
 cbuffer CB
 {
@@ -16,7 +15,6 @@ RWStructuredBuffer<uint> gSurfelValidIndexBuffer;
 RWStructuredBuffer<uint> gSurfelFreeIndexBuffer;
 RWStructuredBuffer<CellInfo> gCellInfoBuffer;
 RWStructuredBuffer<uint> gCellToSurfelBuffer;
-
 RWStructuredBuffer<SurfelRayResult> gSurfelRayResultBuffer;
 
 RWByteAddressBuffer gSurfelCounter;
@@ -43,13 +41,12 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
         gSurfelCounter.InterlockedAdd((int)SurfelCounterOffset::ValidSurfel, 1, validSurfelCount);
         gSurfelValidIndexBuffer[validSurfelCount] = surfelIndex;
 
-        // Update surfel position and normal.
+        // Update surfel position, normal, radius.
         TriangleHit hit = TriangleHit(surfel.packedHitInfo);
         VertexData data = gScene.getVertexData(hit);
 
         surfel.position = data.posW;
         surfel.normal = data.normalW;
-
         surfel.radius = calcSurfelRadius(
             distance(gScene.camera.getPosition(), surfel.position),
             gFOVy,
@@ -72,7 +69,7 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
 
         // Ray allocation.
         uint rayOffset = 0;
-        uint rayRequestCount = 16;
+        uint rayRequestCount = 32;
         gSurfelCounter.InterlockedAdd((int)SurfelCounterOffset::RequestedRay, rayRequestCount, rayOffset);
 
         if (rayOffset < kRayBudget)

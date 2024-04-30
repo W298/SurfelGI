@@ -41,7 +41,6 @@ private:
     uint2 mFrameDim;
     float mFOVy;
     float3 mCamPos;
-    float4x4 mInvViewProj;
 
     bool mIsResourceDirty;
     bool mReadBackValid;
