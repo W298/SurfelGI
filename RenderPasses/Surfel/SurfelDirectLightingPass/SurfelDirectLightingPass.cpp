@@ -77,6 +77,8 @@ void SurfelDirectLightingPass::renderUI(Gui::Widgets& widget)
 void SurfelDirectLightingPass::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
 {
     mpScene = pScene;
+    mRenderDirectLighting = true;
+    mRenderIndirectLighting = true;
 
     if (mpScene)
     {

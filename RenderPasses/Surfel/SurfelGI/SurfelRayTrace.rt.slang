@@ -91,6 +91,7 @@ void traceScatterRay(inout ScatterPayload scatterPayload)
     );
 }
 
+// [Sample ONE light sources] and divide by pdf.
 float3 evalAnalyticLight(const ShadingData sd, const IMaterialInstance mi, inout SampleGenerator sg)
 {
     const uint lightCount = gScene.getLightCount();
@@ -101,7 +102,7 @@ float3 evalAnalyticLight(const ShadingData sd, const IMaterialInstance mi, inout
     rng.init(DispatchRaysIndex().xx, gFrameIndex);
 
     const uint lightIndex = rng.next_uint(lightCount - 1);
-    float invPdf = lightCount;
+    float invPdf = lightCount;  // Probability is all same, so pdf is 1/N.
 
     AnalyticLightSample ls;
     if (!sampleLight(sd.posW, gScene.getLight(lightIndex), sg, ls))
@@ -114,6 +115,7 @@ float3 evalAnalyticLight(const ShadingData sd, const IMaterialInstance mi, inout
     if ((NdotL <= kMinCosTheta && !hasTransmission) || (NdotL >= -kMinCosTheta && !hasReflection))
         return float3(0.f);
 
+    // Trace shadow ray to check light source is visible or not.
     const float3 origin = computeRayOrigin(sd.posW, dot(sd.faceN, ls.dir) >= 0.f ? sd.faceN : -sd.faceN);
     if (!traceShadowRay(origin, ls.dir, ls.distance))
         return float3(0.f);
@@ -124,9 +126,25 @@ float3 evalAnalyticLight(const ShadingData sd, const IMaterialInstance mi, inout
 void handleHit(TriangleHit triangleHit, inout ScatterPayload scatterPayload)
 {
     VertexData v = gScene.getVertexData(triangleHit);
+    uint materialID = gScene.getMaterialID(triangleHit.instanceID);
+    let lod = ExplicitLodTextureSampler(0.f);
+    ShadingData sd = gScene.materials.prepareShadingData(v, materialID, -scatterPayload.direction, lod);
+    let mi = gScene.materials.getMaterialInstance(sd, lod);
 
-    // Access radiance of surfels.
-    float4 acc = float4(0, 0, 0, 0);
+    // Calculate exitant radiance using light sources.
+    // It do f(wi, wo) * dot(wo, n) * Li
+    float3 Lr = evalAnalyticLight(sd, mi, scatterPayload.sg);
+    scatterPayload.radiance += scatterPayload.thp * Lr;
+
+    // Update path throughput using weight.
+    // weight = f(wi, wo) * dot(wo, n) / pdf(wo)
+    BSDFSample sample;
+    if (mi.sample(sd, scatterPayload.sg, sample, true))
+        scatterPayload.thp *= sample.weight;
+
+    // Omit multiple bouncing by using radiance of surfel.
+    // Access radiance of surfels to calculate exitant radiance.
+    float4 nextLr = float4(0.f);
     {
         int3 cellPos = getCellPos(v.posW, gScene.camera.getPosition(), 0.02f);
         if (!isCellValid(cellPos))
@@ -140,54 +158,34 @@ void handleHit(TriangleHit triangleHit, inout ScatterPayload scatterPayload)
             uint surfelIndex = gCellToSurfelBuffer[cellInfo.cellToSurfelBufferOffset + i];
             Surfel surfel = gSurfelBuffer[surfelIndex];
 
-            // TODO: Fix selecting surfel
-            if (sampleNext1D(scatterPayload.sg) < smoothstep(0, 60 * 16, surfel.accumulated))
+            float3 bias = v.posW - surfel.position;
+            float dist2 = dot(bias, bias);
+
+            if (dist2 < surfel.radius * surfel.radius)
             {
-                float3 bias = v.posW - surfel.position;
-                float dist2 = dot(bias, bias);
+                float3 normal = normalize(surfel.normal);
 
-                if (dist2 < surfel.radius * surfel.radius)
+                float dotN = dot(v.normalW, normal);
+                if (dotN > 0)
                 {
-                    float3 normal = normalize(surfel.normal);
+                    float dist = sqrt(dist2);
+                    float contribution = 1.f;
 
-                    float dotN = dot(v.normalW, normal);
-                    if (dotN > 0)
-                    {
-                        float dist = sqrt(dist2);
-                        float contribution = 1.f;
+                    contribution *= saturate(dotN);
+                    contribution *= saturate(1 - dist / surfel.radius);
+                    contribution = smoothstep(0, 1, contribution);
 
-                        contribution *= saturate(dotN);
-                        contribution *= saturate(1 - dist / surfel.radius);
-                        contribution = smoothstep(0, 1, contribution);
-
-                        acc += float4(surfel.radiance, 1.f) * contribution;
-                    }
+                    nextLr += float4(surfel.radiance, 1.f) * contribution;
                 }
             }
         }
     }
 
-    // Use radiance surfel if valid, or do path-tracing.
-    if (acc.w > 0)
-    {
-        acc.xyz /= acc.w;
+    if (nextLr.w > 0)
+        nextLr.xyz /= nextLr.w;
 
-        scatterPayload.radiance += scatterPayload.thp * acc.xyz;
-        scatterPayload.terminated = true;
-    }
-    else
-    {
-        uint materialID = gScene.getMaterialID(triangleHit.instanceID);
-        let lod = ExplicitLodTextureSampler(0.f);
-        ShadingData sd = gScene.materials.prepareShadingData(v, materialID, -scatterPayload.direction, lod);
-        let mi = gScene.materials.getMaterialInstance(sd, lod);
-
-        float3 Lr = evalAnalyticLight(sd, mi, scatterPayload.sg);
-
-        scatterPayload.radiance += scatterPayload.thp * Lr;
-
-        // TODO: Multiple-Bounce
-    }
+    scatterPayload.radiance += scatterPayload.thp * nextLr.xyz;
+    scatterPayload.terminated = true;
 }
 
 // Miss Shaders
@@ -261,10 +259,15 @@ void rayGen()
     scatterPayload.origin = surfel.position;
     scatterPayload.direction = normalize(sample_hemisphere_cos(surfel.normal, rng));
 
+    // Store first direction.
+    surfelRayResult.direction = scatterPayload.direction;
+
     // Trace ray.
     traceScatterRay(scatterPayload);
 
-    // Write back to buffer.
+    // Store final radiance.
     surfelRayResult.radiance = scatterPayload.radiance;
+
+    // Write back to buffer.
     gSurfelRayResultBuffer[rayIndex] = surfelRayResult;
 }

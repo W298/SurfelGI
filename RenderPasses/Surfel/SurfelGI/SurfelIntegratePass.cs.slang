@@ -18,14 +18,22 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID)
     uint surfelIndex = gSurfelValidIndexBuffer[dispatchThreadId.x];
     Surfel surfel = gSurfelBuffer[surfelIndex];
 
-    // Moving average radiance.
+    // We use lambertian for surfel radiance, it follows lambert's cosine law.
+    // surfel radiance = 1 / PI * integral [ Li * cos(theta) ]
+    // surfel radiance (with sampling) = 1 / N * sum[ Li * cos(theta) ]
+    float3 surfelRadiance = float3(0.f);
     for (uint rayIndex = 0; rayIndex < surfel.rayCount; ++rayIndex)
     {
-        float3 rayRadiance = gSurfelRayResultBuffer[surfel.rayOffset + rayIndex].radiance;
-        float weight = 1.0f / ++surfel.accumulated;
+        float3 Lr = gSurfelRayResultBuffer[surfel.rayOffset + rayIndex].radiance;
+        float3 dir = gSurfelRayResultBuffer[surfel.rayOffset + rayIndex].direction;
 
-        surfel.radiance = lerp(surfel.radiance, rayRadiance, weight);
+        surfelRadiance += Lr * dot(dir, surfel.normal);
     }
+    surfelRadiance /= surfel.rayCount;
+
+    // Moving average radiance.
+    float weight = 1.0f / ++surfel.accumulated;
+    surfel.radiance = lerp(surfel.radiance, surfelRadiance, weight);
 
     // Write back to buffer.
     gSurfelBuffer[surfelIndex] = surfel;

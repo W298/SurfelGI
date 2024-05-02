@@ -76,14 +76,16 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
     mFOVy = focalLengthToFovY(mpScene->getCamera()->getFocalLength(), mpScene->getCamera()->getFrameHeight());
     mCamPos = mpScene->getCamera()->getPosition();
 
-    // Prepare Pass
     {
+        FALCOR_PROFILE(pRenderContext, "Prepare Pass");
+
         mpPreparePass->execute(pRenderContext, uint3(1));
         pRenderContext->copyResource(mpSurfelDirtyIndexBuffer.get(), mpSurfelValidIndexBuffer.get());
     }
 
-    // Update Pass (Collect Cell Info Pass)
     {
+        FALCOR_PROFILE(pRenderContext, "Update Pass (Collect Cell Info Pass)");
+
         auto var = mpCollectCellInfoPass->getRootVar();
 
         mpScene->setRaytracingShaderData(pRenderContext, var);
@@ -95,8 +97,9 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
         mpCollectCellInfoPass->execute(pRenderContext, uint3(kTotalSurfelLimit, 1, 1));
     }
 
-    // Update Pass (Accumulate Cell Info Pass)
     {
+        FALCOR_PROFILE(pRenderContext, "Update Pass (Accumulate Cell Info Pass)");
+
         auto var = mpAccumulateCellInfoPass->getRootVar();
 
         var["CB"]["gCameraPos"] = mCamPos;
@@ -104,8 +107,9 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
         mpAccumulateCellInfoPass->execute(pRenderContext, uint3(kCellCount, 1, 1));
     }
 
-    // Update Pass (Update Cell To Surfel buffer Pass)
     {
+        FALCOR_PROFILE(pRenderContext, "Update Pass (Update Cell To Surfel buffer Pass)");
+
         auto var = mpUpdateCellToSurfelBuffer->getRootVar();
 
         var["CB"]["gCameraPos"] = mCamPos;
@@ -113,21 +117,24 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
         mpUpdateCellToSurfelBuffer->execute(pRenderContext, uint3(kTotalSurfelLimit, 1, 1));
     }
 
-    // Surfel RayTrace Pass
     {
+        FALCOR_PROFILE(pRenderContext, "Surfel RayTrace Pass");
+
         auto var = mRtPass.pVars->getRootVar();
         var["CB"]["gFrameIndex"] = mFrameIndex;
 
         mpScene->raytrace(pRenderContext, mRtPass.pProgram.get(), mRtPass.pVars, uint3(kRayBudget, 1, 1));
     }
 
-    // Surfel Integrate Pass
     {
+        FALCOR_PROFILE(pRenderContext, "Surfel Integrate Pass");
+
         mpSurfelIntegratePass->execute(pRenderContext, uint3(kTotalSurfelLimit, 1, 1));
     }
 
-    // Surfel Generation Pass
     {
+        FALCOR_PROFILE(pRenderContext, "Surfel Generation Pass");
+
         auto var = mpSurfelGenerationPass->getRootVar();
 
         mpScene->setRaytracingShaderData(pRenderContext, var);
@@ -144,8 +151,9 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
         mpSurfelGenerationPass->execute(pRenderContext, uint3(mFrameDim, 1));
     }
 
-    // Read Back
     {
+        FALCOR_PROFILE(pRenderContext, "Read Back");
+
         pRenderContext->copyResource(mpReadBackBuffer.get(), mpSurfelCounter.get());
 
         if (mApply)
@@ -223,8 +231,8 @@ void SurfelGI::renderUI(Gui::Widgets& widget)
 
     widget.dummy("#spacer0", {1, 20});
 
-    widget.slider("Target area size", configValue.surfelTargetArea, 200.0f, 20000.0f);
-    widget.var("Cell unit", configValue.cellUnit, 0.005f, 0.2f);
+    widget.slider("Target area size", configValue.surfelTargetArea, 200.0f, 40000.0f);
+    widget.var("Cell unit", configValue.cellUnit, 0.005f, 0.4f);
     widget.slider("Per cell surfel limit", configValue.perCellSurfelLimit, 2u, 1024u);
 
     if (widget.button("Regenerate"))
