@@ -24,12 +24,17 @@ const std::string kSurfelConfigVarName = "gSurfelConfig";
 
 SurfelConfig configValue = SurfelConfig();
 
+// Surfel generation.
 float chanceMultiply = 0.3f;
 uint chancePower = 1;
 float placementThreshold = 2.f;
 float removalThreshold = 4.f;
-
 float thresholdGap = 2.f;
+
+// Ray tracing.
+uint rayStep = 3;
+uint maxStep = 10;
+bool useSurfelRadinace = true;
 } // namespace
 
 SurfelGI::SurfelGI(ref<Device> pDevice, const Properties& props) : RenderPass(pDevice)
@@ -122,6 +127,9 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
 
         auto var = mRtPass.pVars->getRootVar();
         var["CB"]["gFrameIndex"] = mFrameIndex;
+        var["CB"]["gRayStep"] = rayStep;
+        var["CB"]["gMaxStep"] = maxStep;
+        var["CB"]["gUseSurfelRadiance"] = useSurfelRadinace;
 
         mpScene->raytrace(pRenderContext, mRtPass.pProgram.get(), mRtPass.pVars, uint3(kRayBudget, 1, 1));
     }
@@ -156,11 +164,11 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
 
         pRenderContext->copyResource(mpReadBackBuffer.get(), mpSurfelCounter.get());
 
-        if (mApply)
+        if (mResetSurfelBuffer)
         {
             pRenderContext->copyResource(mpSurfelBuffer.get(), mpEmptySurfelBuffer.get());
             mpSurfelConfig->setBlob(&configValue, 0, sizeof(SurfelConfig));
-            mApply = false;
+            mResetSurfelBuffer = false;
         }
 
         pRenderContext->submit(false);
@@ -174,35 +182,10 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
 
 void SurfelGI::renderUI(Gui::Widgets& widget)
 {
-    if (widget.button("Interior 01"))
-    {
-        mpScene->getCamera()->setPosition(float3(0.025316f, 0.144557f, 1.453522f));
-        mpScene->getCamera()->setTarget(float3(-0.219670f, 0.223913f, 0.487249f));
-        mApply = true;
-    }
-    if (widget.button("Interior 02", true))
-    {
-        mpScene->getCamera()->setPosition(float3(0.342360f, 0.352652f, -0.743530f));
-        mpScene->getCamera()->setTarget(float3(-0.047947f, 0.256790f, 0.172151f));
-        mApply = true;
-    }
-    if (widget.button("Interior 03", true))
-    {
-        mpScene->getCamera()->setPosition(float3(-0.0015f, 0.1368f, 1.6774f));
-        mpScene->getCamera()->setTarget(float3(0.0199f, 0.1039f, 2.6768f));
-        mApply = true;
-    }
-    if (widget.button("Interior 04", true))
-    {
-        mpScene->getCamera()->setPosition(float3(-0.2504f, 0.1461f, 1.5002f));
-        mpScene->getCamera()->setTarget(float3(0.3186f, 0.2071f, 0.6802f));
-        mApply = true;
-    }
-
     widget.text("Frame index");
     widget.text(std::to_string(mFrameIndex), true);
 
-    widget.dummy("#spacer0", { 1, 20 });
+    widget.dummy("#spacer0", { 1, 10 });
 
     if (mReadBackValid)
     {
@@ -218,7 +201,7 @@ void SurfelGI::renderUI(Gui::Widgets& widget)
         widget.text(std::to_string(validSurfelCount) + " / " + std::to_string(kTotalSurfelLimit), true);
         widget.text("(" + std::to_string(validSurfelCount * 100.0f / kTotalSurfelLimit) + " %)", true);
 
-        widget.text("Ray Budget");
+        widget.text("Ray budget");
         widget.text(std::to_string(requestedRayCount) + " / " + std::to_string(kRayBudget), true);
         widget.text("(" + std::to_string(requestedRayCount * 100.0f / kRayBudget) + " %)", true);
 
@@ -229,14 +212,14 @@ void SurfelGI::renderUI(Gui::Widgets& widget)
         widget.text(std::to_string(mpReadBackBuffer->getElement<int>(2)), true);
     }
 
-    widget.dummy("#spacer0", {1, 20});
+    widget.dummy("#spacer0", {1, 10});
 
     widget.slider("Target area size", configValue.surfelTargetArea, 200.0f, 40000.0f);
     widget.var("Cell unit", configValue.cellUnit, 0.005f, 0.4f);
     widget.slider("Per cell surfel limit", configValue.perCellSurfelLimit, 2u, 1024u);
 
     if (widget.button("Regenerate"))
-        mApply = true;
+        mResetSurfelBuffer = true;
 
     widget.dummy("#spacer0", {1, 20});
 
@@ -255,6 +238,12 @@ void SurfelGI::renderUI(Gui::Widgets& widget)
     {
         placementThreshold = removalThreshold - thresholdGap;
     }
+
+    widget.dummy("#spacer0", { 1, 10 });
+
+    widget.slider("Ray step", rayStep, 0u, maxStep);
+    widget.slider("Max step", maxStep, rayStep, 20u);
+    widget.checkbox("Use surfel radiance", useSurfelRadinace);
 }
 
 void SurfelGI::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
@@ -267,7 +256,7 @@ void SurfelGI::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
     mFrameDim = uint2(0, 0);
     mIsResourceDirty = true;
     mReadBackValid = false;
-    mApply = false;
+    mResetSurfelBuffer = false;
     mPlotData = std::vector<float>(1000, 0.f);
 
     createPasses();
@@ -278,7 +267,7 @@ bool SurfelGI::onKeyEvent(const KeyboardEvent& keyEvent)
 {
     if (keyEvent.key == Input::Key::L)
     {
-        mApply = true;
+        mResetSurfelBuffer = true;
         return true;
     }
 
@@ -345,13 +334,13 @@ void SurfelGI::createPasses()
         mRtPass.pBindingTable->setHitGroup(
             0,
             mpScene->getGeometryIDs(Scene::GeometryType::TriangleMesh),
-            desc.addHitGroup("scatterTriangleMeshClosestHit", "scatterTriangleMeshAnyHit")
+            desc.addHitGroup("scatterCloseHit", "scatterAnyHit")
         );
 
         mRtPass.pBindingTable->setHitGroup(
             1,
             mpScene->getGeometryIDs(Scene::GeometryType::TriangleMesh),
-            desc.addHitGroup("", "shadowTriangleMeshAnyHit")
+            desc.addHitGroup("", "shadowAnyhit")
         );
 
         mRtPass.pProgram = Program::create(mpDevice, desc, mpScene->getSceneDefines());
@@ -499,6 +488,7 @@ void SurfelGI::bindResources(const RenderData& renderData)
         var[kSurfelRayResultBufferVarName] = mpSurfelRayResultBuffer;
 
         var[kSurfelCounterVarName] = mpSurfelCounter;
+        var[kSurfelConfigVarName] = mpSurfelConfig;
     }
 
     // Surfel Generation Pass

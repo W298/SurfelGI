@@ -13,8 +13,8 @@ enum class SurfelCounterOffset : int
 };
 
 static const uint2 kTileSize            = uint2(16, 16);
-static const uint kTotalSurfelLimit     = 409600;
-static const uint kRayBudget            = 4096000;
+static const uint kTotalSurfelLimit     = 4096000;
+static const uint kRayBudget            = 40960000;
 static const uint3 kCellDimension       = uint3(400, 400, 400);
 static const uint kCellCount            = kCellDimension.x * kCellDimension.y * kCellDimension.z;
 

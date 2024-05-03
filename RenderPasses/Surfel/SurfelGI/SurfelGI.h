@@ -44,7 +44,7 @@ private:
 
     bool mIsResourceDirty;
     bool mReadBackValid;
-    bool mApply;
+    bool mResetSurfelBuffer;
 
     std::vector<float> mPlotData;
 
