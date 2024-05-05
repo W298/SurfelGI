@@ -1,5 +1,11 @@
 import Scene.Scene;
 import RenderPasses.Surfel.SurfelGI.SurfelTypes;
+import RenderPasses.Surfel.SurfelGI.MultiscaleMeanEstimator;
+
+cbuffer CB
+{
+    float gShortMeanWindow;
+}
 
 RWStructuredBuffer<Surfel> gSurfelBuffer;
 RWStructuredBuffer<uint> gSurfelValidIndexBuffer;
@@ -31,9 +37,8 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID)
     }
     surfelRadiance /= surfel.rayCount;
 
-    // Moving average radiance.
-    float weight = 1.0f / ++surfel.accumulated;
-    surfel.radiance = lerp(surfel.radiance, surfelRadiance, weight);
+    // Update surfel radiance using Multiscale Mean Estimator.
+    surfel.radiance = MSME(surfelRadiance, surfel.msmeData, gShortMeanWindow);
 
     // Write back to buffer.
     gSurfelBuffer[surfelIndex] = surfel;

@@ -1,5 +1,6 @@
 #pragma once
 #include "Utils/HostDeviceShared.slangh"
+#include "MultiscaleMeanEstimator.slang"
 
 BEGIN_NAMESPACE_FALCOR
 
@@ -27,7 +28,7 @@ struct Surfel
     float radius;
     uint4 packedHitInfo;
     float3 radiance;
-    uint accumulated;
+    MSMEData msmeData;
     uint rayOffset;
     uint rayCount;
 };
@@ -40,9 +41,9 @@ struct CellInfo
 
 struct SurfelConfig
 {
-    float surfelTargetArea  = 12000.f;
-    float cellUnit          = 0.035f;
-    uint perCellSurfelLimit = 512u;
+    float surfelTargetArea  = 30000.f;
+    float cellUnit          = 0.1f;
+    uint perCellSurfelLimit = 1024u;
 };
 
 struct SurfelRayResult

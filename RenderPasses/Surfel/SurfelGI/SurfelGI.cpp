@@ -4,6 +4,7 @@
 
 namespace
 {
+
 float plotFunc(void* data, int i)
 {
     return static_cast<float*>(data)[i];
@@ -30,11 +31,16 @@ uint chancePower = 1;
 float placementThreshold = 2.f;
 float removalThreshold = 4.f;
 float thresholdGap = 2.f;
+bool showVariance = false;
 
 // Ray tracing.
 uint rayStep = 3;
 uint maxStep = 10;
 bool useSurfelRadinace = true;
+
+// Integrate.
+float shortMeanWindow = 0.08f;
+
 } // namespace
 
 SurfelGI::SurfelGI(ref<Device> pDevice, const Properties& props) : RenderPass(pDevice)
@@ -137,6 +143,9 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
     {
         FALCOR_PROFILE(pRenderContext, "Surfel Integrate Pass");
 
+        auto var = mpSurfelIntegratePass->getRootVar();
+        var["CB"]["gShortMeanWindow"] = shortMeanWindow;
+
         mpSurfelIntegratePass->execute(pRenderContext, uint3(kTotalSurfelLimit, 1, 1));
     }
 
@@ -154,6 +163,7 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
         var["CB"]["gChancePower"] = chancePower;
         var["CB"]["gPlacementThreshold"] = placementThreshold;
         var["CB"]["gRemovalThreshold"] = removalThreshold;
+        var["CB"]["gShowVariance"] = showVariance;
 
         pRenderContext->clearUAV(mpOutputTexture->getUAV().get(), float4(0));
         mpSurfelGenerationPass->execute(pRenderContext, uint3(mFrameDim, 1));
@@ -191,59 +201,72 @@ void SurfelGI::renderUI(Gui::Widgets& widget)
     {
         const uint validSurfelCount = mpReadBackBuffer->getElement<uint>(0);
         const uint requestedRayCount = mpReadBackBuffer->getElement<uint>(4);
+        const uint filledCellCount = mpReadBackBuffer->getElement<uint>(3);
 
-        std::rotate(mPlotData.begin(), mPlotData.begin() + 1, mPlotData.end());
-        mPlotData[mPlotData.size() - 1] = (float)validSurfelCount / kTotalSurfelLimit;
+        std::rotate(mSurfelCount.begin(), mSurfelCount.begin() + 1, mSurfelCount.end());
+        mSurfelCount[mSurfelCount.size() - 1] = (float)validSurfelCount / kTotalSurfelLimit;
 
-        widget.graph("", plotFunc, mPlotData.data(), mPlotData.size(), 0, 0, FLT_MAX, 0, 50u);
+        widget.graph("", plotFunc, mSurfelCount.data(), mSurfelCount.size(), 0, 0, FLT_MAX, 0, 50u);
 
         widget.text("Presented surfel");
         widget.text(std::to_string(validSurfelCount) + " / " + std::to_string(kTotalSurfelLimit), true);
         widget.text("(" + std::to_string(validSurfelCount * 100.0f / kTotalSurfelLimit) + " %)", true);
 
+        std::rotate(mRayBudget.begin(), mRayBudget.begin() + 1, mRayBudget.end());
+        mRayBudget[mRayBudget.size() - 1] = (float)requestedRayCount / kRayBudget;
+
+        widget.graph("", plotFunc, mRayBudget.data(), mRayBudget.size(), 0, 0, FLT_MAX, 0, 50u);
+
         widget.text("Ray budget");
         widget.text(std::to_string(requestedRayCount) + " / " + std::to_string(kRayBudget), true);
         widget.text("(" + std::to_string(requestedRayCount * 100.0f / kRayBudget) + " %)", true);
 
-        widget.text("Cell containing surfel");
-        widget.text(std::to_string(mpReadBackBuffer->getElement<uint>(3)), true);
+        widget.text("Filled cell");
+        widget.text(std::to_string(filledCellCount), true);
+        widget.text("(" + std::to_string(filledCellCount * 100.0f / kCellCount) + " %)", true);
 
-        widget.text("Shortage");
+        widget.text("Surfel shortage");
         widget.text(std::to_string(mpReadBackBuffer->getElement<int>(2)), true);
     }
 
     widget.dummy("#spacer0", {1, 10});
 
-    widget.slider("Target area size", configValue.surfelTargetArea, 200.0f, 40000.0f);
-    widget.var("Cell unit", configValue.cellUnit, 0.005f, 0.4f);
-    widget.slider("Per cell surfel limit", configValue.perCellSurfelLimit, 2u, 1024u);
-
     if (widget.button("Regenerate"))
         mResetSurfelBuffer = true;
 
-    widget.dummy("#spacer0", {1, 20});
-
-    widget.slider("Chance multiply", chanceMultiply, 0.f, 1.f);
-    widget.slider("Chance power", chancePower, 0u, 8u);
-
-    if (widget.slider("Threshold gap", thresholdGap, 0.f, 4.f))
+    if (auto group = widget.group("Configs"))
     {
-        removalThreshold = placementThreshold + thresholdGap;
-    }
-    if (widget.slider("Placement threshold", placementThreshold, 0.f, 10.0f))
-    {
-        removalThreshold = placementThreshold + thresholdGap;
-    }
-    else if (widget.slider("Removal threshold", removalThreshold, 0.f, 20.0f))
-    {
-        placementThreshold = removalThreshold - thresholdGap;
+        group.slider("Target area size", configValue.surfelTargetArea, 200.0f, 40000.0f);
+        group.var("Cell unit", configValue.cellUnit, 0.005f, 0.4f);
+        group.slider("Per cell surfel limit", configValue.perCellSurfelLimit, 2u, 1024u);
     }
 
-    widget.dummy("#spacer0", { 1, 10 });
+    if (auto group = widget.group("Surfel Generation"))
+    {
+        group.slider("Chance multiply", chanceMultiply, 0.f, 1.f);
+        group.slider("Chance power", chancePower, 0u, 8u);
 
-    widget.slider("Ray step", rayStep, 0u, maxStep);
-    widget.slider("Max step", maxStep, rayStep, 20u);
-    widget.checkbox("Use surfel radiance", useSurfelRadinace);
+        if (group.slider("Threshold gap", thresholdGap, 0.f, 4.f))
+            removalThreshold = placementThreshold + thresholdGap;
+        if (group.slider("Placement threshold", placementThreshold, 0.f, 10.0f))
+            removalThreshold = placementThreshold + thresholdGap;
+        else if (group.slider("Removal threshold", removalThreshold, 0.f, 20.0f))
+            placementThreshold = removalThreshold - thresholdGap;
+
+        group.checkbox("Show variance", showVariance);
+    }
+
+    if (auto group = widget.group("Ray Tracing"))
+    {
+        group.slider("Ray step", rayStep, 0u, maxStep);
+        group.slider("Max step", maxStep, rayStep, 20u);
+        group.checkbox("Use surfel radiance", useSurfelRadinace);
+    }
+
+    if (auto group = widget.group("Estimator"))
+    {
+        group.slider("Short mean window", shortMeanWindow, 0.01f, 0.5f);
+    }
 }
 
 void SurfelGI::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
@@ -257,7 +280,8 @@ void SurfelGI::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
     mIsResourceDirty = true;
     mReadBackValid = false;
     mResetSurfelBuffer = false;
-    mPlotData = std::vector<float>(1000, 0.f);
+    mSurfelCount = std::vector<float>(1000, 0.f);
+    mRayBudget = std::vector<float>(1000, 0.f);
 
     createPasses();
     createBufferResources();

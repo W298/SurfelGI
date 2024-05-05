@@ -23,6 +23,7 @@ target_sources(Surfel PRIVATE
     SurfelGI/SurfelRayTrace.rt.slang
     SurfelGI/SurfelGenerationPass.cs.slang
     SurfelGI/SurfelIntegratePass.cs.slang
+    SurfelGI/MultiscaleMeanEstimator.slang
 )
 
 target_copy_shaders(Surfel RenderPasses/Surfel)

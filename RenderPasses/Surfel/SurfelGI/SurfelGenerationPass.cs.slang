@@ -13,6 +13,7 @@ cbuffer CB
     uint gChancePower;
     float gPlacementThreshold;
     float gRemovalThreshold;
+    bool gShowVariance;
 }
 
 RWStructuredBuffer<Surfel> gSurfelBuffer;
@@ -79,6 +80,7 @@ void csMain(
     {
         float coverage = 0.f;
         float4 outputColor = float4(0, 0, 0, 0);
+        float variance = 0.f;
 
         float maxContribution = 0.f;
         uint maxContributionSurfelIndex = randomState.next_uint(cellInfo.surfelCount);
@@ -107,6 +109,7 @@ void csMain(
 
                     coverage += contribution;
                     outputColor += float4(surfel.radiance, 1) * contribution;
+                    variance += length(surfel.msmeData.variance) * contribution;
 
                     if (maxContribution < contribution)
                     {
@@ -121,8 +124,21 @@ void csMain(
         {
             outputColor.xyz /= outputColor.w;
             outputColor.w = saturate(outputColor.w);
+
+            variance /= outputColor.w;
         }
-        gOutput[pixelPos] = outputColor;
+
+        if (gShowVariance)
+        {
+            if (variance > 0.1f)
+                gOutput[pixelPos] = float4(1, 0, 0, 1);
+            else if (variance > 0.05f)
+                gOutput[pixelPos] = float4(0, 1, 0, 1);
+            else
+                gOutput[pixelPos] = float4(0, 0, 1, 1);
+        }
+        else
+            gOutput[pixelPos] = outputColor;
 
         uint coverageData = 0;
         coverageData |= ((f32tof16(coverage) & 0x0000FFFF) << 16);
@@ -180,6 +196,7 @@ void csMain(
                                 config.cellUnit
                             );
                             newSurfel.packedHitInfo = hitInfo.data;
+                            newSurfel.msmeData.inconsistency = 1.f;
 
                             gSurfelValidIndexBuffer[validSurfelCount] = newIndex;
                             gSurfelBuffer[newIndex] = newSurfel;

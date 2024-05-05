@@ -46,7 +46,8 @@ private:
     bool mReadBackValid;
     bool mResetSurfelBuffer;
 
-    std::vector<float> mPlotData;
+    std::vector<float> mSurfelCount;
+    std::vector<float> mRayBudget;
 
     ref<Scene> mpScene;
     ref<Fence> mpFence;
