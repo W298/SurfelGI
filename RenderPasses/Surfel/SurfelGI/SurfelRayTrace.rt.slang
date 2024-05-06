@@ -27,6 +27,7 @@ cbuffer CB
     uint gRayStep;                      ///< How many steps does ray go.
     uint gMaxStep;                      ///< Global maxium step count. No ray step can exceed this value.
     bool gUseSurfelRadiance;            ///< Use surfel radiance or not.
+    uint gMaxSurfelForStep;
 }
 
 struct ScatterPayload
@@ -164,9 +165,10 @@ bool finalize(inout ScatterPayload scatterPayload, const VertexData v)
     uint flattenIndex = getFlattenCellIndex(cellPos);
     CellInfo cellInfo = gCellInfoBuffer[flattenIndex];
 
-    for (uint i = 0; i < cellInfo.surfelCount; ++i)
+    for (uint i = 0; i < gMaxSurfelForStep; ++i)
     {
-        uint surfelIndex = gCellToSurfelBuffer[cellInfo.cellToSurfelBufferOffset + i];
+        uint randomSelection = sampleNext1D(scatterPayload.sg) * (cellInfo.surfelCount - 1);
+        uint surfelIndex = gCellToSurfelBuffer[cellInfo.cellToSurfelBufferOffset + randomSelection];
         Surfel surfel = gSurfelBuffer[surfelIndex];
 
         float3 bias = v.posW - surfel.position;

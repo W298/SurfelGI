@@ -35,9 +35,10 @@ bool showVariance = false;
 uint blendingDelay = 1024;
 
 // Ray tracing.
-uint rayStep = 2;
-uint maxStep = 5;
+uint rayStep = 3;
+uint maxStep = 10;
 bool useSurfelRadinace = true;
+uint maxSurfelForStep = 10;
 
 // Integrate.
 float shortMeanWindow = 0.08f;
@@ -137,6 +138,7 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
         var["CB"]["gRayStep"] = rayStep;
         var["CB"]["gMaxStep"] = maxStep;
         var["CB"]["gUseSurfelRadiance"] = useSurfelRadinace;
+        var["CB"]["gMaxSurfelForStep"] = maxSurfelForStep;
 
         mpScene->raytrace(pRenderContext, mRtPass.pProgram.get(), mRtPass.pVars, uint3(kRayBudget, 1, 1));
     }
@@ -267,6 +269,7 @@ void SurfelGI::renderUI(Gui::Widgets& widget)
         group.slider("Ray step", rayStep, 0u, maxStep);
         group.slider("Max step", maxStep, rayStep, 20u);
         group.checkbox("Use surfel radiance", useSurfelRadinace);
+        group.slider("Max surfel for step", maxSurfelForStep, 1u, 40u);
     }
 
     if (auto group = widget.group("Integrate"))

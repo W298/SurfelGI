@@ -58,7 +58,7 @@ struct CellInfo
 
 struct SurfelConfig
 {
-    float surfelTargetArea  = 30000.f;
+    float surfelTargetArea  = 40000.f;
     float cellUnit          = 0.1f;
     uint perCellSurfelLimit = 1024u;
 };
