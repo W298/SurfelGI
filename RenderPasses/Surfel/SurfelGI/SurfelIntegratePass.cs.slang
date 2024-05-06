@@ -94,7 +94,11 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID)
 #endif
 
     // Update surfel radiance using Multiscale Mean Estimator.
-    surfel.radiance = MSME(surfelRadiance, surfel.msmeData, gShortMeanWindow);
+    float3 mean = MSME(surfelRadiance, surfel.msmeData, gShortMeanWindow);
+    surfel.radiance = mean;
+
+    // Increase sample count.
+    surfel.sampleCount += surfel.rayCount;
 
     // Write back to buffer.
     gSurfelBuffer[surfelIndex] = surfel;

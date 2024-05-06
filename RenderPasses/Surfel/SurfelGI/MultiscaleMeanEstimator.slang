@@ -10,6 +10,18 @@ struct MSMEData
     float vbbr;
     float3 variance;
     float inconsistency;
+
+#ifdef HOST_CODE
+#else
+    __init()
+    {
+        this.mean = float3(0.f);
+        this.shortMean = float3(0.f);
+        this.vbbr = 0.f;
+        this.variance = float3(0.f);
+        this.inconsistency = 1.f;
+    }
+#endif
 };
 
 #ifdef HOST_CODE

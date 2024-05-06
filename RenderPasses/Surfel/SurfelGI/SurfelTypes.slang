@@ -29,8 +29,25 @@ struct Surfel
     uint4 packedHitInfo;
     float3 radiance;
     MSMEData msmeData;
+    uint sampleCount;
     uint rayOffset;
     uint rayCount;
+
+#ifdef HOST_CODE
+#else
+    __init(float3 position, float3 normal, float radius, uint4 packedHitInfo)
+    {
+        this.position = position;
+        this.normal = normal;
+        this.radius = radius;
+        this.packedHitInfo = packedHitInfo;
+        this.radiance = float3(0.f);
+        this.msmeData = MSMEData();
+        this.sampleCount = 0;
+        this.rayOffset = 0;
+        this.rayCount = 0;
+    }
+#endif
 };
 
 struct CellInfo

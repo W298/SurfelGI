@@ -32,10 +32,11 @@ float placementThreshold = 2.f;
 float removalThreshold = 4.f;
 float thresholdGap = 2.f;
 bool showVariance = false;
+uint blendingDelay = 1024;
 
 // Ray tracing.
-uint rayStep = 3;
-uint maxStep = 10;
+uint rayStep = 2;
+uint maxStep = 5;
 bool useSurfelRadinace = true;
 
 // Integrate.
@@ -166,6 +167,7 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
         var["CB"]["gPlacementThreshold"] = placementThreshold;
         var["CB"]["gRemovalThreshold"] = removalThreshold;
         var["CB"]["gShowVariance"] = showVariance;
+        var["CB"]["gBlendingDelay"] = blendingDelay;
 
         pRenderContext->clearUAV(mpOutputTexture->getUAV().get(), float4(0));
         mpSurfelGenerationPass->execute(pRenderContext, uint3(mFrameDim, 1));
@@ -257,6 +259,7 @@ void SurfelGI::renderUI(Gui::Widgets& widget)
             placementThreshold = removalThreshold - thresholdGap;
 
         group.checkbox("Show variance", showVariance);
+        group.slider("Blending delay", blendingDelay, 0u, 2048u);
     }
 
     if (auto group = widget.group("Ray Tracing"))

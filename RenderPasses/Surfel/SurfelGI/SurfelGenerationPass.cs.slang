@@ -14,6 +14,7 @@ cbuffer CB
     float gPlacementThreshold;
     float gRemovalThreshold;
     bool gShowVariance;
+    uint gBlendingDelay;
 }
 
 RWStructuredBuffer<Surfel> gSurfelBuffer;
@@ -108,7 +109,9 @@ void csMain(
                     contribution = smoothstep(0, 1, contribution);
 
                     coverage += contribution;
-                    outputColor += float4(surfel.radiance, 1) * contribution;
+
+                    // Delay blending if not sufficient sample is accumulated.
+                    outputColor += float4(surfel.radiance, 1.f) * contribution * smoothstep(0, gBlendingDelay, surfel.sampleCount);
                     variance += length(surfel.msmeData.variance) * contribution;
 
                     if (maxContribution < contribution)
@@ -185,18 +188,15 @@ void csMain(
                         {
                             uint newIndex = gSurfelFreeIndexBuffer[freeSurfelCount - 1];
 
-                            Surfel newSurfel;
-                            newSurfel.position = v.posW;
-                            newSurfel.normal = v.normalW;
-                            newSurfel.radius = calcSurfelRadius(
+                            float varRadius = calcSurfelRadius(
                                 distance(gScene.camera.getPosition(), v.posW),
                                 gFOVy,
                                 gResolution,
                                 config.surfelTargetArea,
                                 config.cellUnit
                             );
-                            newSurfel.packedHitInfo = hitInfo.data;
-                            newSurfel.msmeData.inconsistency = 1.f;
+
+                            Surfel newSurfel = Surfel(v.posW, v.normalW, varRadius, hitInfo.data);
 
                             gSurfelValidIndexBuffer[validSurfelCount] = newIndex;
                             gSurfelBuffer[newIndex] = newSurfel;
