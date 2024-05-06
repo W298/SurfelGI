@@ -38,6 +38,7 @@ private:
     void bindResources(const RenderData& renderData);
 
     uint mFrameIndex;
+    uint mMaxFrameIndex;
     uint2 mFrameDim;
     float mFOVy;
     float3 mCamPos;

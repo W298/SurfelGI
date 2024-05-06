@@ -140,11 +140,13 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
         mpScene->raytrace(pRenderContext, mRtPass.pProgram.get(), mRtPass.pVars, uint3(kRayBudget, 1, 1));
     }
 
+    if (mFrameIndex <= mMaxFrameIndex)
     {
         FALCOR_PROFILE(pRenderContext, "Surfel Integrate Pass");
 
         auto var = mpSurfelIntegratePass->getRootVar();
         var["CB"]["gShortMeanWindow"] = shortMeanWindow;
+        var["CB"]["gCameraPos"] = mCamPos;
 
         mpSurfelIntegratePass->execute(pRenderContext, uint3(kTotalSurfelLimit, 1, 1));
     }
@@ -179,6 +181,7 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
             pRenderContext->copyResource(mpSurfelBuffer.get(), mpEmptySurfelBuffer.get());
             mpSurfelConfig->setBlob(&configValue, 0, sizeof(SurfelConfig));
             mResetSurfelBuffer = false;
+            mFrameIndex = 0;
         }
 
         pRenderContext->submit(false);
@@ -263,7 +266,7 @@ void SurfelGI::renderUI(Gui::Widgets& widget)
         group.checkbox("Use surfel radiance", useSurfelRadinace);
     }
 
-    if (auto group = widget.group("Estimator"))
+    if (auto group = widget.group("Integrate"))
     {
         group.slider("Short mean window", shortMeanWindow, 0.01f, 0.5f);
     }
@@ -276,6 +279,7 @@ void SurfelGI::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
         return;
 
     mFrameIndex = 0;
+    mMaxFrameIndex = 1000000;
     mFrameDim = uint2(0, 0);
     mIsResourceDirty = true;
     mReadBackValid = false;
@@ -538,8 +542,11 @@ void SurfelGI::bindResources(const RenderData& renderData)
 
         var[kSurfelBufferVarName] = mpSurfelBuffer;
         var[kSurfelValidIndexBufferVarName] = mpSurfelValidIndexBuffer;
+        var[kCellInfoBufferVarName] = mpCellInfoBuffer;
+        var[kCellToSurfelBufferVarName] = mpCellToSurfelBuffer;
         var[kSurfelRayResultBufferVarName] = mpSurfelRayResultBuffer;
 
         var[kSurfelCounterVarName] = mpSurfelCounter;
+        var[kSurfelConfigVarName] = mpSurfelConfig;
     }
 }
