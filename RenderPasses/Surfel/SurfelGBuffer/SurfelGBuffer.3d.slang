@@ -4,9 +4,9 @@ import Scene.Raster;
 
 struct GBufferVSOut
 {
-    linear float3 normalW : NORMAL;
-    linear float3 posW : POSW;
+    float2 texC : TEXCRD;
     nointerpolation GeometryInstanceID instanceID : INSTANCE_ID;
+    nointerpolation uint materialID : MATERIAL_ID;
     float4 posH : SV_POSITION;
 }
 
@@ -16,32 +16,41 @@ struct GBufferPSOut
     float4 instanceIDVisual : SV_TARGET1;
 };
 
-GBufferVSOut vsMain(VSIn vIn)
+GBufferVSOut vsMain(VSIn vsIn)
 {
-    GBufferVSOut vOut;
-    const GeometryInstanceID instanceID = { vIn.instanceID };
+    GBufferVSOut vsOut;
+    const GeometryInstanceID instanceID = { vsIn.instanceID };
 
     float4x4 worldMat = gScene.getWorldMatrix(instanceID);
-    float3 posW = mul(worldMat, float4(vIn.pos, 1.f)).xyz;
-    vOut.posW = posW;
-    vOut.posH = mul(gScene.camera.getViewProj(), float4(posW, 1.f));
+    float3 posW = mul(worldMat, float4(vsIn.pos, 1.f)).xyz;
+    vsOut.posH = mul(gScene.camera.getViewProj(), float4(posW, 1.f));
 
-    vOut.instanceID = instanceID;
-    vOut.normalW = mul(gScene.getInverseTransposeWorldMatrix(instanceID), vIn.unpack().normal);
+    vsOut.texC = vsIn.texC;
+    vsOut.instanceID = instanceID;
+    vsOut.materialID = gScene.getMaterialID(instanceID);
 
-    return vOut;
+    return vsOut;
 }
 
-GBufferPSOut psMain(GBufferVSOut vOut, uint triangleIndex: SV_PrimitiveID, float3 barycentrics: SV_Barycentrics)
+GBufferPSOut psMain(GBufferVSOut vsOut, uint triangleIndex: SV_PrimitiveID, float3 barycentrics: SV_Barycentrics)
 {
+    // Alpha test.
+    VertexData v = {};
+    v.texC = vsOut.texC;
+    float lod = 0.f;
+
+    if (gScene.materials.alphaTest(v, vsOut.materialID, lod))
+        discard;
+
+    // Store.
     TriangleHit triangleHit;
-    triangleHit.instanceID = vOut.instanceID;
+    triangleHit.instanceID = vsOut.instanceID;
     triangleHit.primitiveIndex = triangleIndex;
     triangleHit.barycentrics = barycentrics.yz;
 
     GBufferPSOut psOut = {
         triangleHit.pack(),
-        float4(pseudocolor(vOut.instanceID.index), 1)
+        float4(pseudocolor(vsOut.instanceID.index), 1)
     };
 
     return psOut;
