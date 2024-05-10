@@ -10,8 +10,10 @@ float plotFunc(void* data, int i)
     return static_cast<float*>(data)[i];
 }
 
-const std::string kOutputTextureName = "output";
 const std::string kPackedHitInfoTextureName = "packedHitInfo";
+const std::string kOutputTextureName = "output";
+const std::string kDebugTextureName = "debug";
+const std::string kIrradianceMapTextureName = "irradiance map";
 
 const std::string kSurfelBufferVarName = "gSurfelBuffer";
 const std::string kSurfelValidIndexBufferVarName = "gSurfelValidIndexBuffer";
@@ -39,6 +41,7 @@ uint rayStep = 3;
 uint maxStep = 10;
 bool useSurfelRadinace = true;
 uint maxSurfelForStep = 10;
+bool useRayGuiding = true;
 
 // Integrate.
 float shortMeanWindow = 0.08f;
@@ -82,9 +85,10 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
     if (mIsResourceDirty)
     {
         createTextureResources();
-        bindResources(renderData);
         mIsResourceDirty = false;
     }
+
+    bindResources(renderData);
 
     mFOVy = focalLengthToFovY(mpScene->getCamera()->getFocalLength(), mpScene->getCamera()->getFrameHeight());
     mCamPos = mpScene->getCamera()->getPosition();
@@ -139,6 +143,7 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
         var["CB"]["gMaxStep"] = maxStep;
         var["CB"]["gUseSurfelRadiance"] = useSurfelRadinace;
         var["CB"]["gMaxSurfelForStep"] = maxSurfelForStep;
+        var["CB"]["gUseRayGuiding"] = useRayGuiding;
 
         mpScene->raytrace(pRenderContext, mRtPass.pProgram.get(), mRtPass.pVars, uint3(kRayBudget, 1, 1));
     }
@@ -172,6 +177,7 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
         var["CB"]["gBlendingDelay"] = blendingDelay;
 
         pRenderContext->clearUAV(mpOutputTexture->getUAV().get(), float4(0));
+        pRenderContext->clearUAV(mpDebugTexture->getUAV().get(), float4(0));
         mpSurfelGenerationPass->execute(pRenderContext, uint3(mFrameDim, 1));
     }
 
@@ -183,6 +189,7 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
         if (mResetSurfelBuffer)
         {
             pRenderContext->copyResource(mpSurfelBuffer.get(), mpEmptySurfelBuffer.get());
+            pRenderContext->clearUAV(mpIrradianceMapTexture->getUAV().get(), float4(0));
             mpSurfelConfig->setBlob(&configValue, 0, sizeof(SurfelConfig));
             mResetSurfelBuffer = false;
             mFrameIndex = 0;
@@ -202,7 +209,7 @@ void SurfelGI::renderUI(Gui::Widgets& widget)
     widget.text("Frame index");
     widget.text(std::to_string(mFrameIndex), true);
 
-    widget.dummy("#spacer0", { 1, 10 });
+    widget.dummy("#spacer0", {1, 10});
 
     if (mReadBackValid)
     {
@@ -270,6 +277,7 @@ void SurfelGI::renderUI(Gui::Widgets& widget)
         group.slider("Max step", maxStep, rayStep, 20u);
         group.checkbox("Use surfel radiance", useSurfelRadinace);
         group.slider("Max surfel for step", maxSurfelForStep, 1u, 40u);
+        group.checkbox("Use ray guiding", useRayGuiding);
     }
 
     if (auto group = widget.group("Integrate"))
@@ -320,6 +328,15 @@ void SurfelGI::reflectOutput(RenderPassReflection& reflector, uint2 resolution)
     reflector.addOutput(kOutputTextureName, "output texture")
         .format(ResourceFormat::RGBA32Float)
         .bindFlags(ResourceBindFlags::UnorderedAccess);
+
+    reflector.addOutput(kDebugTextureName, "debug texture")
+        .format(ResourceFormat::RGBA32Float)
+        .bindFlags(ResourceBindFlags::UnorderedAccess);
+
+    reflector.addOutput(kIrradianceMapTextureName, "irradiance map texture")
+        .format(ResourceFormat::R32Float)
+        .bindFlags(ResourceBindFlags::UnorderedAccess)
+        .texture2D(3840, 2160);
 }
 
 void SurfelGI::createPasses()
@@ -372,9 +389,7 @@ void SurfelGI::createPasses()
         );
 
         mRtPass.pBindingTable->setHitGroup(
-            1,
-            mpScene->getGeometryIDs(Scene::GeometryType::TriangleMesh),
-            desc.addHitGroup("", "shadowAnyhit")
+            1, mpScene->getGeometryIDs(Scene::GeometryType::TriangleMesh), desc.addHitGroup("", "shadowAnyhit")
         );
 
         mRtPass.pProgram = Program::create(mpDevice, desc, mpScene->getSceneDefines());
@@ -469,6 +484,8 @@ void SurfelGI::bindResources(const RenderData& renderData)
 {
     const auto& pPackedHitInfoTexture = renderData.getTexture(kPackedHitInfoTextureName);
     mpOutputTexture = renderData.getTexture(kOutputTextureName);
+    mpDebugTexture = renderData.getTexture(kDebugTextureName);
+    mpIrradianceMapTexture = renderData.getTexture(kIrradianceMapTextureName);
 
     // Prepare Pass
     {
@@ -523,6 +540,8 @@ void SurfelGI::bindResources(const RenderData& renderData)
 
         var[kSurfelCounterVarName] = mpSurfelCounter;
         var[kSurfelConfigVarName] = mpSurfelConfig;
+
+        var["gIrradianceMap"] = mpIrradianceMapTexture;
     }
 
     // Surfel Generation Pass
@@ -540,6 +559,7 @@ void SurfelGI::bindResources(const RenderData& renderData)
 
         var["gPackedHitInfo"] = pPackedHitInfoTexture;
         var["gOutput"] = mpOutputTexture;
+        var["gDebug"] = mpDebugTexture;
     }
 
     // Surfel Integrate Pass
@@ -554,5 +574,7 @@ void SurfelGI::bindResources(const RenderData& renderData)
 
         var[kSurfelCounterVarName] = mpSurfelCounter;
         var[kSurfelConfigVarName] = mpSurfelConfig;
+
+        var["gIrradianceMap"] = mpIrradianceMapTexture;
     }
 }

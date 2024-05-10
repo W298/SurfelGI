@@ -35,6 +35,28 @@ static const int3 neighborOffset[27] =
     int3(1, 1, 1),
 };
 
+static const float3 uniformDir[18] =
+{
+    float3(-1, 0, -1),
+    float3(-1, 0, 0),
+    float3(-1, 0, 1),
+    float3(-1, 1, -1),
+    float3(-1, 1, 0),
+    float3(-1, 1, 1),
+    float3(0, 0, -1),
+    float3(0, 0, 0),
+    float3(0, 0, 1),
+    float3(0, 1, -1),
+    float3(0, 1, 0),
+    float3(0, 1, 1),
+    float3(1, 0, -1),
+    float3(1, 0, 0),
+    float3(1, 0, 1),
+    float3(1, 1, -1),
+    float3(1, 1, 0),
+    float3(1, 1, 1)
+};
+
 float3 unProject(float2 uv, float depth, float4x4 invViewProj)
 {
     float x = uv.x * 2 - 1;
@@ -144,4 +166,21 @@ float3 sample_hemisphere_uniform(in float3 normal, inout RNG rng)
 float3 sample_hemisphere_cos(in float3 normal, inout RNG rng)
 {
     return mul(hemispherepoint_cos(rng.next_float(), rng.next_float()), get_tangentspace(normal));
+}
+
+// Octahedral Normal Vectors (ONV) Encode & Decode.
+// Modified for hemisphere projection.
+// https://jcgt.org/published/0003/02/01/
+float2 octEncode(float3 v)
+{
+    float l1norm = abs(v.x) + abs(v.y) + abs(v.z);
+    float2 result = v.xy * (1.f / l1norm);
+    return float2(result.x - result.y, result.x + result.y);
+}
+
+float3 octDecode(float2 uv)
+{
+    float2 result = float2((uv.x + uv.y) / 2.f, (uv.y - uv.x) / 2.f);
+    float3 v = float3(result.x, result.y, 1.f - abs(result.x) - abs(result.y));
+    return normalize(v);
 }

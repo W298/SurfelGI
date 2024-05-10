@@ -70,7 +70,7 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
         // Ray allocation.
         // Define ray count with variance.
         uint rayOffset = 0;
-        uint rayRequestCount = lerp(4u, 64u, length(surfel.msmeData.variance) * 40.0f);
+        uint rayRequestCount = clamp(4u, 64u, lerp(4u, 64u, length(surfel.msmeData.variance) * 40.0f));
         gSurfelCounter.InterlockedAdd((int)SurfelCounterOffset::RequestedRay, rayRequestCount, rayOffset);
 
         if (rayOffset < kRayBudget)

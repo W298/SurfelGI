@@ -28,6 +28,7 @@ ByteAddressBuffer gSurfelConfig;
 
 Texture2D<uint4> gPackedHitInfo;
 RWTexture2D<float4> gOutput;
+RWTexture2D<float4> gDebug;
 
 groupshared uint groupShareMinCoverage;
 groupshared uint groupShareMaxContribution;
@@ -82,6 +83,7 @@ void csMain(
         float coverage = 0.f;
         float4 outputColor = float4(0, 0, 0, 0);
         float variance = 0.f;
+        uint maxRayCount = 0;
 
         float maxContribution = 0.f;
         uint maxContributionSurfelIndex = randomState.next_uint(cellInfo.surfelCount);
@@ -114,6 +116,8 @@ void csMain(
                     outputColor += float4(surfel.radiance, 1.f) * contribution * smoothstep(0, gBlendingDelay, surfel.sampleCount);
                     variance += length(surfel.msmeData.variance) * contribution;
 
+                    maxRayCount = max(maxRayCount, surfel.rayCount);
+
                     if (maxContribution < contribution)
                     {
                         maxContribution = contribution;
@@ -130,6 +134,13 @@ void csMain(
 
             variance /= outputColor.w;
         }
+
+        if (maxRayCount > 16u)
+            gDebug[pixelPos] = float4(1.f, 0, 0, 1);
+        else if (maxRayCount > 8u)
+            gDebug[pixelPos] = float4(1.f, 1.f, 0, 1);
+        else
+            gDebug[pixelPos] = float4(0, 1.f, 0, 1);
 
         if (gShowVariance)
         {

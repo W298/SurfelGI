@@ -69,6 +69,8 @@ private:
     } mRtPass;
 
     ref<Texture> mpOutputTexture;
+    ref<Texture> mpDebugTexture;
+    ref<Texture> mpIrradianceMapTexture;
 
     ref<Buffer> mpSurfelBuffer;
     ref<Buffer> mpSurfelValidIndexBuffer;
@@ -76,7 +78,6 @@ private:
     ref<Buffer> mpSurfelFreeIndexBuffer;
     ref<Buffer> mpCellInfoBuffer;
     ref<Buffer> mpCellToSurfelBuffer;
-
     ref<Buffer> mpSurfelRayResultBuffer;
 
     ref<Buffer> mpSurfelCounter;

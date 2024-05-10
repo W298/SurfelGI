@@ -5,6 +5,7 @@ import Utils.Sampling.SampleGenerator;
 import Rendering.Lights.LightHelpers;
 import Utils.Geometry.GeometryHelpers;
 import Utils.Color.ColorHelpers;
+import Utils.Math.MathHelpers;
 import RenderPasses.Surfel.Random;
 import RenderPasses.Surfel.SurfelGI.SurfelTypes;
 import RenderPasses.Surfel.SurfelGI.SurfelUtils;
@@ -28,6 +29,7 @@ cbuffer CB
     uint gMaxStep;                      ///< Global maxium step count. No ray step can exceed this value.
     bool gUseSurfelRadiance;            ///< Use surfel radiance or not.
     uint gMaxSurfelForStep;
+    bool gUseRayGuiding;
 }
 
 struct ScatterPayload
@@ -64,6 +66,8 @@ RWStructuredBuffer<SurfelRayResult> gSurfelRayResultBuffer;
 
 RWByteAddressBuffer gSurfelCounter;
 ByteAddressBuffer gSurfelConfig;
+
+RWTexture2D<float> gIrradianceMap;
 
 bool traceShadowRay(float3 origin, float3 dir, float distance)
 {
@@ -334,21 +338,89 @@ void rayGen()
 
     uint rayIndex = DispatchRaysIndex().x;
     SurfelRayResult surfelRayResult = gSurfelRayResultBuffer[rayIndex];
-    const Surfel surfel = gSurfelBuffer[surfelRayResult.surfelIndex];
+    const uint surfelIndex = surfelRayResult.surfelIndex;
+    const Surfel surfel = gSurfelBuffer[surfelIndex];
 
     RNG rng;
     rng.init(uint2(rayIndex, rayIndex), gFrameIndex);
 
-    SampleGenerator sg = SampleGenerator(uint2(rayIndex, rayIndex), gFrameIndex);
+    SampleGenerator sg = SampleGenerator(uint2(rayIndex, rayIndex) + uint2(gFrameIndex), gFrameIndex);
 
     // Initialize scatter payload.
-    // Direction is selected by cosine-weighted hemisphere sampling.
     ScatterPayload scatterPayload = ScatterPayload(sg);
     scatterPayload.origin = surfel.position;
-    scatterPayload.direction = normalize(sample_hemisphere_cos(surfel.normal, rng));
 
-    // Store first direction to result, because payload direction will be changed.
-    surfelRayResult.direction = scatterPayload.direction;
+    float3 dirLocal;
+    float pdf;
+
+    uint2 irrMapBase = uint2(surfelIndex % (3840 / 7), surfelIndex / (3840 / 7));
+    irrMapBase *= uint2(7, 7);
+
+    // Check if irradiance map of surfel has hole (not sampled yet).
+    bool isHoleExist = false;
+    for (uint y = 0; y < 7; ++y)
+    {
+        for (uint x = 0; x < 7; ++x)
+        {
+            if (gIrradianceMap[irrMapBase + uint2(x, y)] <= 1e-12f)
+            {
+                isHoleExist = true;
+                break;
+            }
+        }
+    }
+
+    // If hole dosen't exist, and ray count of surfel is bigger than 16, apply ray-guiding.
+    if (gUseRayGuiding && !isHoleExist && surfel.rayCount > 16u)
+    {
+        float sumRadiance = 0.f;
+        for (uint x = 0; x < 7; ++x)
+            for (uint y = 0; y < 7; ++y)
+                sumRadiance += gIrradianceMap[irrMapBase + uint2(x, y)];
+
+        // Approximate inverse CDF for sampling.
+        float randomCeil = rng.next_float() * sumRadiance;
+        float cummulative = 0.f;
+
+        int2 coord;
+        for (uint y = 0; y < 7; ++y)
+        {
+            for (uint x = 0; x < 7; ++x)
+            {
+                cummulative += gIrradianceMap[irrMapBase + uint2(x, y)];
+                if (cummulative >= randomCeil)
+                {
+                    coord = int2(x, y);
+                    pdf = gIrradianceMap[irrMapBase + uint2(x, y)] / sumRadiance;
+                    break;
+                }
+            }
+
+            if (cummulative >= randomCeil)
+                break;
+        }
+
+        float2 uv = (coord - int2(3, 3)) / 3.f;
+        dirLocal = octDecode(uv);
+
+        // Add small noise to direction.
+        const float3 noise = normalize(hemispherepoint_uniform(rng.next_float(), rng.next_float()));
+        dirLocal = normalize(dirLocal + 0.1f * noise);
+    }
+    else
+    {
+        dirLocal = normalize(hemispherepoint_uniform(rng.next_float(), rng.next_float()));
+        pdf = 1.f / (16 * M_PI);
+    }
+
+    float3 dirWorld = normalize(mul(dirLocal, get_tangentspace(surfel.normal)));
+
+    scatterPayload.direction = dirWorld;
+
+    // Store direction to result first, because payload direction will be changed.
+    surfelRayResult.dirLocal = dirLocal;
+    surfelRayResult.dirWorld = dirWorld;
+    surfelRayResult.pdf = pdf;
 
     // Trace ray.
     while (!scatterPayload.terminated && scatterPayload.currStep <= gMaxStep)

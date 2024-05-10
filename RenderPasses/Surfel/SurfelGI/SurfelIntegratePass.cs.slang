@@ -1,4 +1,7 @@
+#include "Utils/Math/MathConstants.slangh"
+
 import Scene.Scene;
+import Utils.Color.ColorHelpers;
 import RenderPasses.Surfel.SurfelGI.SurfelTypes;
 import RenderPasses.Surfel.SurfelGI.SurfelUtils;
 import RenderPasses.Surfel.SurfelGI.MultiscaleMeanEstimator;
@@ -20,6 +23,8 @@ RWStructuredBuffer<SurfelRayResult> gSurfelRayResultBuffer;
 RWByteAddressBuffer gSurfelCounter;
 ByteAddressBuffer gSurfelConfig;
 
+RWTexture2D<float> gIrradianceMap;
+
 // Will be moved at Update Pass later for optimzation.
 [numthreads(32, 1, 1)]
 void csMain(uint3 dispatchThreadId: SV_DispatchThreadID)
@@ -31,17 +36,33 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID)
     uint surfelIndex = gSurfelValidIndexBuffer[dispatchThreadId.x];
     Surfel surfel = gSurfelBuffer[surfelIndex];
 
-    // We use lambertian for surfel radiance, it follows lambert's cosine law.
-    // surfel radiance = 1 / PI * integral [ Li * cos(theta) ]
-    // surfel radiance (with sampling) = 1 / N * sum[ Li * cos(theta) ]
+    uint2 irrMapBase = uint2(surfelIndex % (3840 / 7), surfelIndex / (3840 / 7));
+    irrMapBase *= uint2(7, 7);
+
     float3 surfelRadiance = float3(0.f);
     for (uint rayIndex = 0; rayIndex < surfel.rayCount; ++rayIndex)
     {
-        float3 Lr = gSurfelRayResultBuffer[surfel.rayOffset + rayIndex].radiance;
-        float3 dir = gSurfelRayResultBuffer[surfel.rayOffset + rayIndex].direction;
+        const SurfelRayResult rayResult = gSurfelRayResultBuffer[surfel.rayOffset + rayIndex];
 
-        surfelRadiance += Lr * dot(dir, surfel.normal);
+        float3 Lr = rayResult.radiance;
+        float3 dirLocal = rayResult.dirLocal;
+        float3 dirWorld = rayResult.dirWorld;
+        float pdf = rayResult.pdf;
+
+        float2 uv = octEncode(normalize(dirLocal));
+        uint2 irrMapOffset = int2(3, 3) + int2(sign(uv.x) * round(abs(uv.x * 3.0f)), sign(uv.y) * round(abs(uv.y * 3.0f)));
+        uint2 irrMapCoord = irrMapBase + irrMapOffset;
+
+        // Write radiance of ray at texture for ray-guiding.
+        // Mininum boundary is 0.001f, because pdf should not be 0 for importance sampling.
+        float k = 1e-2f;
+        float delta = luminance(Lr) - gIrradianceMap[irrMapCoord];
+        gIrradianceMap[irrMapCoord] = max(0.001f, gIrradianceMap[irrMapCoord] + k * delta);
+
+        // Calculate incident radiance by using importance sampling.
+        surfelRadiance += Lr * dot(dirWorld, surfel.normal) * ((1.f / (16 * M_PI)) / max(1e-12f, pdf));
     }
+
     surfelRadiance /= surfel.rayCount;
 
     // Irradiance sharing.
