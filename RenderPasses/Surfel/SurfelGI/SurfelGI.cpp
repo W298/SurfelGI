@@ -33,8 +33,8 @@ uint chancePower = 1;
 float placementThreshold = 2.f;
 float removalThreshold = 4.f;
 float thresholdGap = 2.f;
-bool showVariance = false;
 uint blendingDelay = 1024;
+uint overlayMode = 0;
 
 // Ray tracing.
 uint rayStep = 3;
@@ -173,7 +173,7 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
         var["CB"]["gChancePower"] = chancePower;
         var["CB"]["gPlacementThreshold"] = placementThreshold;
         var["CB"]["gRemovalThreshold"] = removalThreshold;
-        var["CB"]["gShowVariance"] = showVariance;
+        var["CB"]["gOverlayMode"] = overlayMode;
         var["CB"]["gBlendingDelay"] = blendingDelay;
 
         pRenderContext->clearUAV(mpOutputTexture->getUAV().get(), float4(0));
@@ -267,7 +267,7 @@ void SurfelGI::renderUI(Gui::Widgets& widget)
         else if (group.slider("Removal threshold", removalThreshold, 0.f, 20.0f))
             placementThreshold = removalThreshold - thresholdGap;
 
-        group.checkbox("Show variance", showVariance);
+        group.slider("Overlay mode", overlayMode, 0u, 2u);
         group.slider("Blending delay", blendingDelay, 0u, 2048u);
     }
 
@@ -336,7 +336,7 @@ void SurfelGI::reflectOutput(RenderPassReflection& reflector, uint2 resolution)
     reflector.addOutput(kIrradianceMapTextureName, "irradiance map texture")
         .format(ResourceFormat::R32Float)
         .bindFlags(ResourceBindFlags::UnorderedAccess)
-        .texture2D(3840, 2160);
+        .texture2D(kIrradianceMapRes.x, kIrradianceMapRes.y);
 }
 
 void SurfelGI::createPasses()

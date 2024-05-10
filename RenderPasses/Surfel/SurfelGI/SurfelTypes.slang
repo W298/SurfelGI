@@ -13,11 +13,14 @@ enum class SurfelCounterOffset : int
     RequestedRay    = 16
 };
 
-static const uint2 kTileSize            = uint2(16, 16);
-static const uint kTotalSurfelLimit     = 150000;
-static const uint kRayBudget            = 40960000;
-static const uint3 kCellDimension       = uint3(400, 400, 400);
-static const uint kCellCount            = kCellDimension.x * kCellDimension.y * kCellDimension.z;
+static const uint2 kTileSize                = uint2(16, 16);
+static const uint kTotalSurfelLimit         = 150000;
+static const uint kRayBudget                = 40960000;
+static const uint3 kCellDimension           = uint3(400, 400, 400);
+static const uint kCellCount                = kCellDimension.x * kCellDimension.y * kCellDimension.z;
+static const uint2 kIrradianceMapRes        = uint2(3840, 2160);
+static const uint2 kIrradianceMapUnit       = uint2(7, 7);
+static const uint2 kIrradianceMapHalfUnit   = kIrradianceMapUnit / 2u;
 
 static const uint kInitialStatus[] = { 0, 0, kTotalSurfelLimit, 0, 0 };
 
@@ -28,6 +31,8 @@ struct Surfel
     float radius;
     uint4 packedHitInfo;
     float3 radiance;
+    float sumLuminance;
+    bool hasHole;
     MSMEData msmeData;
     uint sampleCount;
     uint rayOffset;
@@ -42,6 +47,8 @@ struct Surfel
         this.radius = radius;
         this.packedHitInfo = packedHitInfo;
         this.radiance = float3(0.f);
+        this.sumLuminance = 0.f;
+        this.hasHole = false;
         this.msmeData = MSMEData();
         this.sampleCount = 0;
         this.rayOffset = 0;

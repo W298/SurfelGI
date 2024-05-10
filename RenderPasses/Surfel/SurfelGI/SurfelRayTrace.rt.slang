@@ -353,45 +353,29 @@ void rayGen()
     float3 dirLocal;
     float pdf;
 
-    uint2 irrMapBase = uint2(surfelIndex % (3840 / 7), surfelIndex / (3840 / 7));
-    irrMapBase *= uint2(7, 7);
-
-    // Check if irradiance map of surfel has hole (not sampled yet).
-    bool isHoleExist = false;
-    for (uint y = 0; y < 7; ++y)
-    {
-        for (uint x = 0; x < 7; ++x)
-        {
-            if (gIrradianceMap[irrMapBase + uint2(x, y)] <= 1e-12f)
-            {
-                isHoleExist = true;
-                break;
-            }
-        }
-    }
+    uint2 irrMapBase = uint2(
+        surfelIndex % (kIrradianceMapRes.x / kIrradianceMapUnit.x),
+        surfelIndex / (kIrradianceMapRes.x / kIrradianceMapUnit.y)
+    );
+    irrMapBase *= kIrradianceMapUnit;
 
     // If hole dosen't exist, and ray count of surfel is bigger than 16, apply ray-guiding.
-    if (gUseRayGuiding && !isHoleExist && surfel.rayCount > 16u)
+    if (gUseRayGuiding && !surfel.hasHole && step(16u, surfel.rayCount))
     {
-        float sumRadiance = 0.f;
-        for (uint x = 0; x < 7; ++x)
-            for (uint y = 0; y < 7; ++y)
-                sumRadiance += gIrradianceMap[irrMapBase + uint2(x, y)];
-
         // Approximate inverse CDF for sampling.
-        float randomCeil = rng.next_float() * sumRadiance;
+        float randomCeil = rng.next_float() * surfel.sumLuminance;
         float cummulative = 0.f;
 
         int2 coord;
-        for (uint y = 0; y < 7; ++y)
+        for (uint y = 0; y < kIrradianceMapUnit.y; ++y)
         {
-            for (uint x = 0; x < 7; ++x)
+            for (uint x = 0; x < kIrradianceMapUnit.x; ++x)
             {
                 cummulative += gIrradianceMap[irrMapBase + uint2(x, y)];
                 if (cummulative >= randomCeil)
                 {
                     coord = int2(x, y);
-                    pdf = gIrradianceMap[irrMapBase + uint2(x, y)] / sumRadiance;
+                    pdf = gIrradianceMap[irrMapBase + uint2(x, y)] / surfel.sumLuminance;
                     break;
                 }
             }
@@ -400,11 +384,13 @@ void rayGen()
                 break;
         }
 
-        float2 uv = (coord - int2(3, 3)) / 3.f;
+        float2 uv = float2(coord - kIrradianceMapHalfUnit) / 3.f;
         dirLocal = octDecode(uv);
 
-        // Add small noise to direction.
-        const float3 noise = normalize(hemispherepoint_uniform(rng.next_float(), rng.next_float()));
+        // Add small noise to direction with preserving tangent direction.
+        float3 noise = float3(sample_disk_concentric(rng.next_float2()), 0);
+        noise = normalize(mul(noise, get_tangentspace(dirLocal)));
+
         dirLocal = normalize(dirLocal + 0.1f * noise);
     }
     else
@@ -417,7 +403,7 @@ void rayGen()
 
     scatterPayload.direction = dirWorld;
 
-    // Store direction to result first, because payload direction will be changed.
+    // Store direction and pdf to result first, because payload direction will be changed.
     surfelRayResult.dirLocal = dirLocal;
     surfelRayResult.dirWorld = dirWorld;
     surfelRayResult.pdf = pdf;

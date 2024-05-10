@@ -36,8 +36,11 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID)
     uint surfelIndex = gSurfelValidIndexBuffer[dispatchThreadId.x];
     Surfel surfel = gSurfelBuffer[surfelIndex];
 
-    uint2 irrMapBase = uint2(surfelIndex % (3840 / 7), surfelIndex / (3840 / 7));
-    irrMapBase *= uint2(7, 7);
+    uint2 irrMapBase = uint2(
+        surfelIndex % (kIrradianceMapRes.x / kIrradianceMapUnit.x),
+        surfelIndex / (kIrradianceMapRes.x / kIrradianceMapUnit.y)
+    );
+    irrMapBase *= kIrradianceMapUnit;
 
     float3 surfelRadiance = float3(0.f);
     for (uint rayIndex = 0; rayIndex < surfel.rayCount; ++rayIndex)
@@ -50,20 +53,41 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID)
         float pdf = rayResult.pdf;
 
         float2 uv = octEncode(normalize(dirLocal));
-        uint2 irrMapOffset = int2(3, 3) + int2(sign(uv.x) * round(abs(uv.x * 3.0f)), sign(uv.y) * round(abs(uv.y * 3.0f)));
+        uint2 irrMapOffset = kIrradianceMapHalfUnit + int2(
+            sign(uv.x) * round(abs(uv.x * kIrradianceMapHalfUnit.x)),
+            sign(uv.y) * round(abs(uv.y * kIrradianceMapHalfUnit.y))
+        );
         uint2 irrMapCoord = irrMapBase + irrMapOffset;
 
         // Write radiance of ray at texture for ray-guiding.
-        // Mininum boundary is 0.001f, because pdf should not be 0 for importance sampling.
+        // Mininum boundary is 1e-3f, because pdf should not be 0 for importance sampling.
         float k = 1e-2f;
         float delta = luminance(Lr) - gIrradianceMap[irrMapCoord];
-        gIrradianceMap[irrMapCoord] = max(0.001f, gIrradianceMap[irrMapCoord] + k * delta);
+        gIrradianceMap[irrMapCoord] = max(1e-3f, gIrradianceMap[irrMapCoord] + k * delta);
 
         // Calculate incident radiance by using importance sampling.
         surfelRadiance += Lr * dot(dirWorld, surfel.normal) * ((1.f / (16 * M_PI)) / max(1e-12f, pdf));
     }
 
     surfelRadiance /= surfel.rayCount;
+
+    float sumLuminance = 0.f;
+    bool hasHole = false;
+
+    // Sum luminances and check if irradiance map of surfel has hole (not sampled yet).
+    for (uint y = 0; y < kIrradianceMapUnit.y; ++y)
+    {
+        for (uint x = 0; x < kIrradianceMapUnit.x; ++x)
+        {
+            const float l = gIrradianceMap[irrMapBase + uint2(x, y)];
+            sumLuminance += l;
+            if (!hasHole && step(l, 1e-12f))
+                hasHole = true;
+        }
+    }
+
+    surfel.sumLuminance = sumLuminance;
+    surfel.hasHole = hasHole;
 
     // Irradiance sharing.
 #if USE_IRRADIANCE_SHARING

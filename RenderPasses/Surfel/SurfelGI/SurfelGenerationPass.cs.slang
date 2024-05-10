@@ -13,8 +13,8 @@ cbuffer CB
     uint gChancePower;
     float gPlacementThreshold;
     float gRemovalThreshold;
-    bool gShowVariance;
     uint gBlendingDelay;
+    uint gOverlayMode;
 }
 
 RWStructuredBuffer<Surfel> gSurfelBuffer;
@@ -81,9 +81,10 @@ void csMain(
     // Also evalute weighted color output (indrect lighting).
     {
         float coverage = 0.f;
-        float4 outputColor = float4(0, 0, 0, 0);
-        float variance = 0.f;
-        uint maxRayCount = 0;
+        float4 indirectLighting = float4(0.f);
+        float varianceEx = 0.f;
+        float rayCountEx = 0.f;
+        uint rayCount = 0;
 
         float maxContribution = 0.f;
         uint maxContributionSurfelIndex = randomState.next_uint(cellInfo.surfelCount);
@@ -113,10 +114,12 @@ void csMain(
                     coverage += contribution;
 
                     // Delay blending if not sufficient sample is accumulated.
-                    outputColor += float4(surfel.radiance, 1.f) * contribution * smoothstep(0, gBlendingDelay, surfel.sampleCount);
-                    variance += length(surfel.msmeData.variance) * contribution;
+                    indirectLighting += float4(surfel.radiance, 1.f) * contribution * smoothstep(0, gBlendingDelay, surfel.sampleCount);
 
-                    maxRayCount = max(maxRayCount, surfel.rayCount);
+                    varianceEx += length(surfel.msmeData.variance) * contribution;
+                    rayCountEx += surfel.rayCount * contribution;
+
+                    rayCount = max(rayCount, surfel.rayCount);
 
                     if (maxContribution < contribution)
                     {
@@ -127,32 +130,38 @@ void csMain(
             }
         }
 
-        if (outputColor.w > 0)
+        if (indirectLighting.w > 0)
         {
-            outputColor.xyz /= outputColor.w;
-            outputColor.w = saturate(outputColor.w);
+            indirectLighting.xyz /= indirectLighting.w;
+            indirectLighting.w = saturate(indirectLighting.w);
 
-            variance /= outputColor.w;
+            varianceEx /= indirectLighting.w;
+            rayCountEx /= indirectLighting.w;
         }
 
-        if (maxRayCount > 16u)
-            gDebug[pixelPos] = float4(1.f, 0, 0, 1);
-        else if (maxRayCount > 8u)
-            gDebug[pixelPos] = float4(1.f, 1.f, 0, 1);
-        else
-            gDebug[pixelPos] = float4(0, 1.f, 0, 1);
-
-        if (gShowVariance)
+        // Write texture by overlay mode.
+        if (gOverlayMode == 0)
         {
-            if (variance > 0.1f)
+            gOutput[pixelPos] = indirectLighting;
+        }
+        if (gOverlayMode == 1)
+        {
+            if (varianceEx > 0.1f)
                 gOutput[pixelPos] = float4(1, 0, 0, 1);
-            else if (variance > 0.05f)
+            else if (varianceEx > 0.05f)
                 gOutput[pixelPos] = float4(0, 1, 0, 1);
             else
                 gOutput[pixelPos] = float4(0, 0, 1, 1);
         }
-        else
-            gOutput[pixelPos] = outputColor;
+        else if (gOverlayMode == 2)
+        {
+            if (rayCountEx > 48u)
+                gOutput[pixelPos] = float4(1, 0, 0, 1);
+            else if (rayCountEx > 32u)
+                gOutput[pixelPos] = float4(1, 1, 0, 1);
+            else
+                gOutput[pixelPos] = float4(0, 1, 0, 1);
+        }
 
         uint coverageData = 0;
         coverageData |= ((f32tof16(coverage) & 0x0000FFFF) << 16);
