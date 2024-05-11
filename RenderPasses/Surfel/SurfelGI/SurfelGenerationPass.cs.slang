@@ -115,7 +115,8 @@ void csMain(
                     coverage += contribution;
 
                     // Delay blending if not sufficient sample is accumulated.
-                    indirectLighting += float4(surfel.radiance, 1.f) * contribution * smoothstep(0, gBlendingDelay, surfel.sampleCount);
+                    // Because samples are updated per frame, so do not use sample count directly.
+                    indirectLighting += float4(surfel.radiance, 1.f) * contribution * smoothstep(0, 240, surfel.frame);
 
                     varianceEx += length(surfel.msmeData.variance) * contribution;
                     rayCountEx += surfel.rayCount * contribution;

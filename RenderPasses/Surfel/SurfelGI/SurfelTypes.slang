@@ -34,8 +34,7 @@ struct Surfel
     float sumLuminance;
     bool hasHole;
     MSMEData msmeData;
-    uint life;
-    uint sampleCount;
+    uint frame;
     uint rayOffset;
     uint rayCount;
 
@@ -51,8 +50,7 @@ struct Surfel
         this.sumLuminance = 0.f;
         this.hasHole = false;
         this.msmeData = MSMEData();
-        this.life = 0;
-        this.sampleCount = 0;
+        this.frame = 0;
         this.rayOffset = 0;
         this.rayCount = 0;
     }
