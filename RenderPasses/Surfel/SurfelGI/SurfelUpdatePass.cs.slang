@@ -85,6 +85,8 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
                 gSurfelRayResultBuffer[rayOffset + rayIndex] = initSurfelRayResult;
         }
 
+        surfel.life++;
+
         // Write back to buffer.
         gSurfelBuffer[surfelIndex] = surfel;
     }

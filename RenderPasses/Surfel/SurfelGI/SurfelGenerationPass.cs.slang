@@ -85,6 +85,7 @@ void csMain(
         float varianceEx = 0.f;
         float rayCountEx = 0.f;
         uint rayCount = 0;
+        bool hasHole = false;
 
         float maxContribution = 0.f;
         uint maxContributionSurfelIndex = randomState.next_uint(cellInfo.surfelCount);
@@ -126,6 +127,9 @@ void csMain(
                         maxContribution = contribution;
                         maxContributionSurfelIndex = i;
                     }
+
+                    if (surfel.hasHole)
+                        hasHole = true;
                 }
             }
         }
@@ -159,6 +163,13 @@ void csMain(
                 gOutput[pixelPos] = float4(1, 0, 0, 1);
             else if (rayCountEx > 32u)
                 gOutput[pixelPos] = float4(1, 1, 0, 1);
+            else
+                gOutput[pixelPos] = float4(0, 1, 0, 1);
+        }
+        else if (gOverlayMode == 3)
+        {
+            if (hasHole)
+                gOutput[pixelPos] = float4(1, 0, 0, 1);
             else
                 gOutput[pixelPos] = float4(0, 1, 0, 1);
         }

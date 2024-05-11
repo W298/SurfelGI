@@ -267,7 +267,7 @@ void SurfelGI::renderUI(Gui::Widgets& widget)
         else if (group.slider("Removal threshold", removalThreshold, 0.f, 20.0f))
             placementThreshold = removalThreshold - thresholdGap;
 
-        group.slider("Overlay mode", overlayMode, 0u, 2u);
+        group.slider("Overlay mode", overlayMode, 0u, 3u);
         group.slider("Blending delay", blendingDelay, 0u, 2048u);
     }
 
@@ -310,6 +310,19 @@ bool SurfelGI::onKeyEvent(const KeyboardEvent& keyEvent)
     if (keyEvent.key == Input::Key::L)
     {
         mResetSurfelBuffer = true;
+        return true;
+    }
+
+    if (keyEvent.key == Input::Key::Right || keyEvent.key == Input::Key::Left)
+    {
+        Light* light = mpScene->getLightByName("Directional light").get();
+        if (light)
+        {
+            DirectionalLight* dirLight = reinterpret_cast<DirectionalLight*>(light);
+            dirLight->setWorldDirection(
+                dirLight->getWorldDirection() + float3(0, 0, keyEvent.key == Input::Key::Right ? 0.01f : -0.01f)
+            );
+        }
         return true;
     }
 

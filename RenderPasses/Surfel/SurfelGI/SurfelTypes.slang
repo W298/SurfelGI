@@ -16,7 +16,7 @@ enum class SurfelCounterOffset : int
 static const uint2 kTileSize                = uint2(16, 16);
 static const uint kTotalSurfelLimit         = 150000;
 static const uint kRayBudget                = 40960000;
-static const uint3 kCellDimension           = uint3(400, 400, 400);
+static const uint3 kCellDimension           = uint3(200, 200, 200);
 static const uint kCellCount                = kCellDimension.x * kCellDimension.y * kCellDimension.z;
 static const uint2 kIrradianceMapRes        = uint2(3840, 2160);
 static const uint2 kIrradianceMapUnit       = uint2(7, 7);
@@ -34,6 +34,7 @@ struct Surfel
     float sumLuminance;
     bool hasHole;
     MSMEData msmeData;
+    uint life;
     uint sampleCount;
     uint rayOffset;
     uint rayCount;
@@ -50,6 +51,7 @@ struct Surfel
         this.sumLuminance = 0.f;
         this.hasHole = false;
         this.msmeData = MSMEData();
+        this.life = 0;
         this.sampleCount = 0;
         this.rayOffset = 0;
         this.rayCount = 0;

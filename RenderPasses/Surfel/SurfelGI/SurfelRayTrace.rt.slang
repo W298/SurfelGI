@@ -387,10 +387,8 @@ void rayGen()
         float2 uv = float2(coord - kIrradianceMapHalfUnit) / 3.f;
         dirLocal = octDecode(uv);
 
-        // Add small noise to direction with preserving tangent direction.
-        float3 noise = float3(sample_disk_concentric(rng.next_float2()), 0);
-        noise = normalize(mul(noise, get_tangentspace(dirLocal)));
-
+        // Add small noise to direction.
+        float3 noise = normalize(hemispherepoint_uniform(rng.next_float(), rng.next_float()));
         dirLocal = normalize(dirLocal + 0.1f * noise);
     }
     else
