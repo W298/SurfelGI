@@ -384,7 +384,7 @@ void rayGen()
                 break;
         }
 
-        float2 uv = float2(coord - kIrradianceMapHalfUnit) / 3.f;
+        float2 uv = float2(coord - kIrradianceMapHalfUnit) / float2(kIrradianceMapHalfUnit);
         dirLocal = octDecode(uv);
 
         // Add small noise to direction.

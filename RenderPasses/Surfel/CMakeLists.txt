@@ -10,6 +10,10 @@ target_sources(Surfel PRIVATE
     SurfelGBuffer/SurfelGBuffer.h
     SurfelGBuffer/SurfelGBuffer.3d.slang
 
+    SurfelVBuffer/SurfelVBuffer.cpp
+    SurfelVBuffer/SurfelVBuffer.h
+    SurfelVBuffer/SurfelVBuffer.rt.slang
+
     SurfelDirectLightingPass/SurfelDirectLightingPass.cpp
     SurfelDirectLightingPass/SurfelDirectLightingPass.h
     SurfelDirectLightingPass/SurfelDirectLightingPass.cs.slang

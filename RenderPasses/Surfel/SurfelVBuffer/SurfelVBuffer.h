@@ -1,20 +1,21 @@
 #pragma once
 #include "Falcor.h"
 #include "RenderGraph/RenderPass.h"
+#include "RenderGraph/RenderPassHelpers.h"
 
 using namespace Falcor;
 
-class DirectIlluminationPass : public RenderPass
+class SurfelVBuffer : public RenderPass
 {
 public:
-    FALCOR_PLUGIN_CLASS(DirectIlluminationPass, "DirectIlluminationPass", "Direct illumination pass");
+    FALCOR_PLUGIN_CLASS(SurfelVBuffer, "SurfelVBuffer", "Surfel VBuffer");
 
-    static ref<DirectIlluminationPass> create(ref<Device> pDevice, const Properties& props)
+    static ref<SurfelVBuffer> create(ref<Device> pDevice, const Properties& props)
     {
-        return make_ref<DirectIlluminationPass>(pDevice, props);
+        return make_ref<SurfelVBuffer>(pDevice, props);
     }
 
-    DirectIlluminationPass(ref<Device> pDevice, const Properties& props);
+    SurfelVBuffer(ref<Device> pDevice, const Properties& props);
 
     virtual Properties getProperties() const override { return {}; }
     virtual RenderPassReflection reflect(const CompileData& compileData) override;
@@ -26,15 +27,15 @@ public:
     virtual bool onKeyEvent(const KeyboardEvent& keyEvent) override { return false; }
 
 private:
-    ref<Scene>              mpScene;
-    ref<GraphicsState>      mpState;
-    ref<Program>            mpProgram;
-    ref<ProgramVars>        mpVars;
-    ref<Fbo>                mpFbo;
-    ref<Texture>            mpDepth;
-    ref<RasterizerState>    mpRasterState;
+    ref<Scene> mpScene;
+    ref<SampleGenerator> mpSampleGenerator;
 
-    ref<SampleGenerator>    mpSampleGenerator;
+    uint2 mFrameDim;
 
-    uint                    mFrameIndex;
+    struct
+    {
+        ref<Program> pProgram;
+        ref<RtBindingTable> pBindingTable;
+        ref<RtProgramVars> pVars;
+    } mRtPass;
 };
