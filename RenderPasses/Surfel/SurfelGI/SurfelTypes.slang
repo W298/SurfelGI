@@ -35,12 +35,13 @@ struct Surfel
     bool hasHole;
     MSMEData msmeData;
     uint frame;
+    uint life;
     uint rayOffset;
     uint rayCount;
 
 #ifdef HOST_CODE
 #else
-    __init(float3 position, float3 normal, float radius, uint4 packedHitInfo)
+    __init(float3 position, float3 normal, float radius, uint4 packedHitInfo, uint life)
     {
         this.position = position;
         this.normal = normal;
@@ -51,6 +52,7 @@ struct Surfel
         this.hasHole = false;
         this.msmeData = MSMEData();
         this.frame = 0;
+        this.life = life;
         this.rayOffset = 0;
         this.rayCount = 0;
     }

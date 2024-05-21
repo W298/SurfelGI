@@ -67,7 +67,8 @@ void csMain(
 
     TriangleHit triangleHit = hitInfo.getTriangleHit();
     VertexData v = gScene.getVertexData(triangleHit);
-    float depth = smoothstep(gScene.camera.data.farZ, gScene.camera.data.nearZ, distance(gScene.camera.getPosition(), v.posW));
+    float4 curPosH = mul(gScene.camera.data.viewProjMatNoJitter, float4(v.posW, 1.f));
+    float depth = curPosH.z / curPosH.w;
 
     int3 cellPos = getCellPos(v.posW, gScene.camera.getPosition(), config.cellUnit);
     if (!isCellValid(cellPos))
@@ -116,7 +117,7 @@ void csMain(
 
                     // Delay blending if not sufficient sample is accumulated.
                     // Because samples are updated per frame, so do not use sample count directly.
-                    indirectLighting += float4(surfel.radiance, 1.f) * contribution * smoothstep(0, 240, surfel.frame);
+                    indirectLighting += float4(surfel.radiance, 1.f) * contribution * smoothstep(0, gBlendingDelay, surfel.frame);
 
                     varianceEx += length(surfel.msmeData.variance) * contribution;
                     rayCountEx += surfel.rayCount * contribution;
@@ -131,6 +132,14 @@ void csMain(
 
                     if (surfel.hasHole)
                         hasHole = true;
+
+                    // If surfel is rendered, reset life.
+                    // #HOT-SPOT
+                    if (surfel.life != 240)
+                    {
+                        surfel.life = 240;
+                        gSurfelBuffer[surfelIndex] = surfel;
+                    }
                 }
             }
         }
@@ -228,7 +237,7 @@ void csMain(
                                 config.cellUnit
                             );
 
-                            Surfel newSurfel = Surfel(v.posW, v.normalW, varRadius, hitInfo.data);
+                            Surfel newSurfel = Surfel(v.posW, v.normalW, varRadius, hitInfo.data, 240);
 
                             gSurfelValidIndexBuffer[validSurfelCount] = newIndex;
                             gSurfelBuffer[newIndex] = newSurfel;

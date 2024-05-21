@@ -33,18 +33,19 @@ uint chancePower = 1;
 float placementThreshold = 2.f;
 float removalThreshold = 4.f;
 float thresholdGap = 2.f;
-uint blendingDelay = 1024;
+uint blendingDelay = 240;
 uint overlayMode = 0;
 
 // Ray tracing.
 uint rayStep = 3;
 uint maxStep = 10;
 bool useSurfelRadinace = true;
+bool limitSurfelSearch = true;
 uint maxSurfelForStep = 10;
 bool useRayGuiding = true;
 
 // Integrate.
-float shortMeanWindow = 0.08f;
+float shortMeanWindow = 0.06f;
 
 } // namespace
 
@@ -142,6 +143,7 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
         var["CB"]["gRayStep"] = rayStep;
         var["CB"]["gMaxStep"] = maxStep;
         var["CB"]["gUseSurfelRadiance"] = useSurfelRadinace;
+        var["CB"]["gLimitSurfelSearch"] = limitSurfelSearch;
         var["CB"]["gMaxSurfelForStep"] = maxSurfelForStep;
         var["CB"]["gUseRayGuiding"] = useRayGuiding;
 
@@ -272,11 +274,11 @@ void SurfelGI::renderUI(Gui::Widgets& widget)
     }
 
     if (auto group = widget.group("Ray Tracing"))
-    {
-        group.slider("Ray step", rayStep, 0u, maxStep);
-        group.slider("Max step", maxStep, rayStep, 20u);
+    {        group.slider("Ray step", rayStep, 0u, maxStep);
+        group.slider("Max step", maxStep, rayStep, 100u);
         group.checkbox("Use surfel radiance", useSurfelRadinace);
-        group.slider("Max surfel for step", maxSurfelForStep, 1u, 40u);
+        group.checkbox("Limit surfel search", limitSurfelSearch);
+        group.slider("Max surfel for step", maxSurfelForStep, 1u, 100u);
         group.checkbox("Use ray guiding", useRayGuiding);
     }
 

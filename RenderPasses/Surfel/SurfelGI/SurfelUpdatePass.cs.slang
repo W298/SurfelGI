@@ -34,7 +34,7 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
     Surfel surfel = gSurfelBuffer[surfelIndex];
 
     float surfelRadius = surfel.radius;
-    if (surfelRadius > 0)
+    if (surfelRadius > 0 && surfel.life > 0)
     {
         // Copy surfel index if radius is not zero.
         uint validSurfelCount;

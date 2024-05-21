@@ -28,6 +28,7 @@ cbuffer CB
     uint gRayStep;                      ///< How many steps does ray go.
     uint gMaxStep;                      ///< Global maxium step count. No ray step can exceed this value.
     bool gUseSurfelRadiance;            ///< Use surfel radiance or not.
+    bool gLimitSurfelSearch;
     uint gMaxSurfelForStep;
     bool gUseRayGuiding;
 }
@@ -169,30 +170,63 @@ bool finalize(inout ScatterPayload scatterPayload, const VertexData v)
     uint flattenIndex = getFlattenCellIndex(cellPos);
     CellInfo cellInfo = gCellInfoBuffer[flattenIndex];
 
-    for (uint i = 0; i < gMaxSurfelForStep; ++i)
+    if (gLimitSurfelSearch)
     {
-        uint randomSelection = sampleNext1D(scatterPayload.sg) * (cellInfo.surfelCount - 1);
-        uint surfelIndex = gCellToSurfelBuffer[cellInfo.cellToSurfelBufferOffset + randomSelection];
-        Surfel surfel = gSurfelBuffer[surfelIndex];
-
-        float3 bias = v.posW - surfel.position;
-        float dist2 = dot(bias, bias);
-
-        if (dist2 < surfel.radius * surfel.radius)
+        const uint selectionCount = min(gMaxSurfelForStep, cellInfo.surfelCount);
+        for (uint i = 0; i < selectionCount; ++i)
         {
-            float3 normal = normalize(surfel.normal);
+            uint randomSelection = sampleNext1D(scatterPayload.sg) * (cellInfo.surfelCount - 1);
+            uint surfelIndex = gCellToSurfelBuffer[cellInfo.cellToSurfelBufferOffset + randomSelection];
+            Surfel surfel = gSurfelBuffer[surfelIndex];
 
-            float dotN = dot(v.normalW, normal);
-            if (dotN > 0)
+            float3 bias = v.posW - surfel.position;
+            float dist2 = dot(bias, bias);
+
+            if (dist2 < surfel.radius * surfel.radius)
             {
-                float dist = sqrt(dist2);
-                float contribution = 1.f;
+                float3 normal = normalize(surfel.normal);
 
-                contribution *= saturate(dotN);
-                contribution *= saturate(1 - dist / surfel.radius);
-                contribution = smoothstep(0, 1, contribution);
+                float dotN = dot(v.normalW, normal);
+                if (dotN > 0)
+                {
+                    float dist = sqrt(dist2);
+                    float contribution = 1.f;
 
-                Lr += float4(surfel.radiance, 1.f) * contribution;
+                    contribution *= saturate(dotN);
+                    contribution *= saturate(1 - dist / surfel.radius);
+                    contribution = smoothstep(0, 1, contribution);
+
+                    Lr += float4(surfel.radiance, 1.f) * contribution;
+                }
+            }
+        }
+    }
+    else
+    {
+        for (uint i = 0; i < cellInfo.surfelCount; ++i)
+        {
+            uint surfelIndex = gCellToSurfelBuffer[cellInfo.cellToSurfelBufferOffset + i];
+            Surfel surfel = gSurfelBuffer[surfelIndex];
+
+            float3 bias = v.posW - surfel.position;
+            float dist2 = dot(bias, bias);
+
+            if (dist2 < surfel.radius * surfel.radius)
+            {
+                float3 normal = normalize(surfel.normal);
+
+                float dotN = dot(v.normalW, normal);
+                if (dotN > 0)
+                {
+                    float dist = sqrt(dist2);
+                    float contribution = 1.f;
+
+                    contribution *= saturate(dotN);
+                    contribution *= saturate(1 - dist / surfel.radius);
+                    contribution = smoothstep(0, 1, contribution);
+
+                    Lr += float4(surfel.radiance, 1.f) * contribution;
+                }
             }
         }
     }

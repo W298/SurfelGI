@@ -142,6 +142,9 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID)
     float3 mean = MSME(surfelRadiance, surfel.msmeData, gShortMeanWindow);
     surfel.radiance = mean;
 
+    // Reduce life.
+    surfel.life--;
+
     // Write back to buffer.
     gSurfelBuffer[surfelIndex] = surfel;
 }
