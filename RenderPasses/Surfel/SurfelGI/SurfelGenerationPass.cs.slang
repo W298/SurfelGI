@@ -22,6 +22,7 @@ RWStructuredBuffer<uint> gSurfelFreeIndexBuffer;
 RWStructuredBuffer<uint> gSurfelValidIndexBuffer;
 RWStructuredBuffer<CellInfo> gCellInfoBuffer;
 RWStructuredBuffer<uint> gCellToSurfelBuffer;
+RWStructuredBuffer<SurfelRecycleInfo> gSurfelRecycleInfoBuffer;
 
 RWByteAddressBuffer gSurfelCounter;
 ByteAddressBuffer gSurfelConfig;
@@ -115,9 +116,11 @@ void csMain(
 
                     coverage += contribution;
 
+                    const SurfelRecycleInfo surfelRecycleInfo = gSurfelRecycleInfoBuffer[surfelIndex];
+
                     // Delay blending if not sufficient sample is accumulated.
                     // Because samples are updated per frame, so do not use sample count directly.
-                    indirectLighting += float4(surfel.radiance, 1.f) * contribution * smoothstep(0, gBlendingDelay, surfel.frame);
+                    indirectLighting += float4(surfel.radiance, 1.f) * contribution * smoothstep(0, gBlendingDelay, surfelRecycleInfo.frame);
 
                     varianceEx += length(surfel.msmeData.variance) * contribution;
                     rayCountEx += surfel.rayCount * contribution;
@@ -134,12 +137,8 @@ void csMain(
                         hasHole = true;
 
                     // If surfel is rendered, reset life.
-                    // #HOT-SPOT
-                    if (surfel.life != 240)
-                    {
-                        surfel.life = 240;
-                        gSurfelBuffer[surfelIndex] = surfel;
-                    }
+                    if (surfelRecycleInfo.life < 240u)
+                        gSurfelRecycleInfoBuffer[surfelIndex] = { 240u, surfelRecycleInfo.frame };
                 }
             }
         }
@@ -237,10 +236,11 @@ void csMain(
                                 config.cellUnit
                             );
 
-                            Surfel newSurfel = Surfel(v.posW, v.normalW, varRadius, hitInfo.data, 240);
+                            Surfel newSurfel = Surfel(v.posW, v.normalW, varRadius, hitInfo.data);
 
                             gSurfelValidIndexBuffer[validSurfelCount] = newIndex;
                             gSurfelBuffer[newIndex] = newSurfel;
+                            gSurfelRecycleInfoBuffer[newIndex] = { 240u, 0u };
                         }
                     }
                 }

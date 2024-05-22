@@ -16,6 +16,7 @@ RWStructuredBuffer<uint> gSurfelFreeIndexBuffer;
 RWStructuredBuffer<CellInfo> gCellInfoBuffer;
 RWStructuredBuffer<uint> gCellToSurfelBuffer;
 RWStructuredBuffer<SurfelRayResult> gSurfelRayResultBuffer;
+RWStructuredBuffer<SurfelRecycleInfo> gSurfelRecycleInfoBuffer;
 
 RWByteAddressBuffer gSurfelCounter;
 ByteAddressBuffer gSurfelConfig;
@@ -34,7 +35,9 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
     Surfel surfel = gSurfelBuffer[surfelIndex];
 
     float surfelRadius = surfel.radius;
-    if (surfelRadius > 0 && surfel.life > 0)
+    const SurfelRecycleInfo surfelRecycleInfo = gSurfelRecycleInfoBuffer[surfelIndex];
+
+    if (surfelRadius > 0 && surfelRecycleInfo.life > 0)
     {
         // Copy surfel index if radius is not zero.
         uint validSurfelCount;
@@ -85,8 +88,8 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
                 gSurfelRayResultBuffer[rayOffset + rayIndex] = initSurfelRayResult;
         }
 
-        // Increase frame count.
-        surfel.frame++;
+        // Increase frame count and reduce life.
+        gSurfelRecycleInfoBuffer[surfelIndex] = { surfelRecycleInfo.frame + 1, surfelRecycleInfo.life - 1 };
 
         // Write back to buffer.
         gSurfelBuffer[surfelIndex] = surfel;

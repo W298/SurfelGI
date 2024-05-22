@@ -79,10 +79,12 @@ private:
     ref<Buffer> mpCellInfoBuffer;
     ref<Buffer> mpCellToSurfelBuffer;
     ref<Buffer> mpSurfelRayResultBuffer;
+    ref<Buffer> mpSurfelRecycleInfoBuffer;
 
     ref<Buffer> mpSurfelCounter;
     ref<Buffer> mpSurfelConfig;
 
     ref<Buffer> mpEmptySurfelBuffer;
     ref<Buffer> mpReadBackBuffer;
+
 };

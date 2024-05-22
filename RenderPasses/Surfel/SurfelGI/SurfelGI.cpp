@@ -22,6 +22,7 @@ const std::string kSurfelFreeIndexBufferVarName = "gSurfelFreeIndexBuffer";
 const std::string kCellInfoBufferVarName = "gCellInfoBuffer";
 const std::string kCellToSurfelBufferVarName = "gCellToSurfelBuffer";
 const std::string kSurfelRayResultBufferVarName = "gSurfelRayResultBuffer";
+const std::string kSurfelRecycleInfoBufferVarName = "gSurfelRecycleInfoBuffer";
 const std::string kSurfelCounterVarName = "gSurfelCounter";
 const std::string kSurfelConfigVarName = "gSurfelConfig";
 
@@ -274,7 +275,8 @@ void SurfelGI::renderUI(Gui::Widgets& widget)
     }
 
     if (auto group = widget.group("Ray Tracing"))
-    {        group.slider("Ray step", rayStep, 0u, maxStep);
+    {
+        group.slider("Ray step", rayStep, 0u, maxStep);
         group.slider("Max step", maxStep, rayStep, 100u);
         group.checkbox("Use surfel radiance", useSurfelRadinace);
         group.checkbox("Limit surfel search", limitSurfelSearch);
@@ -473,6 +475,15 @@ void SurfelGI::createBufferResources()
         sizeof(SurfelRayResult), kRayBudget, ResourceBindFlags::UnorderedAccess, MemoryType::DeviceLocal, nullptr, false
     );
 
+    mpSurfelRecycleInfoBuffer = mpDevice->createStructuredBuffer(
+        sizeof(SurfelRecycleInfo),
+        kTotalSurfelLimit,
+        ResourceBindFlags::UnorderedAccess,
+        MemoryType::DeviceLocal,
+        nullptr,
+        false
+    );
+
     mpSurfelCounter = mpDevice->createBuffer(
         sizeof(uint) * _countof(kInitialStatus),
         ResourceBindFlags::UnorderedAccess,
@@ -518,6 +529,7 @@ void SurfelGI::bindResources(const RenderData& renderData)
         var[kSurfelFreeIndexBufferVarName] = mpSurfelFreeIndexBuffer;
         var[kCellInfoBufferVarName] = mpCellInfoBuffer;
         var[kSurfelRayResultBufferVarName] = mpSurfelRayResultBuffer;
+        var[kSurfelRecycleInfoBufferVarName] = mpSurfelRecycleInfoBuffer;
 
         var[kSurfelCounterVarName] = mpSurfelCounter;
         var[kSurfelConfigVarName] = mpSurfelConfig;
@@ -568,6 +580,7 @@ void SurfelGI::bindResources(const RenderData& renderData)
         var[kSurfelValidIndexBufferVarName] = mpSurfelValidIndexBuffer;
         var[kCellInfoBufferVarName] = mpCellInfoBuffer;
         var[kCellToSurfelBufferVarName] = mpCellToSurfelBuffer;
+        var[kSurfelRecycleInfoBufferVarName] = mpSurfelRecycleInfoBuffer;
 
         var[kSurfelCounterVarName] = mpSurfelCounter;
         var[kSurfelConfigVarName] = mpSurfelConfig;

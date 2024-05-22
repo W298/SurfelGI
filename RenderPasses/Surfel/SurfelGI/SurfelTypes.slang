@@ -34,14 +34,12 @@ struct Surfel
     float sumLuminance;
     bool hasHole;
     MSMEData msmeData;
-    uint frame;
-    uint life;
     uint rayOffset;
     uint rayCount;
 
 #ifdef HOST_CODE
 #else
-    __init(float3 position, float3 normal, float radius, uint4 packedHitInfo, uint life)
+    __init(float3 position, float3 normal, float radius, uint4 packedHitInfo)
     {
         this.position = position;
         this.normal = normal;
@@ -51,8 +49,6 @@ struct Surfel
         this.sumLuminance = 0.f;
         this.hasHole = false;
         this.msmeData = MSMEData();
-        this.frame = 0;
-        this.life = life;
         this.rayOffset = 0;
         this.rayCount = 0;
     }
@@ -80,6 +76,12 @@ struct SurfelRayResult
     float depth;
     float3 radiance;
     uint surfelIndex;
+};
+
+struct SurfelRecycleInfo
+{
+    uint life;
+    uint frame;
 };
 
 END_NAMESPACE_FALCOR
