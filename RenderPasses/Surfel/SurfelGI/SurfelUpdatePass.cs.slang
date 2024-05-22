@@ -89,7 +89,7 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
         }
 
         // Increase frame count and reduce life.
-        gSurfelRecycleInfoBuffer[surfelIndex] = { surfelRecycleInfo.frame + 1, surfelRecycleInfo.life - 1 };
+        gSurfelRecycleInfoBuffer[surfelIndex] = { surfelRecycleInfo.life - 1, surfelRecycleInfo.frame + 1 };
 
         // Write back to buffer.
         gSurfelBuffer[surfelIndex] = surfel;
