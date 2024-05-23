@@ -15,8 +15,8 @@ enum class SurfelCounterOffset : int
 
 static const uint2 kTileSize                = uint2(16, 16);
 static const uint kTotalSurfelLimit         = 150000;
-static const uint kRayBudget                = 40960000;
-static const uint3 kCellDimension           = uint3(200, 200, 200);
+static const uint kRayBudget                = 150000 * 64;
+static const uint3 kCellDimension           = uint3(250, 250, 250);
 static const uint kCellCount                = kCellDimension.x * kCellDimension.y * kCellDimension.z;
 static const uint2 kIrradianceMapRes        = uint2(3840, 2160);
 static const uint2 kIrradianceMapUnit       = uint2(7, 7);
@@ -62,7 +62,7 @@ struct CellInfo
 struct SurfelConfig
 {
     float surfelTargetArea  = 40000.f;
-    float cellUnit          = 0.1f;
+    float cellUnit          = 0.05f;
     uint perCellSurfelLimit = 1024u;
 };
 

@@ -469,7 +469,7 @@ void SurfelGI::createBufferResources()
 
     mpCellToSurfelBuffer = mpDevice->createStructuredBuffer(
         sizeof(uint),
-        kTotalSurfelLimit * 27,
+        kTotalSurfelLimit * 125,
         ResourceBindFlags::UnorderedAccess,
         MemoryType::DeviceLocal,
         nullptr,

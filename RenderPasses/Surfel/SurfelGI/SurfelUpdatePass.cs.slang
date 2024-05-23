@@ -61,7 +61,7 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
 
         // Calculate number of surfels located at cell.
         int3 cellPos = getCellPos(surfel.position, gCameraPos, config.cellUnit);
-        for (uint i = 0; i < 27; ++i)
+        for (uint i = 0; i < 125; ++i)
         {
             int3 neighborPos = cellPos + neighborOffset[i];
             if (isSurfelIntersectCell(surfel, neighborPos, gCameraPos, config.cellUnit))
@@ -139,7 +139,7 @@ void updateCellToSurfelBuffer(uint3 dispatchThreadId: SV_DispatchThreadID)
     Surfel surfel = gSurfelBuffer[surfelIndex];
 
     int3 cellPos = getCellPos(surfel.position, gCameraPos, config.cellUnit);
-    for (uint i = 0; i < 27; ++i)
+    for (uint i = 0; i < 125; ++i)
     {
         int3 neighborPos = cellPos + neighborOffset[i];
         if (isSurfelIntersectCell(surfel, neighborPos, gCameraPos, config.cellUnit))
