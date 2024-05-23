@@ -16,6 +16,7 @@ const std::string kDebugTextureName = "debug";
 const std::string kIrradianceMapTextureName = "irradiance map";
 
 const std::string kSurfelBufferVarName = "gSurfelBuffer";
+const std::string kSurfelGeometryBufferVarName = "gSurfelGeometryBuffer";
 const std::string kSurfelValidIndexBufferVarName = "gSurfelValidIndexBuffer";
 const std::string kSurfelDirtyIndexBufferVarName = "gSurfelDirtyIndexBuffer";
 const std::string kSurfelFreeIndexBufferVarName = "gSurfelFreeIndexBuffer";
@@ -434,6 +435,10 @@ void SurfelGI::createBufferResources()
         sizeof(Surfel), kTotalSurfelLimit, ResourceBindFlags::UnorderedAccess, MemoryType::DeviceLocal, nullptr, false
     );
 
+    mpSurfelGeometryBuffer = mpDevice->createStructuredBuffer(
+        sizeof(uint4), kTotalSurfelLimit, ResourceBindFlags::UnorderedAccess, MemoryType::DeviceLocal, nullptr, false
+    );
+
     mpSurfelValidIndexBuffer = mpDevice->createStructuredBuffer(
         sizeof(uint), kTotalSurfelLimit, ResourceBindFlags::UnorderedAccess, MemoryType::DeviceLocal, nullptr, false
     );
@@ -524,6 +529,7 @@ void SurfelGI::bindResources(const RenderData& renderData)
         auto var = mpCollectCellInfoPass->getRootVar();
 
         var[kSurfelBufferVarName] = mpSurfelBuffer;
+        var[kSurfelGeometryBufferVarName] = mpSurfelGeometryBuffer;
         var[kSurfelDirtyIndexBufferVarName] = mpSurfelDirtyIndexBuffer;
         var[kSurfelValidIndexBufferVarName] = mpSurfelValidIndexBuffer;
         var[kSurfelFreeIndexBufferVarName] = mpSurfelFreeIndexBuffer;
@@ -576,6 +582,7 @@ void SurfelGI::bindResources(const RenderData& renderData)
         auto var = mpSurfelGenerationPass->getRootVar();
 
         var[kSurfelBufferVarName] = mpSurfelBuffer;
+        var[kSurfelGeometryBufferVarName] = mpSurfelGeometryBuffer;
         var[kSurfelFreeIndexBufferVarName] = mpSurfelFreeIndexBuffer;
         var[kSurfelValidIndexBufferVarName] = mpSurfelValidIndexBuffer;
         var[kCellInfoBufferVarName] = mpCellInfoBuffer;

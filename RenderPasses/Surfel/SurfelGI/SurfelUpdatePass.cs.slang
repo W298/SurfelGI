@@ -10,6 +10,7 @@ cbuffer CB
 }
 
 RWStructuredBuffer<Surfel> gSurfelBuffer;
+RWStructuredBuffer<uint4> gSurfelGeometryBuffer;
 StructuredBuffer<uint> gSurfelDirtyIndexBuffer;
 RWStructuredBuffer<uint> gSurfelValidIndexBuffer;
 RWStructuredBuffer<uint> gSurfelFreeIndexBuffer;
@@ -45,7 +46,7 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
         gSurfelValidIndexBuffer[validSurfelCount] = surfelIndex;
 
         // Update surfel position, normal, radius.
-        TriangleHit hit = TriangleHit(surfel.packedHitInfo);
+        TriangleHit hit = TriangleHit(gSurfelGeometryBuffer[surfelIndex]);
         VertexData data = gScene.getVertexData(hit);
 
         surfel.position = data.posW;

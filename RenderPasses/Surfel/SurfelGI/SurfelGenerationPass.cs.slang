@@ -18,6 +18,7 @@ cbuffer CB
 }
 
 RWStructuredBuffer<Surfel> gSurfelBuffer;
+RWStructuredBuffer<uint4> gSurfelGeometryBuffer;
 RWStructuredBuffer<uint> gSurfelFreeIndexBuffer;
 RWStructuredBuffer<uint> gSurfelValidIndexBuffer;
 RWStructuredBuffer<CellInfo> gCellInfoBuffer;
@@ -236,11 +237,12 @@ void csMain(
                                 config.cellUnit
                             );
 
-                            Surfel newSurfel = Surfel(v.posW, v.normalW, varRadius, hitInfo.data);
+                            Surfel newSurfel = Surfel(v.posW, v.normalW, varRadius);
 
                             gSurfelValidIndexBuffer[validSurfelCount] = newIndex;
                             gSurfelBuffer[newIndex] = newSurfel;
                             gSurfelRecycleInfoBuffer[newIndex] = { 240u, 0u };
+                            gSurfelGeometryBuffer[newIndex] = hitInfo.data;
                         }
                     }
                 }

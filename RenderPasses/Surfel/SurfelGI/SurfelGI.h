@@ -73,6 +73,7 @@ private:
     ref<Texture> mpIrradianceMapTexture;
 
     ref<Buffer> mpSurfelBuffer;
+    ref<Buffer> mpSurfelGeometryBuffer;
     ref<Buffer> mpSurfelValidIndexBuffer;
     ref<Buffer> mpSurfelDirtyIndexBuffer;
     ref<Buffer> mpSurfelFreeIndexBuffer;

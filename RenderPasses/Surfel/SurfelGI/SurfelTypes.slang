@@ -29,7 +29,6 @@ struct Surfel
     float3 position;
     float3 normal;
     float radius;
-    uint4 packedHitInfo;
     float3 radiance;
     float sumLuminance;
     bool hasHole;
@@ -39,12 +38,11 @@ struct Surfel
 
 #ifdef HOST_CODE
 #else
-    __init(float3 position, float3 normal, float radius, uint4 packedHitInfo)
+    __init(float3 position, float3 normal, float radius)
     {
         this.position = position;
         this.normal = normal;
         this.radius = radius;
-        this.packedHitInfo = packedHitInfo;
         this.radiance = float3(0.f);
         this.sumLuminance = 0.f;
         this.hasHole = false;
