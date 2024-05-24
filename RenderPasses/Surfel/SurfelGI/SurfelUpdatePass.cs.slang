@@ -7,6 +7,7 @@ cbuffer CB
     float3 gCameraPos;
     uint2 gResolution;
     float gFOVy;
+    bool gLockSurfel;
 }
 
 RWStructuredBuffer<Surfel> gSurfelBuffer;
@@ -89,11 +90,14 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
                 gSurfelRayResultBuffer[rayOffset + rayIndex] = initSurfelRayResult;
         }
 
-        // Increase frame count and reduce life.
-        gSurfelRecycleInfoBuffer[surfelIndex] = { surfelRecycleInfo.life - 1, surfelRecycleInfo.frame + 1 };
+        if (!gLockSurfel)
+        {
+            // Increase frame count and reduce life.
+            gSurfelRecycleInfoBuffer[surfelIndex] = { surfelRecycleInfo.life - 1, surfelRecycleInfo.frame + 1 };
 
-        // Write back to buffer.
-        gSurfelBuffer[surfelIndex] = surfel;
+            // Write back to buffer.
+            gSurfelBuffer[surfelIndex] = surfel;
+        }
     }
     else
     {
