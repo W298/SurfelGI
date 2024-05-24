@@ -46,6 +46,7 @@ private:
     bool mIsResourceDirty;
     bool mReadBackValid;
     bool mResetSurfelBuffer;
+    bool mLockSurfel;
 
     std::vector<float> mSurfelCount;
     std::vector<float> mRayBudget;
@@ -53,6 +54,8 @@ private:
     ref<Scene> mpScene;
     ref<Fence> mpFence;
     ref<SampleGenerator> mpSampleGenerator;
+
+    ref<ComputePass> mpSurfelEvaluationPass;
 
     ref<ComputePass> mpPreparePass;
     ref<ComputePass> mpCollectCellInfoPass;

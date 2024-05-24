@@ -113,6 +113,7 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
         var["CB"]["gCameraPos"] = mCamPos;
         var["CB"]["gResolution"] = mFrameDim;
         var["CB"]["gFOVy"] = mFOVy;
+        var["CB"]["gLockSurfel"] = mLockSurfel;
 
         mpCollectCellInfoPass->execute(pRenderContext, uint3(kTotalSurfelLimit, 1, 1));
     }
@@ -137,52 +138,69 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
         mpUpdateCellToSurfelBuffer->execute(pRenderContext, uint3(kTotalSurfelLimit, 1, 1));
     }
 
+    if (mLockSurfel)
     {
-        FALCOR_PROFILE(pRenderContext, "Surfel RayTrace Pass");
+        FALCOR_PROFILE(pRenderContext, "Surfel Evaluation Pass");
 
-        auto var = mRtPass.pVars->getRootVar();
-        var["CB"]["gFrameIndex"] = mFrameIndex;
-        var["CB"]["gRayStep"] = rayStep;
-        var["CB"]["gMaxStep"] = maxStep;
-        var["CB"]["gUseSurfelRadiance"] = useSurfelRadinace;
-        var["CB"]["gLimitSurfelSearch"] = limitSurfelSearch;
-        var["CB"]["gMaxSurfelForStep"] = maxSurfelForStep;
-        var["CB"]["gUseRayGuiding"] = useRayGuiding;
-
-        mpScene->raytrace(pRenderContext, mRtPass.pProgram.get(), mRtPass.pVars, uint3(kRayBudget, 1, 1));
-    }
-
-    if (mFrameIndex <= mMaxFrameIndex)
-    {
-        FALCOR_PROFILE(pRenderContext, "Surfel Integrate Pass");
-
-        auto var = mpSurfelIntegratePass->getRootVar();
-        var["CB"]["gShortMeanWindow"] = shortMeanWindow;
-        var["CB"]["gCameraPos"] = mCamPos;
-
-        mpSurfelIntegratePass->execute(pRenderContext, uint3(kTotalSurfelLimit, 1, 1));
-    }
-
-    {
-        FALCOR_PROFILE(pRenderContext, "Surfel Generation Pass");
-
-        auto var = mpSurfelGenerationPass->getRootVar();
+        auto var = mpSurfelEvaluationPass->getRootVar();
 
         mpScene->setRaytracingShaderData(pRenderContext, var);
 
-        var["CB"]["gResolution"] = mFrameDim;
-        var["CB"]["gFOVy"] = mFOVy;
         var["CB"]["gFrameIndex"] = mFrameIndex;
-        var["CB"]["gChanceMultiply"] = chanceMultiply;
-        var["CB"]["gChancePower"] = chancePower;
-        var["CB"]["gPlacementThreshold"] = placementThreshold;
-        var["CB"]["gRemovalThreshold"] = removalThreshold;
-        var["CB"]["gOverlayMode"] = overlayMode;
         var["CB"]["gBlendingDelay"] = blendingDelay;
 
         pRenderContext->clearUAV(mpOutputTexture->getUAV().get(), float4(0));
-        pRenderContext->clearUAV(mpDebugTexture->getUAV().get(), float4(0));
-        mpSurfelGenerationPass->execute(pRenderContext, uint3(mFrameDim, 1));
+        mpSurfelEvaluationPass->execute(pRenderContext, uint3(mFrameDim, 1));
+    }
+    else
+    {
+        {
+            FALCOR_PROFILE(pRenderContext, "Surfel RayTrace Pass");
+
+            auto var = mRtPass.pVars->getRootVar();
+            var["CB"]["gFrameIndex"] = mFrameIndex;
+            var["CB"]["gRayStep"] = rayStep;
+            var["CB"]["gMaxStep"] = maxStep;
+            var["CB"]["gUseSurfelRadiance"] = useSurfelRadinace;
+            var["CB"]["gLimitSurfelSearch"] = limitSurfelSearch;
+            var["CB"]["gMaxSurfelForStep"] = maxSurfelForStep;
+            var["CB"]["gUseRayGuiding"] = useRayGuiding;
+
+            mpScene->raytrace(pRenderContext, mRtPass.pProgram.get(), mRtPass.pVars, uint3(kRayBudget, 1, 1));
+        }
+
+        if (mFrameIndex <= mMaxFrameIndex)
+        {
+            FALCOR_PROFILE(pRenderContext, "Surfel Integrate Pass");
+
+            auto var = mpSurfelIntegratePass->getRootVar();
+            var["CB"]["gShortMeanWindow"] = shortMeanWindow;
+            var["CB"]["gCameraPos"] = mCamPos;
+
+            mpSurfelIntegratePass->execute(pRenderContext, uint3(kTotalSurfelLimit, 1, 1));
+        }
+
+        {
+            FALCOR_PROFILE(pRenderContext, "Surfel Generation Pass");
+
+            auto var = mpSurfelGenerationPass->getRootVar();
+
+            mpScene->setRaytracingShaderData(pRenderContext, var);
+
+            var["CB"]["gResolution"] = mFrameDim;
+            var["CB"]["gFOVy"] = mFOVy;
+            var["CB"]["gFrameIndex"] = mFrameIndex;
+            var["CB"]["gChanceMultiply"] = chanceMultiply;
+            var["CB"]["gChancePower"] = chancePower;
+            var["CB"]["gPlacementThreshold"] = placementThreshold;
+            var["CB"]["gRemovalThreshold"] = removalThreshold;
+            var["CB"]["gOverlayMode"] = overlayMode;
+            var["CB"]["gBlendingDelay"] = blendingDelay;
+
+            pRenderContext->clearUAV(mpOutputTexture->getUAV().get(), float4(0));
+            pRenderContext->clearUAV(mpDebugTexture->getUAV().get(), float4(0));
+            mpSurfelGenerationPass->execute(pRenderContext, uint3(mFrameDim, 1));
+        }
     }
 
     {
@@ -252,6 +270,9 @@ void SurfelGI::renderUI(Gui::Widgets& widget)
     if (widget.button("Regenerate"))
         mResetSurfelBuffer = true;
 
+    if (widget.button(!mLockSurfel ? "Lock Surfel" : "Unlock Surfel"))
+        mLockSurfel = !mLockSurfel;
+
     if (auto group = widget.group("Configs"))
     {
         group.slider("Target area size", configValue.surfelTargetArea, 200.0f, 40000.0f);
@@ -303,6 +324,7 @@ void SurfelGI::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
     mIsResourceDirty = true;
     mReadBackValid = false;
     mResetSurfelBuffer = false;
+    mLockSurfel = false;
     mSurfelCount = std::vector<float>(1000, 0.f);
     mRayBudget = std::vector<float>(1000, 0.f);
 
@@ -359,6 +381,11 @@ void SurfelGI::reflectOutput(RenderPassReflection& reflector, uint2 resolution)
 
 void SurfelGI::createPasses()
 {
+    // Evalulation Pass
+    mpSurfelEvaluationPass = ComputePass::create(
+        mpDevice, "RenderPasses/Surfel/SurfelGI/SurfelEvaluationPass.cs.slang", "csMain", mpScene->getSceneDefines()
+    );
+
     // Prepare Pass
     mpPreparePass = ComputePass::create(mpDevice, "RenderPasses/Surfel/SurfelGI/SurfelPreparePass.cs.slang", "csMain");
 
@@ -517,6 +544,21 @@ void SurfelGI::bindResources(const RenderData& renderData)
     mpOutputTexture = renderData.getTexture(kOutputTextureName);
     mpDebugTexture = renderData.getTexture(kDebugTextureName);
     mpIrradianceMapTexture = renderData.getTexture(kIrradianceMapTextureName);
+
+    // Evaluation Pass
+    {
+        auto var = mpSurfelEvaluationPass->getRootVar();
+
+        var[kSurfelBufferVarName] = mpSurfelBuffer;
+        var[kCellInfoBufferVarName] = mpCellInfoBuffer;
+        var[kCellToSurfelBufferVarName] = mpCellToSurfelBuffer;
+        var[kSurfelRecycleInfoBufferVarName] = mpSurfelRecycleInfoBuffer;
+
+        var[kSurfelConfigVarName] = mpSurfelConfig;
+
+        var["gPackedHitInfo"] = pPackedHitInfoTexture;
+        var["gOutput"] = mpOutputTexture;
+    }
 
     // Prepare Pass
     {

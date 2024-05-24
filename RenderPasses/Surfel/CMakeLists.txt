@@ -27,6 +27,7 @@ target_sources(Surfel PRIVATE
     SurfelGI/SurfelRayTrace.rt.slang
     SurfelGI/SurfelGenerationPass.cs.slang
     SurfelGI/SurfelIntegratePass.cs.slang
+    SurfelGI/SurfelEvaluationPass.cs.slang
     SurfelGI/MultiscaleMeanEstimator.slang
 )
 
