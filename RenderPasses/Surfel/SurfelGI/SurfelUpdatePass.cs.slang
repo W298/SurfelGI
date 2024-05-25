@@ -38,9 +38,25 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
     Surfel surfel = gSurfelBuffer[surfelIndex];
 
     float surfelRadius = surfel.radius;
-    const SurfelRecycleInfo surfelRecycleInfo = gSurfelRecycleInfoBuffer[surfelIndex];
+    SurfelRecycleInfo surfelRecycleInfo = gSurfelRecycleInfoBuffer[surfelIndex];
 
-    if (surfelRadius > 0 && (surfelRecycleInfo.life > 0 || gSurfelRefCounter.Load(surfelIndex) > kRefCountThreshold))
+    // Increase frame count and reduce life.
+    surfelRecycleInfo.life = max(asint(surfelRecycleInfo.life) - 1, 0);
+    surfelRecycleInfo.frame++;
+
+    const bool hasEnoughRefCount = gSurfelRefCounter.Load(surfelIndex) > kRefCountThreshold;
+
+    // Check surfel can be sleeping mode, if life below 5.
+    // It means that we give them 5 chances.
+    if (hasEnoughRefCount && surfelRecycleInfo.life <= 5u)
+        surfel.isSleeping = true;
+
+    // Check sleeping surfel is still vaild or not.
+    // If valid, reset life.
+    if (surfel.isSleeping && hasEnoughRefCount)
+        surfelRecycleInfo.life = 60u;
+
+    if (surfelRadius > 0 && surfelRecycleInfo.life > 0)
     {
         // Copy surfel index if radius is not zero.
         uint validSurfelCount;
@@ -77,14 +93,13 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
             );
 
             // If surfel is sleeping surfel, double radius.
-            const bool isSleepingSurfel = surfelRecycleInfo.life <= 0;
-            if (isSleepingSurfel)
+            if (surfel.isSleeping)
                 surfel.radius = min(surfel.radius * 2.f, config.cellUnit * 2.f);
 
             // Ray allocation by using MSME variance.
             // If surfel is sleeping surfel, only allocate 1 ray.
             uint rayOffset = 0;
-            uint rayRequestCount = isSleepingSurfel ? 1u : clamp(4u, 64u, lerp(4u, 64u, length(surfel.msmeData.variance) * 40.0f));
+            uint rayRequestCount = surfel.isSleeping ? 1u : clamp(4u, 64u, lerp(4u, 64u, length(surfel.msmeData.variance) * 40.0f));
             gSurfelCounter.InterlockedAdd((int)SurfelCounterOffset::RequestedRay, rayRequestCount, rayOffset);
 
             if (rayOffset < kRayBudget)
@@ -99,10 +114,8 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
                     gSurfelRayResultBuffer[rayOffset + rayIndex] = initSurfelRayResult;
             }
 
-            // Increase frame count and reduce life.
-            gSurfelRecycleInfoBuffer[surfelIndex] = { max(asint(surfelRecycleInfo.life) - 1, 0), surfelRecycleInfo.frame + 1 };
-
             // Write back to buffer.
+            gSurfelRecycleInfoBuffer[surfelIndex] = surfelRecycleInfo;
             gSurfelBuffer[surfelIndex] = surfel;
 
             // Reset surfel ref count.
