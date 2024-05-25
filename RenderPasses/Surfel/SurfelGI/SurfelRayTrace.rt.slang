@@ -65,6 +65,7 @@ RWStructuredBuffer<CellInfo> gCellInfoBuffer;
 RWStructuredBuffer<uint> gCellToSurfelBuffer;
 RWStructuredBuffer<SurfelRayResult> gSurfelRayResultBuffer;
 
+RWByteAddressBuffer gSurfelRefCounter;
 RWByteAddressBuffer gSurfelCounter;
 ByteAddressBuffer gSurfelConfig;
 
@@ -197,6 +198,8 @@ bool finalize(inout ScatterPayload scatterPayload, const VertexData v)
                     contribution = smoothstep(0, 1, contribution);
 
                     Lr += float4(surfel.radiance, 1.f) * contribution;
+
+                    gSurfelRefCounter.InterlockedAdd(surfelIndex, 1);
                 }
             }
         }
@@ -226,6 +229,8 @@ bool finalize(inout ScatterPayload scatterPayload, const VertexData v)
                     contribution = smoothstep(0, 1, contribution);
 
                     Lr += float4(surfel.radiance, 1.f) * contribution;
+
+                    gSurfelRefCounter.InterlockedAdd(surfelIndex, 1);
                 }
             }
         }
@@ -235,6 +240,7 @@ bool finalize(inout ScatterPayload scatterPayload, const VertexData v)
     {
         // No surfel found.
         // Need to goto next step, so, do not terminate path.
+        gSurfelCounter.InterlockedAdd((int)SurfelCounterOffset::MissBounce, 1);
         return false;
     }
 

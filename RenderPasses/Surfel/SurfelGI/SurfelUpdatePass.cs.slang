@@ -20,6 +20,7 @@ RWStructuredBuffer<uint> gCellToSurfelBuffer;
 RWStructuredBuffer<SurfelRayResult> gSurfelRayResultBuffer;
 RWStructuredBuffer<SurfelRecycleInfo> gSurfelRecycleInfoBuffer;
 
+RWByteAddressBuffer gSurfelRefCounter;
 RWByteAddressBuffer gSurfelCounter;
 ByteAddressBuffer gSurfelConfig;
 
@@ -39,26 +40,16 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
     float surfelRadius = surfel.radius;
     const SurfelRecycleInfo surfelRecycleInfo = gSurfelRecycleInfoBuffer[surfelIndex];
 
-    if (surfelRadius > 0 && surfelRecycleInfo.life > 0)
+    if (surfelRadius > 0 && (surfelRecycleInfo.life > 0 || gSurfelRefCounter.Load(surfelIndex) > kRefCountThreshold))
     {
         // Copy surfel index if radius is not zero.
         uint validSurfelCount;
         gSurfelCounter.InterlockedAdd((int)SurfelCounterOffset::ValidSurfel, 1, validSurfelCount);
         gSurfelValidIndexBuffer[validSurfelCount] = surfelIndex;
 
-        // Update surfel position, normal, radius.
+        // Get vertex data using geometry info.
         TriangleHit hit = TriangleHit(gSurfelGeometryBuffer[surfelIndex]);
         VertexData data = gScene.getVertexData(hit);
-
-        surfel.position = data.posW;
-        surfel.normal = data.normalW;
-        surfel.radius = calcSurfelRadius(
-            distance(gScene.camera.getPosition(), surfel.position),
-            gFOVy,
-            gResolution,
-            config.surfelTargetArea,
-            config.cellUnit
-        );
 
         // Calculate number of surfels located at cell.
         int3 cellPos = getCellPos(surfel.position, gCameraPos, config.cellUnit);
@@ -72,38 +63,60 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
             }
         }
 
-        // Ray allocation.
-        // Define ray count with variance.
-        uint rayOffset = 0;
-        uint rayRequestCount = clamp(4u, 64u, lerp(4u, 64u, length(surfel.msmeData.variance) * 40.0f));
-        gSurfelCounter.InterlockedAdd((int)SurfelCounterOffset::RequestedRay, rayRequestCount, rayOffset);
-
-        if (rayOffset < kRayBudget)
-        {
-            surfel.rayOffset = rayOffset;
-            surfel.rayCount = rayRequestCount;
-
-            SurfelRayResult initSurfelRayResult;
-            initSurfelRayResult.surfelIndex = surfelIndex;
-
-            for (uint rayIndex = 0; rayIndex < rayRequestCount; ++rayIndex)
-                gSurfelRayResultBuffer[rayOffset + rayIndex] = initSurfelRayResult;
-        }
-
         if (!gLockSurfel)
         {
+            // Update surfel position, normal, radius.
+            surfel.position = data.posW;
+            surfel.normal = data.normalW;
+            surfel.radius = calcSurfelRadius(
+                distance(gScene.camera.getPosition(), surfel.position),
+                gFOVy,
+                gResolution,
+                config.surfelTargetArea,
+                config.cellUnit
+            );
+
+            // If surfel is sleeping surfel, double radius.
+            const bool isSleepingSurfel = surfelRecycleInfo.life <= 0;
+            if (isSleepingSurfel)
+                surfel.radius = min(surfel.radius * 2.f, config.cellUnit * 2.f);
+
+            // Ray allocation by using MSME variance.
+            // If surfel is sleeping surfel, only allocate 1 ray.
+            uint rayOffset = 0;
+            uint rayRequestCount = isSleepingSurfel ? 1u : clamp(4u, 64u, lerp(4u, 64u, length(surfel.msmeData.variance) * 40.0f));
+            gSurfelCounter.InterlockedAdd((int)SurfelCounterOffset::RequestedRay, rayRequestCount, rayOffset);
+
+            if (rayOffset < kRayBudget)
+            {
+                surfel.rayOffset = rayOffset;
+                surfel.rayCount = rayRequestCount;
+
+                SurfelRayResult initSurfelRayResult;
+                initSurfelRayResult.surfelIndex = surfelIndex;
+
+                for (uint rayIndex = 0; rayIndex < rayRequestCount; ++rayIndex)
+                    gSurfelRayResultBuffer[rayOffset + rayIndex] = initSurfelRayResult;
+            }
+
             // Increase frame count and reduce life.
-            gSurfelRecycleInfoBuffer[surfelIndex] = { surfelRecycleInfo.life - 1, surfelRecycleInfo.frame + 1 };
+            gSurfelRecycleInfoBuffer[surfelIndex] = { max(asint(surfelRecycleInfo.life) - 1, 0), surfelRecycleInfo.frame + 1 };
 
             // Write back to buffer.
             gSurfelBuffer[surfelIndex] = surfel;
+
+            // Reset surfel ref count.
+            gSurfelRefCounter.Store(surfelIndex, 0);
         }
     }
     else
     {
-        int freeSurfelCount;
-        gSurfelCounter.InterlockedAdd((int)SurfelCounterOffset::FreeSurfel, 1, freeSurfelCount);
-        gSurfelFreeIndexBuffer[freeSurfelCount] = surfelIndex;
+        if (!gLockSurfel)
+        {
+            int freeSurfelCount;
+            gSurfelCounter.InterlockedAdd((int)SurfelCounterOffset::FreeSurfel, 1, freeSurfelCount);
+            gSurfelFreeIndexBuffer[freeSurfelCount] = surfelIndex;
+        }
     }
 }
 

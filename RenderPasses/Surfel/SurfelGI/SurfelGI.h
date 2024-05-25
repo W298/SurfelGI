@@ -85,6 +85,7 @@ private:
     ref<Buffer> mpSurfelRayResultBuffer;
     ref<Buffer> mpSurfelRecycleInfoBuffer;
 
+    ref<Buffer> mpSurfelRefCounter;
     ref<Buffer> mpSurfelCounter;
     ref<Buffer> mpSurfelConfig;
 

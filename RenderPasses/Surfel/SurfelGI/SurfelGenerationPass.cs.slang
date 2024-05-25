@@ -25,6 +25,7 @@ RWStructuredBuffer<CellInfo> gCellInfoBuffer;
 RWStructuredBuffer<uint> gCellToSurfelBuffer;
 RWStructuredBuffer<SurfelRecycleInfo> gSurfelRecycleInfoBuffer;
 
+RWByteAddressBuffer gSurfelRefCounter;
 RWByteAddressBuffer gSurfelCounter;
 ByteAddressBuffer gSurfelConfig;
 
@@ -87,8 +88,8 @@ void csMain(
         float4 indirectLighting = float4(0.f);
         float varianceEx = 0.f;
         float rayCountEx = 0.f;
-        uint rayCount = 0;
-        bool hasHole = false;
+        uint refCount = 0;
+        uint life = 0;
 
         float maxContribution = 0.f;
         uint maxContributionSurfelIndex = randomState.next_uint(cellInfo.surfelCount);
@@ -126,16 +127,14 @@ void csMain(
                     varianceEx += length(surfel.msmeData.variance) * contribution;
                     rayCountEx += surfel.rayCount * contribution;
 
-                    rayCount = max(rayCount, surfel.rayCount);
+                    refCount = max(refCount, gSurfelRefCounter.Load(surfelIndex));
+                    life = max(life, surfelRecycleInfo.life);
 
                     if (maxContribution < contribution)
                     {
                         maxContribution = contribution;
                         maxContributionSurfelIndex = i;
                     }
-
-                    if (surfel.hasHole)
-                        hasHole = true;
 
                     // If surfel is rendered, reset life.
                     if (surfelRecycleInfo.life < 240u)
@@ -151,37 +150,28 @@ void csMain(
 
             varianceEx /= indirectLighting.w;
             rayCountEx /= indirectLighting.w;
-        }
 
-        // Write texture by overlay mode.
-        if (gOverlayMode == 0)
-        {
-            gOutput[pixelPos] = indirectLighting;
-        }
-        if (gOverlayMode == 1)
-        {
-            if (varianceEx > 0.1f)
-                gOutput[pixelPos] = float4(1, 0, 0, 1);
-            else if (varianceEx > 0.05f)
-                gOutput[pixelPos] = float4(0, 1, 0, 1);
-            else
-                gOutput[pixelPos] = float4(0, 0, 1, 1);
-        }
-        else if (gOverlayMode == 2)
-        {
-            if (rayCountEx > 48u)
-                gOutput[pixelPos] = float4(1, 0, 0, 1);
-            else if (rayCountEx > 32u)
-                gOutput[pixelPos] = float4(1, 1, 0, 1);
-            else
-                gOutput[pixelPos] = float4(0, 1, 0, 1);
-        }
-        else if (gOverlayMode == 3)
-        {
-            if (hasHole)
-                gOutput[pixelPos] = float4(1, 0, 0, 1);
-            else
-                gOutput[pixelPos] = float4(0, 1, 0, 1);
+            // Write texture by overlay mode.
+            if (gOverlayMode == 0)
+            {
+                gOutput[pixelPos] = indirectLighting;
+            }
+            else if (gOverlayMode == 1)
+            {
+                gOutput[pixelPos] = float4(stepColor(varianceEx, 0.1f, 0.05f), 1);
+            }
+            else if (gOverlayMode == 2)
+            {
+                gOutput[pixelPos] = float4(stepColor(rayCountEx, 48.f, 32.f), 1);
+            }
+            else if (gOverlayMode == 3)
+            {
+                gOutput[pixelPos] = float4(lerpColor(refCount / 256.f), 1);
+            }
+            else if (gOverlayMode == 4)
+            {
+                gOutput[pixelPos] = float4(step(life, 0u), step(1u, life), 0, 1);
+            }
         }
 
         uint coverageData = 0;
@@ -243,6 +233,7 @@ void csMain(
                             gSurfelBuffer[newIndex] = newSurfel;
                             gSurfelRecycleInfoBuffer[newIndex] = { 240u, 0u };
                             gSurfelGeometryBuffer[newIndex] = hitInfo.data;
+                            gSurfelRefCounter.Store(newIndex, 0);
                         }
                     }
                 }

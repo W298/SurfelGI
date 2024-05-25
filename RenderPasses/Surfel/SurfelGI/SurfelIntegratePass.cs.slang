@@ -1,12 +1,11 @@
 #include "Utils/Math/MathConstants.slangh"
+#define USE_IRRADIANCE_SHARING 0
 
 import Scene.Scene;
 import Utils.Color.ColorHelpers;
 import RenderPasses.Surfel.SurfelGI.SurfelTypes;
 import RenderPasses.Surfel.SurfelGI.SurfelUtils;
 import RenderPasses.Surfel.SurfelGI.MultiscaleMeanEstimator;
-
-#define USE_IRRADIANCE_SHARING 0
 
 cbuffer CB
 {
@@ -35,6 +34,10 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID)
 
     uint surfelIndex = gSurfelValidIndexBuffer[dispatchThreadId.x];
     Surfel surfel = gSurfelBuffer[surfelIndex];
+
+    // If no ray is allocated, exit.
+    if (surfel.rayCount == 0)
+        return;
 
     uint2 irrMapBase = uint2(
         surfelIndex % (kIrradianceMapRes.x / kIrradianceMapUnit.x),

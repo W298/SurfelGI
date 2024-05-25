@@ -260,3 +260,28 @@ float3 octDecode(float2 uv)
     float3 v = float3(result.x, result.y, 1.f - abs(result.x) - abs(result.y));
     return normalize(v);
 }
+
+float3 lerpColor(float t)
+{
+    float3 color;
+    float normalizedT;
+
+    if (t <= 0.5f)
+    {
+        normalizedT = t / 0.5f;
+        return float3(0.f, normalizedT, 1.f - normalizedT);
+    }
+
+    normalizedT = (t - 0.5f) / 0.5f;
+    return float3(normalizedT, 1.f - normalizedT, 0.f);
+}
+
+float3 stepColor(float t, float r, float g)
+{
+    if (t > r)
+        return float3(1, 0, 0);
+    else if (t > g)
+        return float3(0, 1, 0);
+    else
+        return float3(0, 0, 1);
+}

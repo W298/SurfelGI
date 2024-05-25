@@ -10,8 +10,27 @@ enum class SurfelCounterOffset : int
     DirtySurfel     = 4,
     FreeSurfel      = 8,
     Cell            = 12,
-    RequestedRay    = 16
+    RequestedRay    = 16,
+    MissBounce      = 20
 };
+
+enum class OverlayMode : int
+{
+    IndirectLighting    = 0,
+    Variance            = 1,
+    RayCount            = 2,
+    RefCount            = 3,
+    Life                = 4
+};
+
+FALCOR_ENUM_INFO(OverlayMode, {
+    { OverlayMode::IndirectLighting, "IndirectLighting" },
+    { OverlayMode::Variance, "Variance" },
+    { OverlayMode::RayCount, "RayCount" },
+    { OverlayMode::RefCount, "RefCount" },
+    { OverlayMode::Life, "Life" },
+});
+FALCOR_ENUM_REGISTER(OverlayMode);
 
 static const uint2 kTileSize                = uint2(16, 16);
 static const uint kTotalSurfelLimit         = 150000;
@@ -21,8 +40,9 @@ static const uint kCellCount                = kCellDimension.x * kCellDimension.
 static const uint2 kIrradianceMapRes        = uint2(3840, 2160);
 static const uint2 kIrradianceMapUnit       = uint2(7, 7);
 static const uint2 kIrradianceMapHalfUnit   = kIrradianceMapUnit / 2u;
+static const uint kRefCountThreshold        = 32u;
 
-static const uint kInitialStatus[] = { 0, 0, kTotalSurfelLimit, 0, 0 };
+static const uint kInitialStatus[] = { 0, 0, kTotalSurfelLimit, 0, 0, 0 };
 
 struct Surfel
 {

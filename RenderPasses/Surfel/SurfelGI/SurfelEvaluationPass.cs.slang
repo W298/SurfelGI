@@ -8,6 +8,7 @@ cbuffer CB
 {
     uint gFrameIndex;
     uint gBlendingDelay;
+    uint gOverlayMode;
 }
 
 RWStructuredBuffer<Surfel> gSurfelBuffer;
@@ -15,6 +16,7 @@ RWStructuredBuffer<CellInfo> gCellInfoBuffer;
 RWStructuredBuffer<uint> gCellToSurfelBuffer;
 RWStructuredBuffer<SurfelRecycleInfo> gSurfelRecycleInfoBuffer;
 
+RWByteAddressBuffer gSurfelRefCounter;
 ByteAddressBuffer gSurfelConfig;
 
 Texture2D<uint4> gPackedHitInfo;
@@ -52,6 +54,11 @@ void csMain(
     CellInfo cellInfo = gCellInfoBuffer[flattenIndex];
 
     float4 indirectLighting = float4(0.f);
+    float varianceEx = 0.f;
+    float rayCountEx = 0.f;
+    uint refCount = 0;
+    uint life = 0;
+
     for (uint i = 0; i < cellInfo.surfelCount; ++i)
     {
         uint surfelIndex = gCellToSurfelBuffer[cellInfo.cellToSurfelBufferOffset + i];
@@ -79,6 +86,12 @@ void csMain(
                 // Delay blending if not sufficient sample is accumulated.
                 // Because samples are updated per frame, so do not use sample count directly.
                 indirectLighting += float4(surfel.radiance, 1.f) * contribution * smoothstep(0, gBlendingDelay, surfelRecycleInfo.frame);
+
+                varianceEx += length(surfel.msmeData.variance) * contribution;
+                rayCountEx += surfel.rayCount * contribution;
+
+                refCount = max(refCount, gSurfelRefCounter.Load(surfelIndex));
+                life = max(life, surfelRecycleInfo.life);
             }
         }
     }
@@ -87,7 +100,30 @@ void csMain(
     {
         indirectLighting.xyz /= indirectLighting.w;
         indirectLighting.w = saturate(indirectLighting.w);
-    }
 
-    gOutput[pixelPos] = indirectLighting;
+        varianceEx /= indirectLighting.w;
+        rayCountEx /= indirectLighting.w;
+
+        // Write texture by overlay mode.
+        if (gOverlayMode == 0)
+        {
+            gOutput[pixelPos] = indirectLighting;
+        }
+        else if (gOverlayMode == 1)
+        {
+            gOutput[pixelPos] = float4(stepColor(varianceEx, 0.1f, 0.05f), 1);
+        }
+        else if (gOverlayMode == 2)
+        {
+            gOutput[pixelPos] = float4(stepColor(rayCountEx, 48.f, 32.f), 1);
+        }
+        else if (gOverlayMode == 3)
+        {
+            gOutput[pixelPos] = float4(lerpColor(refCount / 256.f), 1);
+        }
+        else if (gOverlayMode == 4)
+        {
+            gOutput[pixelPos] = float4(step(life, 0u), step(1u, life), 0, 1);
+        }
+    }
 }
