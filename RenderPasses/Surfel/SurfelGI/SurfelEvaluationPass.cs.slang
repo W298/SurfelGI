@@ -7,6 +7,8 @@ import RenderPasses.Surfel.SurfelGI.SurfelUtils;
 cbuffer CB
 {
     uint gFrameIndex;
+    float gPlacementThreshold;
+    float gRemovalThreshold;
     uint gBlendingDelay;
     uint gOverlayMode;
 }
@@ -53,6 +55,7 @@ void csMain(
     uint flattenIndex = getFlattenCellIndex(cellPos);
     CellInfo cellInfo = gCellInfoBuffer[flattenIndex];
 
+    float coverage = 0.f;
     float4 indirectLighting = float4(0.f);
     float varianceEx = 0.f;
     float rayCountEx = 0.f;
@@ -80,6 +83,8 @@ void csMain(
                 contribution *= saturate(dotN);
                 contribution *= saturate(1 - dist / surfel.radius);
                 contribution = smoothstep(0, 1, contribution);
+
+                coverage += contribution;
 
                 const SurfelRecycleInfo surfelRecycleInfo = gSurfelRecycleInfoBuffer[surfelIndex];
 
@@ -124,6 +129,10 @@ void csMain(
         else if (gOverlayMode == 4)
         {
             gOutput[pixelPos] = float4(step(life, 0u), step(1u, life), 0, 1);
+        }
+        else if (gOverlayMode == 5)
+        {
+            gOutput[pixelPos] = float4(lerpColor(smoothstep(gPlacementThreshold, gRemovalThreshold, coverage)), 1);
         }
     }
 }

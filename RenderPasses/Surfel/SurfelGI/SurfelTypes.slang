@@ -20,7 +20,8 @@ enum class OverlayMode : int
     Variance            = 1,
     RayCount            = 2,
     RefCount            = 3,
-    Life                = 4
+    Life                = 4,
+    Coverage            = 5,
 };
 
 FALCOR_ENUM_INFO(OverlayMode, {
@@ -29,6 +30,7 @@ FALCOR_ENUM_INFO(OverlayMode, {
     { OverlayMode::RayCount, "RayCount" },
     { OverlayMode::RefCount, "RefCount" },
     { OverlayMode::Life, "Life" },
+    { OverlayMode::Coverage, "Coverage" },
 });
 FALCOR_ENUM_REGISTER(OverlayMode);
 
