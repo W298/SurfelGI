@@ -148,6 +148,8 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
         mpScene->setRaytracingShaderData(pRenderContext, var);
 
         var["CB"]["gFrameIndex"] = mFrameIndex;
+        var["CB"]["gPlacementThreshold"] = placementThreshold;
+        var["CB"]["gRemovalThreshold"] = removalThreshold;
         var["CB"]["gBlendingDelay"] = blendingDelay;
         var["CB"]["gOverlayMode"] = (uint)overlayMode;
 
