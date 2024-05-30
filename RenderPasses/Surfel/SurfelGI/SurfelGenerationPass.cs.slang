@@ -136,9 +136,9 @@ void csMain(
                         maxContributionSurfelIndex = i;
                     }
 
-                    // If surfel is rendered, reset life.
+                    // If surfel is rendered, reset life and if sleeping, awake.
                     if (surfelRecycleInfo.life < 240u)
-                        gSurfelRecycleInfoBuffer[surfelIndex] = { 240u, surfelRecycleInfo.frame };
+                        gSurfelRecycleInfoBuffer[surfelIndex] = { 240u, surfelRecycleInfo.frame, false };
                 }
             }
         }
@@ -235,7 +235,7 @@ void csMain(
 
                             gSurfelValidIndexBuffer[validSurfelCount] = newIndex;
                             gSurfelBuffer[newIndex] = newSurfel;
-                            gSurfelRecycleInfoBuffer[newIndex] = { 240u, 0u };
+                            gSurfelRecycleInfoBuffer[newIndex] = { 240u, 0u, false };
                             gSurfelGeometryBuffer[newIndex] = hitInfo.data;
                             gSurfelRefCounter.Store(newIndex, 0);
                         }

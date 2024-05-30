@@ -57,7 +57,6 @@ struct Surfel
     MSMEData msmeData;
     uint rayOffset;
     uint rayCount;
-    bool isSleeping;
 
 #ifdef HOST_CODE
 #else
@@ -72,7 +71,6 @@ struct Surfel
         this.msmeData = MSMEData();
         this.rayOffset = 0;
         this.rayCount = 0;
-        this.isSleeping = false;
     }
 #endif
 };
@@ -104,6 +102,7 @@ struct SurfelRecycleInfo
 {
     uint life;
     uint frame;
+    bool isSleeping;
 };
 
 END_NAMESPACE_FALCOR

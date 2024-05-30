@@ -61,9 +61,13 @@ struct ShadowPayload
 }
 
 RWStructuredBuffer<Surfel> gSurfelBuffer;
+RWStructuredBuffer<uint4> gSurfelGeometryBuffer;
+RWStructuredBuffer<uint> gSurfelFreeIndexBuffer;
+RWStructuredBuffer<uint> gSurfelValidIndexBuffer;
 RWStructuredBuffer<CellInfo> gCellInfoBuffer;
 RWStructuredBuffer<uint> gCellToSurfelBuffer;
 RWStructuredBuffer<SurfelRayResult> gSurfelRayResultBuffer;
+RWStructuredBuffer<SurfelRecycleInfo> gSurfelRecycleInfoBuffer;
 
 RWByteAddressBuffer gSurfelRefCounter;
 RWByteAddressBuffer gSurfelCounter;
@@ -150,7 +154,7 @@ float3 evalAnalyticLight(const ShadingData sd, const IMaterialInstance mi, inout
 // Omit multiple bouncing by using radiance of surfel.
 // Return true if surfel radiance is valid, and successfully applied.
 // Return false if surfel is invalid, so need to goto next step.
-bool finalize(inout ScatterPayload scatterPayload, const VertexData v)
+bool finalize(inout ScatterPayload scatterPayload, const VertexData v, const TriangleHit triangleHit)
 {
     if (!gUseSurfelRadiance)
     {
@@ -179,11 +183,12 @@ bool finalize(inout ScatterPayload scatterPayload, const VertexData v)
             uint randomSelection = sampleNext1D(scatterPayload.sg) * (cellInfo.surfelCount - 1);
             uint surfelIndex = gCellToSurfelBuffer[cellInfo.cellToSurfelBufferOffset + randomSelection];
             Surfel surfel = gSurfelBuffer[surfelIndex];
+            SurfelRecycleInfo info = gSurfelRecycleInfoBuffer[surfelIndex];
 
             float3 bias = v.posW - surfel.position;
             float dist2 = dot(bias, bias);
 
-            if (dist2 < surfel.radius * surfel.radius)
+            if (info.frame > 60 && dist2 < surfel.radius * surfel.radius)
             {
                 float3 normal = normalize(surfel.normal);
 
@@ -199,7 +204,7 @@ bool finalize(inout ScatterPayload scatterPayload, const VertexData v)
 
                     Lr += float4(surfel.radiance, 1.f) * contribution;
 
-                    gSurfelRefCounter.InterlockedAdd(surfelIndex, 1);
+                    gSurfelRefCounter.InterlockedAdd(surfelIndex, 1);   
                 }
             }
         }
@@ -210,11 +215,12 @@ bool finalize(inout ScatterPayload scatterPayload, const VertexData v)
         {
             uint surfelIndex = gCellToSurfelBuffer[cellInfo.cellToSurfelBufferOffset + i];
             Surfel surfel = gSurfelBuffer[surfelIndex];
+            SurfelRecycleInfo info = gSurfelRecycleInfoBuffer[surfelIndex];
 
             float3 bias = v.posW - surfel.position;
             float dist2 = dot(bias, bias);
 
-            if (dist2 < surfel.radius * surfel.radius)
+            if (info.frame > 60 && dist2 < surfel.radius * surfel.radius)
             {
                 float3 normal = normalize(surfel.normal);
 
@@ -230,7 +236,7 @@ bool finalize(inout ScatterPayload scatterPayload, const VertexData v)
 
                     Lr += float4(surfel.radiance, 1.f) * contribution;
 
-                    gSurfelRefCounter.InterlockedAdd(surfelIndex, 1);
+                    gSurfelRefCounter.InterlockedAdd(surfelIndex, 1);  
                 }
             }
         }
@@ -240,6 +246,33 @@ bool finalize(inout ScatterPayload scatterPayload, const VertexData v)
     {
         // No surfel found.
         // Need to goto next step, so, do not terminate path.
+        if (cellInfo.surfelCount < 4)
+        {
+            if (sampleNext1D(scatterPayload.sg) < 1e-1f)
+            {
+                int freeSurfelCount;
+                gSurfelCounter.InterlockedAdd((int)SurfelCounterOffset::FreeSurfel, -1, freeSurfelCount);
+
+                if (0 < freeSurfelCount && freeSurfelCount <= kTotalSurfelLimit)
+                {
+                    uint validSurfelCount;
+                    gSurfelCounter.InterlockedAdd((int)SurfelCounterOffset::ValidSurfel, 1, validSurfelCount);
+
+                    if (validSurfelCount < kTotalSurfelLimit)
+                    {
+                        uint newIndex = gSurfelFreeIndexBuffer[freeSurfelCount - 1];
+                        Surfel newSurfel = Surfel(v.posW, v.normalW, config.cellUnit * 2.f);
+
+                        gSurfelValidIndexBuffer[validSurfelCount] = newIndex;
+                        gSurfelBuffer[newIndex] = newSurfel;
+                        gSurfelRecycleInfoBuffer[newIndex] = { 1u, 0u, true };
+                        gSurfelGeometryBuffer[newIndex] = triangleHit.pack();
+                        gSurfelRefCounter.Store(newIndex, 1);
+                    }
+                }
+            }
+        }
+
         gSurfelCounter.InterlockedAdd((int)SurfelCounterOffset::MissBounce, 1);
         return false;
     }
@@ -308,7 +341,7 @@ void handleHit(TriangleHit triangleHit, inout ScatterPayload scatterPayload)
     // If path length reached to last step,
     // or russian roulette failed, try to finalize path.
     // If failed to finalize, goto next step.
-    if (finalize(scatterPayload, v))
+    if (finalize(scatterPayload, v, triangleHit))
         scatterPayload.terminated = true;
     else
         scatterPayload.currStep++;

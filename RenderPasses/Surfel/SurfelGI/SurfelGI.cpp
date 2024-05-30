@@ -623,9 +623,13 @@ void SurfelGI::bindResources(const RenderData& renderData)
         auto var = mRtPass.pVars->getRootVar();
 
         var[kSurfelBufferVarName] = mpSurfelBuffer;
+        var[kSurfelGeometryBufferVarName] = mpSurfelGeometryBuffer;
+        var[kSurfelFreeIndexBufferVarName] = mpSurfelFreeIndexBuffer;
+        var[kSurfelValidIndexBufferVarName] = mpSurfelValidIndexBuffer;
         var[kCellInfoBufferVarName] = mpCellInfoBuffer;
         var[kCellToSurfelBufferVarName] = mpCellToSurfelBuffer;
         var[kSurfelRayResultBufferVarName] = mpSurfelRayResultBuffer;
+        var[kSurfelRecycleInfoBufferVarName] = mpSurfelRecycleInfoBuffer;
 
         var[kSurfelRefCounterVarName] = mpSurfelRefCounter;
         var[kSurfelCounterVarName] = mpSurfelCounter;
