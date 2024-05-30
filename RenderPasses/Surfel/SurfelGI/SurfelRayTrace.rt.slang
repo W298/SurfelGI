@@ -69,6 +69,7 @@ RWStructuredBuffer<uint> gCellToSurfelBuffer;
 RWStructuredBuffer<SurfelRayResult> gSurfelRayResultBuffer;
 RWStructuredBuffer<SurfelRecycleInfo> gSurfelRecycleInfoBuffer;
 
+RWByteAddressBuffer gSurfelReservationBuffer;
 RWByteAddressBuffer gSurfelRefCounter;
 RWByteAddressBuffer gSurfelCounter;
 ByteAddressBuffer gSurfelConfig;
@@ -175,6 +176,10 @@ bool finalize(inout ScatterPayload scatterPayload, const VertexData v, const Tri
     uint flattenIndex = getFlattenCellIndex(cellPos);
     CellInfo cellInfo = gCellInfoBuffer[flattenIndex];
 
+    float sleepingCoverage = 0.f;
+    float maxContribution = 0.f;
+    int maxContributionSleepingSurfelIndex = -1;
+
     if (gLimitSurfelSearch)
     {
         const uint selectionCount = min(gMaxSurfelForStep, cellInfo.surfelCount);
@@ -188,7 +193,7 @@ bool finalize(inout ScatterPayload scatterPayload, const VertexData v, const Tri
             float3 bias = v.posW - surfel.position;
             float dist2 = dot(bias, bias);
 
-            if (info.frame > 60 && dist2 < surfel.radius * surfel.radius)
+            if (dist2 < surfel.radius * surfel.radius)
             {
                 float3 normal = normalize(surfel.normal);
 
@@ -204,7 +209,17 @@ bool finalize(inout ScatterPayload scatterPayload, const VertexData v, const Tri
 
                     Lr += float4(surfel.radiance, 1.f) * contribution;
 
-                    gSurfelRefCounter.InterlockedAdd(surfelIndex, 1);   
+                    if (info.isSleeping)
+                    {
+                        sleepingCoverage += contribution;
+                        if (maxContribution < contribution)
+                        {
+                            maxContribution = contribution;
+                            maxContributionSleepingSurfelIndex = surfelIndex;
+                        }
+                    }
+
+                    gSurfelRefCounter.InterlockedAdd(surfelIndex, 1);
                 }
             }
         }
@@ -220,7 +235,7 @@ bool finalize(inout ScatterPayload scatterPayload, const VertexData v, const Tri
             float3 bias = v.posW - surfel.position;
             float dist2 = dot(bias, bias);
 
-            if (info.frame > 60 && dist2 < surfel.radius * surfel.radius)
+            if (dist2 < surfel.radius * surfel.radius)
             {
                 float3 normal = normalize(surfel.normal);
 
@@ -236,19 +251,34 @@ bool finalize(inout ScatterPayload scatterPayload, const VertexData v, const Tri
 
                     Lr += float4(surfel.radiance, 1.f) * contribution;
 
-                    gSurfelRefCounter.InterlockedAdd(surfelIndex, 1);  
+                    if (info.isSleeping)
+                    {
+                        sleepingCoverage += contribution;
+                        if (maxContribution < contribution)
+                        {
+                            maxContribution = contribution;
+                            maxContributionSleepingSurfelIndex = surfelIndex;
+                        }
+                    }
+
+                    gSurfelRefCounter.InterlockedAdd(surfelIndex, 1);
                 }
             }
         }
     }
 
+    // No surfel found.
+    // Need to goto next step, so, do not terminate path.
     if (Lr.w <= 0.f)
     {
-        // No surfel found.
-        // Need to goto next step, so, do not terminate path.
+        // Sleeping surfel should be spawned at low surfel count area.
         if (cellInfo.surfelCount < 4)
         {
-            if (sampleNext1D(scatterPayload.sg) < 1e-1f)
+            uint reservedCount;
+            gSurfelReservationBuffer.InterlockedAdd(flattenIndex, 1u, reservedCount);
+
+            // Limit surfel spawn per cell for preventing over-spawnning.
+            if (reservedCount < 4)
             {
                 int freeSurfelCount;
                 gSurfelCounter.InterlockedAdd((int)SurfelCounterOffset::FreeSurfel, -1, freeSurfelCount);
@@ -275,6 +305,14 @@ bool finalize(inout ScatterPayload scatterPayload, const VertexData v, const Tri
 
         gSurfelCounter.InterlockedAdd((int)SurfelCounterOffset::MissBounce, 1);
         return false;
+    }
+
+    // If sleeping surfels are over-coveraged, then destroy max contribution sleeping surfel.
+    if (sleepingCoverage >= 4.0f && maxContributionSleepingSurfelIndex != -1)
+    {
+        Surfel toDestroySleepingSurfel = gSurfelBuffer[maxContributionSleepingSurfelIndex];
+        toDestroySleepingSurfel.radius = 0;
+        gSurfelBuffer[maxContributionSleepingSurfelIndex] = toDestroySleepingSurfel;
     }
 
     // Surfel radiance is valid, so use it.

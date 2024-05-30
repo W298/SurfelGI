@@ -20,6 +20,7 @@ RWStructuredBuffer<uint> gCellToSurfelBuffer;
 RWStructuredBuffer<SurfelRayResult> gSurfelRayResultBuffer;
 RWStructuredBuffer<SurfelRecycleInfo> gSurfelRecycleInfoBuffer;
 
+RWByteAddressBuffer gSurfelReservationBuffer;
 RWByteAddressBuffer gSurfelRefCounter;
 RWByteAddressBuffer gSurfelCounter;
 ByteAddressBuffer gSurfelConfig;
@@ -85,27 +86,20 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
             surfel.position = data.posW;
             surfel.normal = data.normalW;
 
-            // If surfel is sleeping, fixed at maximum size.
-            if (surfelRecycleInfo.isSleeping)
-            {
-                surfel.radius = config.cellUnit * 2.f;
-            }
-            else
-            {
-                surfel.radius = calcSurfelRadius(
-                    distance(gScene.camera.getPosition(), surfel.position),
-                    gFOVy,
-                    gResolution,
-                    config.surfelTargetArea,
-                    config.cellUnit
-                );
-            }
+            // If surfel is sleeping, multiple radius.
+            surfel.radius = calcSurfelRadius(
+                distance(gScene.camera.getPosition(), surfel.position),
+                gFOVy,
+                gResolution,
+                config.surfelTargetArea * (surfelRecycleInfo.isSleeping ? 32.f : 1.f),
+                config.cellUnit
+            );
 
             // Ray allocation by using MSME variance.
             // If surfel is sleeping surfel, only allocate 1 ray.
             uint rayOffset = 0;
-            uint lower = surfelRecycleInfo.isSleeping ? 1u : 1u;
-            uint upper = surfelRecycleInfo.isSleeping ? 4u : 64u;
+            uint lower = surfelRecycleInfo.isSleeping ? 1u : 4u;
+            uint upper = surfelRecycleInfo.isSleeping ? 1u : 64u;
             uint rayRequestCount = clamp(lower, upper, lerp(lower, upper, length(surfel.msmeData.variance) * 40.0f));
             gSurfelCounter.InterlockedAdd((int)SurfelCounterOffset::RequestedRay, rayRequestCount, rayOffset);
 
@@ -148,6 +142,8 @@ void accumulateCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
         return;
 
     uint flattenIndex = dispatchThreadId.x;
+    gSurfelReservationBuffer.Store(flattenIndex, 0u);
+
     if (gCellInfoBuffer[flattenIndex].surfelCount == 0)
         return;
 

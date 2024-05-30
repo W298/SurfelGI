@@ -24,6 +24,7 @@ const std::string kCellInfoBufferVarName = "gCellInfoBuffer";
 const std::string kCellToSurfelBufferVarName = "gCellToSurfelBuffer";
 const std::string kSurfelRayResultBufferVarName = "gSurfelRayResultBuffer";
 const std::string kSurfelRecycleInfoBufferVarName = "gSurfelRecycleInfoBuffer";
+const std::string kSurfelReservationBufferVarName = "gSurfelReservationBuffer";
 const std::string kSurfelRefCounterVarName = "gSurfelRefCounter";
 const std::string kSurfelCounterVarName = "gSurfelCounter";
 const std::string kSurfelConfigVarName = "gSurfelConfig";
@@ -524,6 +525,10 @@ void SurfelGI::createBufferResources()
         false
     );
 
+    mpSurfelReservationBuffer = mpDevice->createBuffer(
+        sizeof(uint) * kCellCount, ResourceBindFlags::UnorderedAccess, MemoryType::DeviceLocal, nullptr
+    );
+
     mpSurfelRefCounter = mpDevice->createBuffer(
         sizeof(uint) * kTotalSurfelLimit, ResourceBindFlags::UnorderedAccess, MemoryType::DeviceLocal, nullptr
     );
@@ -603,6 +608,8 @@ void SurfelGI::bindResources(const RenderData& renderData)
 
         var[kCellInfoBufferVarName] = mpCellInfoBuffer;
         var[kSurfelCounterVarName] = mpSurfelCounter;
+
+        var[kSurfelReservationBufferVarName] = mpSurfelReservationBuffer;
     }
 
     // Update Pass (Update Cell To Surfel buffer Pass)
@@ -631,6 +638,7 @@ void SurfelGI::bindResources(const RenderData& renderData)
         var[kSurfelRayResultBufferVarName] = mpSurfelRayResultBuffer;
         var[kSurfelRecycleInfoBufferVarName] = mpSurfelRecycleInfoBuffer;
 
+        var[kSurfelReservationBufferVarName] = mpSurfelReservationBuffer;
         var[kSurfelRefCounterVarName] = mpSurfelRefCounter;
         var[kSurfelCounterVarName] = mpSurfelCounter;
         var[kSurfelConfigVarName] = mpSurfelConfig;
