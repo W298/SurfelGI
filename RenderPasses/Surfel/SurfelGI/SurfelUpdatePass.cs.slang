@@ -79,13 +79,13 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
                 distance(gScene.camera.getPosition(), surfel.position),
                 gFOVy,
                 gResolution,
-                config.surfelTargetArea * (surfelRecycleInfo.isSleeping ? 4.f : 1.f),
+                config.surfelTargetArea * (surfelRecycleInfo.isSleeping ? 16.f : 1.f),
                 config.cellUnit
             );
 
             // Limit lower bound of surfel radius when sleeping.
             if (surfelRecycleInfo.isSleeping)
-                surfel.radius = max(surfel.radius, config.cellUnit * 0.5f);
+                surfel.radius = max(surfel.radius, config.cellUnit);
         }
 
         // Calculate number of surfels located at cell.

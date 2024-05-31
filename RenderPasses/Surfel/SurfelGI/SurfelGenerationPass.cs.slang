@@ -109,36 +109,46 @@ void csMain(
                 float dotN = dot(v.normalW, normal);
                 if (dotN > 0)
                 {
-                    float dist = sqrt(dist2);
-                    float contribution = 1.f;
-
-                    contribution *= saturate(dotN);
-                    contribution *= saturate(1 - dist / surfel.radius);
-                    contribution = smoothstep(0, 1, contribution);
-
-                    coverage += contribution;
-
                     const SurfelRecycleInfo surfelRecycleInfo = gSurfelRecycleInfoBuffer[surfelIndex];
 
-                    // Delay blending if not sufficient sample is accumulated.
-                    // Because samples are updated per frame, so do not use sample count directly.
-                    indirectLighting += float4(surfel.radiance, 1.f) * contribution * smoothstep(0, gBlendingDelay, surfelRecycleInfo.frame);
-
-                    varianceEx += length(surfel.msmeData.variance) * contribution;
-                    rayCountEx += surfel.rayCount * contribution;
-
-                    refCount = max(refCount, gSurfelRefCounter.Load(surfelIndex));
-                    life = max(life, surfelRecycleInfo.life);
-
-                    if (maxContribution < contribution)
+                    if (!surfelRecycleInfo.isSleeping)
                     {
-                        maxContribution = contribution;
-                        maxContributionSurfelIndex = i;
+                        float dist = sqrt(dist2);
+                        float contribution = 1.f;
+
+                        contribution *= saturate(dotN);
+                        contribution *= saturate(1 - dist / surfel.radius);
+                        contribution = smoothstep(0, 1, contribution);
+
+                        coverage += contribution;
+
+                        // Delay blending if not sufficient sample is accumulated.
+                        // Because samples are updated per frame, so do not use sample count directly.
+                        indirectLighting += float4(surfel.radiance, 1.f) * contribution * smoothstep(0, gBlendingDelay, surfelRecycleInfo.frame);
+
+                        varianceEx += length(surfel.msmeData.variance) * contribution;
+                        rayCountEx += surfel.rayCount * contribution;
+
+                        refCount = max(refCount, gSurfelRefCounter.Load(surfelIndex));
+                        life = max(life, surfelRecycleInfo.life);
+
+                        if (maxContribution < contribution)
+                        {
+                            maxContribution = contribution;
+                            maxContributionSurfelIndex = i;
+                        }
                     }
 
-                    // If surfel is rendered, reset life and if sleeping, awake.
+                    // If surfel is rendered, reset life
+                    // and if sleeping, awake.
                     if (surfelRecycleInfo.life < 240u)
-                        gSurfelRecycleInfoBuffer[surfelIndex] = { 240u, surfelRecycleInfo.frame, false };
+                    {
+                        gSurfelRecycleInfoBuffer[surfelIndex] = {
+                            240u,
+                            surfelRecycleInfo.isSleeping ? 0u : surfelRecycleInfo.frame,
+                            false
+                        };
+                     }
                 }
             }
         }
