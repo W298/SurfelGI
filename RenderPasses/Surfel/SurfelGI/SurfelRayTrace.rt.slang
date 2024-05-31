@@ -272,13 +272,13 @@ bool finalize(inout ScatterPayload scatterPayload, const VertexData v, const Tri
     if (Lr.w <= 0.f)
     {
         // Sleeping surfel should be spawned at low surfel count area.
-        if (cellInfo.surfelCount < 4)
+        if (cellInfo.surfelCount < 8)
         {
             uint reservedCount;
             gSurfelReservationBuffer.InterlockedAdd(flattenIndex, 1u, reservedCount);
 
             // Limit surfel spawn per cell for preventing over-spawnning.
-            if (reservedCount < 4)
+            if (reservedCount < 8)
             {
                 int freeSurfelCount;
                 gSurfelCounter.InterlockedAdd((int)SurfelCounterOffset::FreeSurfel, -1, freeSurfelCount);
@@ -291,7 +291,7 @@ bool finalize(inout ScatterPayload scatterPayload, const VertexData v, const Tri
                     if (validSurfelCount < kTotalSurfelLimit)
                     {
                         uint newIndex = gSurfelFreeIndexBuffer[freeSurfelCount - 1];
-                        Surfel newSurfel = Surfel(v.posW, v.normalW, config.cellUnit * 2.f);
+                        Surfel newSurfel = Surfel(v.posW, v.normalW, 1e-6f);
 
                         gSurfelValidIndexBuffer[validSurfelCount] = newIndex;
                         gSurfelBuffer[newIndex] = newSurfel;

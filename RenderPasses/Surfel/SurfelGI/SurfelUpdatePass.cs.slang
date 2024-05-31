@@ -68,6 +68,26 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
         TriangleHit hit = TriangleHit(gSurfelGeometryBuffer[surfelIndex]);
         VertexData data = gScene.getVertexData(hit);
 
+        if (!gLockSurfel)
+        {
+            // Update surfel position, normal, radius.
+            surfel.position = data.posW;
+            surfel.normal = data.normalW;
+
+            // If surfel is sleeping, multiple radius.
+            surfel.radius = calcSurfelRadius(
+                distance(gScene.camera.getPosition(), surfel.position),
+                gFOVy,
+                gResolution,
+                config.surfelTargetArea * (surfelRecycleInfo.isSleeping ? 4.f : 1.f),
+                config.cellUnit
+            );
+
+            // Limit lower bound of surfel radius when sleeping.
+            if (surfelRecycleInfo.isSleeping)
+                surfel.radius = max(surfel.radius, config.cellUnit * 0.5f);
+        }
+
         // Calculate number of surfels located at cell.
         int3 cellPos = getCellPos(surfel.position, gCameraPos, config.cellUnit);
         for (uint i = 0; i < 125; ++i)
@@ -82,25 +102,12 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
 
         if (!gLockSurfel)
         {
-            // Update surfel position, normal, radius.
-            surfel.position = data.posW;
-            surfel.normal = data.normalW;
-
-            // If surfel is sleeping, multiple radius.
-            surfel.radius = calcSurfelRadius(
-                distance(gScene.camera.getPosition(), surfel.position),
-                gFOVy,
-                gResolution,
-                config.surfelTargetArea * (surfelRecycleInfo.isSleeping ? 32.f : 1.f),
-                config.cellUnit
-            );
-
             // Ray allocation by using MSME variance.
             // If surfel is sleeping surfel, only allocate 1 ray.
             uint rayOffset = 0;
             uint lower = surfelRecycleInfo.isSleeping ? 1u : 4u;
             uint upper = surfelRecycleInfo.isSleeping ? 1u : 64u;
-            uint rayRequestCount = clamp(lower, upper, lerp(lower, upper, length(surfel.msmeData.variance) * 40.0f));
+            uint rayRequestCount = clamp(lerp(lower, upper, length(surfel.msmeData.variance) * 40.0f), lower, upper);
             gSurfelCounter.InterlockedAdd((int)SurfelCounterOffset::RequestedRay, rayRequestCount, rayOffset);
 
             if (rayOffset < kRayBudget)
