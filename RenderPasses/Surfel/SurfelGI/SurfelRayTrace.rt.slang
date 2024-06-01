@@ -176,6 +176,14 @@ bool finalize(inout ScatterPayload scatterPayload, const VertexData v, const Tri
     uint flattenIndex = getFlattenCellIndex(cellPos);
     CellInfo cellInfo = gCellInfoBuffer[flattenIndex];
 
+    // If surfel count in cell is too much, or some probability,
+    // do not search surfel.
+    if (cellInfo.surfelCount > 64 || sampleNext1D(scatterPayload.sg) < 0.2f)
+    {
+        gSurfelCounter.InterlockedAdd((int)SurfelCounterOffset::MissBounce, 1);
+        return false;
+    }
+
     float sleepingCoverage = 0.f;
     float maxContribution = 0.f;
     int maxContributionSleepingSurfelIndex = -1;
@@ -189,6 +197,7 @@ bool finalize(inout ScatterPayload scatterPayload, const VertexData v, const Tri
             uint surfelIndex = gCellToSurfelBuffer[cellInfo.cellToSurfelBufferOffset + randomSelection];
             Surfel surfel = gSurfelBuffer[surfelIndex];
             SurfelRecycleInfo info = gSurfelRecycleInfoBuffer[surfelIndex];
+            bool isSleeping = info.status & (0x0001 << 0);
 
             float3 bias = v.posW - surfel.position;
             float dist2 = dot(bias, bias);
@@ -209,7 +218,7 @@ bool finalize(inout ScatterPayload scatterPayload, const VertexData v, const Tri
 
                     Lr += float4(surfel.radiance, 1.f) * contribution;
 
-                    if (info.isSleeping)
+                    if (isSleeping)
                     {
                         sleepingCoverage += contribution;
                         if (maxContribution < contribution)
@@ -231,6 +240,7 @@ bool finalize(inout ScatterPayload scatterPayload, const VertexData v, const Tri
             uint surfelIndex = gCellToSurfelBuffer[cellInfo.cellToSurfelBufferOffset + i];
             Surfel surfel = gSurfelBuffer[surfelIndex];
             SurfelRecycleInfo info = gSurfelRecycleInfoBuffer[surfelIndex];
+            bool isSleeping = info.status & (0x0001 << 0);
 
             float3 bias = v.posW - surfel.position;
             float dist2 = dot(bias, bias);
@@ -251,7 +261,7 @@ bool finalize(inout ScatterPayload scatterPayload, const VertexData v, const Tri
 
                     Lr += float4(surfel.radiance, 1.f) * contribution;
 
-                    if (info.isSleeping)
+                    if (isSleeping)
                     {
                         sleepingCoverage += contribution;
                         if (maxContribution < contribution)

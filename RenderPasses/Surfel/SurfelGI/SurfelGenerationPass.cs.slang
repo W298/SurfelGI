@@ -94,6 +94,7 @@ void csMain(
         float maxContribution = 0.f;
         uint maxContributionSurfelIndex = randomState.next_uint(cellInfo.surfelCount);
 
+
         for (uint i = 0; i < cellInfo.surfelCount; ++i)
         {
             uint surfelIndex = gCellToSurfelBuffer[cellInfo.cellToSurfelBufferOffset + i];
@@ -110,8 +111,10 @@ void csMain(
                 if (dotN > 0)
                 {
                     const SurfelRecycleInfo surfelRecycleInfo = gSurfelRecycleInfoBuffer[surfelIndex];
+                    bool isSleeping = surfelRecycleInfo.status & (0x0001 << 0);
+                    bool lastSeen = surfelRecycleInfo.status & (0x0001 << 1);
 
-                    if (!surfelRecycleInfo.isSleeping)
+                    if (!isSleeping)
                     {
                         float dist = sqrt(dist2);
                         float contribution = 1.f;
@@ -139,16 +142,8 @@ void csMain(
                         }
                     }
 
-                    // If surfel is rendered, reset life
-                    // and if sleeping, awake.
-                    if (surfelRecycleInfo.life < 240u)
-                    {
-                        gSurfelRecycleInfoBuffer[surfelIndex] = {
-                            240u,
-                            surfelRecycleInfo.isSleeping ? 0u : surfelRecycleInfo.frame,
-                            false
-                        };
-                     }
+                    if (!lastSeen)
+                        gSurfelRecycleInfoBuffer[surfelIndex].status |= (0x0001 << 1);
                 }
             }
         }
@@ -245,7 +240,7 @@ void csMain(
 
                             gSurfelValidIndexBuffer[validSurfelCount] = newIndex;
                             gSurfelBuffer[newIndex] = newSurfel;
-                            gSurfelRecycleInfoBuffer[newIndex] = { 240u, 0u, false };
+                            gSurfelRecycleInfoBuffer[newIndex] = { kMaxLife, 0u, 0u };
                             gSurfelGeometryBuffer[newIndex] = hitInfo.data;
                             gSurfelRefCounter.Store(newIndex, 0);
                         }

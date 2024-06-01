@@ -44,12 +44,12 @@ Falcor::OverlayMode overlayMode = Falcor::OverlayMode::IndirectLighting;
 uint rayStep = 3;
 uint maxStep = 10;
 bool useSurfelRadinace = true;
-bool limitSurfelSearch = true;
+bool limitSurfelSearch = false;
 uint maxSurfelForStep = 10;
 bool useRayGuiding = false;
 
 // Integrate.
-float shortMeanWindow = 0.06f;
+float shortMeanWindow = 0.03f;
 
 } // namespace
 

@@ -43,6 +43,7 @@ static const uint2 kIrradianceMapRes        = uint2(3840, 2160);
 static const uint2 kIrradianceMapUnit       = uint2(7, 7);
 static const uint2 kIrradianceMapHalfUnit   = kIrradianceMapUnit / 2u;
 static const uint kRefCountThreshold        = 32u;
+static const uint kMaxLife                  = 240u;
 
 static const uint kInitialStatus[] = { 0, 0, kTotalSurfelLimit, 0, 0, 0 };
 
@@ -98,11 +99,14 @@ struct SurfelRayResult
     uint surfelIndex;
 };
 
+// [status]
+// 0x0001 << 0 : isSleeping
+// 0x0001 << 1 : lastSeen
 struct SurfelRecycleInfo
 {
-    uint life;
-    uint frame;
-    bool isSleeping;
+    uint16_t life;
+    uint16_t frame;
+    uint16_t status;
 };
 
 END_NAMESPACE_FALCOR
