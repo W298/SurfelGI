@@ -33,25 +33,28 @@ cbuffer CB
     bool gUseRayGuiding;
 }
 
+// [status]
+// 0x0001 : isSleeping
+// 0x0002 : terminated
 struct ScatterPayload
 {
     float3 radiance;
     float3 thp;
     float3 origin;
     float3 direction;
-    uint currStep;
-    bool terminated;
+    uint16_t currStep;
+    uint16_t status;
 
     SampleGenerator sg;
 
-    __init(SampleGenerator sg)
+    __init(SampleGenerator sg, bool isSleeping)
     {
         this.radiance = float3(0, 0, 0);
         this.thp = float3(1, 1, 1);
         this.origin = float3(0, 0, 0);
         this.direction = float3(0, 0, 0);
-        this.currStep = 1;                  // Be aware. Start from 1.
-        this.terminated = false;            // if true, path will be terminated.
+        this.currStep = 1u;                             // Be aware. Start from 1.
+        this.status = isSleeping ? 0x0001 : 0x0000;
     }
 }
 
@@ -197,7 +200,7 @@ bool finalize(inout ScatterPayload scatterPayload, const VertexData v, const Tri
             uint surfelIndex = gCellToSurfelBuffer[cellInfo.cellToSurfelBufferOffset + randomSelection];
             Surfel surfel = gSurfelBuffer[surfelIndex];
             SurfelRecycleInfo info = gSurfelRecycleInfoBuffer[surfelIndex];
-            bool isSleeping = info.status & (0x0001 << 0);
+            bool isSleeping = info.status & 0x0001;
 
             float3 bias = v.posW - surfel.position;
             float dist2 = dot(bias, bias);
@@ -240,7 +243,7 @@ bool finalize(inout ScatterPayload scatterPayload, const VertexData v, const Tri
             uint surfelIndex = gCellToSurfelBuffer[cellInfo.cellToSurfelBufferOffset + i];
             Surfel surfel = gSurfelBuffer[surfelIndex];
             SurfelRecycleInfo info = gSurfelRecycleInfoBuffer[surfelIndex];
-            bool isSleeping = info.status & (0x0001 << 0);
+            bool isSleeping = info.status & 0x0001;
 
             float3 bias = v.posW - surfel.position;
             float dist2 = dot(bias, bias);
@@ -359,12 +362,14 @@ void handleHit(TriangleHit triangleHit, inout ScatterPayload scatterPayload)
     }
     else
     {
-        scatterPayload.terminated = true;
+        scatterPayload.status |= 0x0002;
         return;
     }
 
     // Finialize path if path length reached to last step.
-    if (scatterPayload.currStep < gRayStep)
+    // Sleeping surfels have double ray step, because sleeping surfel focus on exploration.
+    const uint rayStep = (scatterPayload.status & 0x0001) ? gRayStep * 2u : gRayStep;
+    if (scatterPayload.currStep < rayStep)
     {
         // Russian roulette.
         const float rrValue = luminance(scatterPayload.thp);
@@ -380,7 +385,7 @@ void handleHit(TriangleHit triangleHit, inout ScatterPayload scatterPayload)
             if (thpValid)
                 scatterPayload.currStep++;
             else
-                scatterPayload.terminated = true;
+                scatterPayload.status |= 0x0002;
 
             return;
         }
@@ -390,7 +395,7 @@ void handleHit(TriangleHit triangleHit, inout ScatterPayload scatterPayload)
     // or russian roulette failed, try to finalize path.
     // If failed to finalize, goto next step.
     if (finalize(scatterPayload, v, triangleHit))
-        scatterPayload.terminated = true;
+        scatterPayload.status |= 0x0002;
     else
         scatterPayload.currStep++;
 }
@@ -403,7 +408,7 @@ void scatterMiss(inout ScatterPayload scatterPayload)
     // Evaluate environment map.
     float3 Le = gScene.envMap.eval(-scatterPayload.direction);
     scatterPayload.radiance += scatterPayload.thp * Le;
-    scatterPayload.terminated = true;
+    scatterPayload.status |= 0x0002;
 }
 
 [shader("miss")]
@@ -461,6 +466,8 @@ void rayGen()
     SurfelRayResult surfelRayResult = gSurfelRayResultBuffer[rayIndex];
     const uint surfelIndex = surfelRayResult.surfelIndex;
     const Surfel surfel = gSurfelBuffer[surfelIndex];
+    const SurfelRecycleInfo surfelRecycleInfo = gSurfelRecycleInfoBuffer[surfelIndex];
+    const bool isSleeping = surfelRecycleInfo.status & 0x0001;
 
     RNG rng;
     rng.init(uint2(rayIndex, rayIndex), gFrameIndex);
@@ -468,7 +475,7 @@ void rayGen()
     SampleGenerator sg = SampleGenerator(uint2(rayIndex, rayIndex) + uint2(gFrameIndex), gFrameIndex);
 
     // Initialize scatter payload.
-    ScatterPayload scatterPayload = ScatterPayload(sg);
+    ScatterPayload scatterPayload = ScatterPayload(sg, isSleeping);
     scatterPayload.origin = surfel.position;
 
     float3 dirLocal;
@@ -528,7 +535,9 @@ void rayGen()
     surfelRayResult.pdf = pdf;
 
     // Trace ray.
-    while (!scatterPayload.terminated && scatterPayload.currStep <= gMaxStep)
+    // Sleeping surfels have double max step, because sleeping surfel focus on exploration.
+    const uint maxStep = isSleeping ? gMaxStep * 2u : gMaxStep;
+    while (!(scatterPayload.status & 0x0002) && scatterPayload.currStep <= maxStep)
         traceScatterRay(scatterPayload);
 
     // Store final radiance to result.

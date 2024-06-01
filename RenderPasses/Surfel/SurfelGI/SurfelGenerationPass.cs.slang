@@ -94,7 +94,6 @@ void csMain(
         float maxContribution = 0.f;
         uint maxContributionSurfelIndex = randomState.next_uint(cellInfo.surfelCount);
 
-
         for (uint i = 0; i < cellInfo.surfelCount; ++i)
         {
             uint surfelIndex = gCellToSurfelBuffer[cellInfo.cellToSurfelBufferOffset + i];
@@ -111,8 +110,8 @@ void csMain(
                 if (dotN > 0)
                 {
                     const SurfelRecycleInfo surfelRecycleInfo = gSurfelRecycleInfoBuffer[surfelIndex];
-                    bool isSleeping = surfelRecycleInfo.status & (0x0001 << 0);
-                    bool lastSeen = surfelRecycleInfo.status & (0x0001 << 1);
+                    bool isSleeping = surfelRecycleInfo.status & 0x0001;
+                    bool lastSeen = surfelRecycleInfo.status & 0x0002;
 
                     if (!isSleeping)
                     {
@@ -143,7 +142,7 @@ void csMain(
                     }
 
                     if (!lastSeen)
-                        gSurfelRecycleInfoBuffer[surfelIndex].status |= (0x0001 << 1);
+                        gSurfelRecycleInfoBuffer[surfelIndex].status |= 0x0002;
                 }
             }
         }

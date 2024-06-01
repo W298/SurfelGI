@@ -40,8 +40,8 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
 
     float surfelRadius = surfel.radius;
     SurfelRecycleInfo surfelRecycleInfo = gSurfelRecycleInfoBuffer[surfelIndex];
-    bool isSleeping = surfelRecycleInfo.status & (0x0001 << 0);
-    bool lastSeen = surfelRecycleInfo.status & (0x0001 << 1);
+    bool isSleeping = surfelRecycleInfo.status & 0x0001;
+    bool lastSeen = surfelRecycleInfo.status & 0x0002;
 
     // Increase frame count and reduce life.
     surfelRecycleInfo.life = max(asint(surfelRecycleInfo.life) - 1, 0);

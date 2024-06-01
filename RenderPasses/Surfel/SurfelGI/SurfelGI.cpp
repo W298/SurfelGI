@@ -42,7 +42,7 @@ Falcor::OverlayMode overlayMode = Falcor::OverlayMode::IndirectLighting;
 
 // Ray tracing.
 uint rayStep = 3;
-uint maxStep = 10;
+uint maxStep = 6;
 bool useSurfelRadinace = true;
 bool limitSurfelSearch = false;
 uint maxSurfelForStep = 10;

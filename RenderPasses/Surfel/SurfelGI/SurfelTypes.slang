@@ -100,8 +100,8 @@ struct SurfelRayResult
 };
 
 // [status]
-// 0x0001 << 0 : isSleeping
-// 0x0001 << 1 : lastSeen
+// 0x0001 : isSleeping
+// 0x0002 : lastSeen
 struct SurfelRecycleInfo
 {
     uint16_t life;
