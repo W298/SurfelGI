@@ -83,9 +83,9 @@ void csMain(
     // Evaluate min coverage value and pixel position.
     // Also evaluate max contribution and surfel index (for handling over-coverage).
     // Also evalute weighted color output (indrect lighting).
+    float4 indirectLighting = float4(0.f);
     {
         float coverage = 0.f;
-        float4 indirectLighting = float4(0.f);
         float varianceEx = 0.f;
         float rayCountEx = 0.f;
         uint refCount = 0;
@@ -236,6 +236,10 @@ void csMain(
                             );
 
                             Surfel newSurfel = Surfel(v.posW, v.normalW, varRadius);
+
+                            newSurfel.radiance = indirectLighting.xyz;
+                            newSurfel.msmeData.mean = indirectLighting.xyz;
+                            newSurfel.msmeData.shortMean = indirectLighting.xyz;
 
                             gSurfelValidIndexBuffer[validSurfelCount] = newIndex;
                             gSurfelBuffer[newIndex] = newSurfel;
