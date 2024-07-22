@@ -59,19 +59,16 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
 
     const bool hasEnoughRefCount = gSurfelRefCounter.Load(surfelIndex) > kRefCountThreshold;
 
-    // Check surfel can be sleeping mode, if life below 5.
-    // It means that we give them 5 chances.
-    if (hasEnoughRefCount && surfelRecycleInfo.life <= 5u)
-        isSleeping = true;
-
     // Check sleeping surfel is still vaild or not.
     // If valid, reset life.
     if (isSleeping && hasEnoughRefCount)
-        surfelRecycleInfo.life = kMaxLife / 4;
+        surfelRecycleInfo.life = kSleepingMaxLife;
 
+    // Radius of surfel <= 0 means that the surfel should be destroyed.
+    // Filter invalid surfels by checking radius and life.
     if (surfelRadius > 0 && surfelRecycleInfo.life > 0)
     {
-        // Copy surfel index if radius is not zero.
+        // Copy surfel index.
         uint validSurfelCount;
         gSurfelCounter.InterlockedAdd((int)SurfelCounterOffset::ValidSurfel, 1, validSurfelCount);
         gSurfelValidIndexBuffer[validSurfelCount] = surfelIndex;
@@ -82,7 +79,7 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
 
         if (!gLockSurfel)
         {
-            // Update surfel position, normal, radius.
+            // Update surfel position, normal.
             surfel.position = data.posW;
             surfel.normal = data.normalW;
 
@@ -116,9 +113,10 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
         {
             // Ray allocation by using MSME variance.
             // If surfel is sleeping surfel, reduce ray count.
-            uint rayOffset = 0;
             uint lower = isSleeping ? 1u : 4u;
             uint upper = isSleeping ? 4u : 64u;
+
+            uint rayOffset = 0;
             uint rayRequestCount = clamp(lerp(lower, upper, length(surfel.msmeData.variance) * 40.0f), lower, upper);
             gSurfelCounter.InterlockedAdd((int)SurfelCounterOffset::RequestedRay, rayRequestCount, rayOffset);
 
@@ -149,6 +147,7 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
     {
         if (!gLockSurfel)
         {
+            // De-allocate surfel.
             int freeSurfelCount;
             gSurfelCounter.InterlockedAdd((int)SurfelCounterOffset::FreeSurfel, 1, freeSurfelCount);
             gSurfelFreeIndexBuffer[freeSurfelCount] = surfelIndex;
@@ -193,6 +192,7 @@ void updateCellToSurfelBuffer(uint3 dispatchThreadId: SV_DispatchThreadID)
     uint surfelIndex = gSurfelValidIndexBuffer[dispatchThreadId.x];
     Surfel surfel = gSurfelBuffer[surfelIndex];
 
+    // Check surfel is intersected with neighbor cells.
     int3 cellPos = getCellPos(surfel.position, gCameraPos, config.cellUnit);
     for (uint i = 0; i < 125; ++i)
     {

@@ -327,6 +327,14 @@ void SurfelGI::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
     if (!mpScene)
         return;
 
+    // Overwrite material property for rendering only diffuse.
+    // It will be removed when specular (glossy) GI is implemented.
+    for (const auto& mat : mpScene->getMaterials())
+    {
+        mat->toBasicMaterial()->setSpecularTexture(nullptr);
+        mat->toBasicMaterial()->setSpecularParams(float4(0, 1, 0, 0));
+    }
+
     mFrameIndex = 0;
     mMaxFrameIndex = 1000000;
     mFrameDim = uint2(0, 0);

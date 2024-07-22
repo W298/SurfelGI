@@ -39,13 +39,14 @@ static const uint kTotalSurfelLimit         = 150000;
 static const uint kRayBudget                = 150000 * 64;
 static const uint3 kCellDimension           = uint3(250, 250, 250);
 static const uint kCellCount                = kCellDimension.x * kCellDimension.y * kCellDimension.z;
+static const uint kRefCountThreshold        = 32u;
+static const uint kMaxLife                  = 240u;
+static const uint kSleepingMaxLife          = kMaxLife / 4;
+static const uint kInitialStatus[]          = { 0, 0, kTotalSurfelLimit, 0, 0, 0 };
+
 static const uint2 kIrradianceMapRes        = uint2(3840, 2160);
 static const uint2 kIrradianceMapUnit       = uint2(7, 7);
 static const uint2 kIrradianceMapHalfUnit   = kIrradianceMapUnit / 2u;
-static const uint kRefCountThreshold        = 32u;
-static const uint kMaxLife                  = 240u;
-
-static const uint kInitialStatus[] = { 0, 0, kTotalSurfelLimit, 0, 0, 0 };
 
 struct Surfel
 {
