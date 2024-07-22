@@ -18,6 +18,8 @@ target_sources(Surfel PRIVATE
     SurfelDirectLightingPass/SurfelDirectLightingPass.h
     SurfelDirectLightingPass/SurfelDirectLightingPass.cs.slang
 
+    SurfelGI/StaticParams.slang
+    SurfelGI/OverlayMode.slang
     SurfelGI/SurfelGI.cpp
     SurfelGI/SurfelGI.h
     SurfelGI/SurfelTypes.slang

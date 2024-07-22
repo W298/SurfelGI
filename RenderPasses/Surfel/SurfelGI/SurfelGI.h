@@ -1,6 +1,8 @@
 #pragma once
 #include "Falcor.h"
 #include "RenderGraph/RenderPass.h"
+#include "RenderGraph/RenderPassHelpers.h"
+#include "OverlayMode.slang"
 
 using namespace Falcor;
 
@@ -29,13 +31,52 @@ public:
 private:
     void reflectInput(RenderPassReflection& reflector, uint2 resolution);
     void reflectOutput(RenderPassReflection& reflector, uint2 resolution);
-
+    void resetAndRecompile();
     void createPasses();
-
     void createBufferResources();
     void createTextureResources();
-
     void bindResources(const RenderData& renderData);
+
+    struct RuntimeParams
+    {
+        // Surfel generation.
+        float chanceMultiply = 0.3f;
+        uint chancePower = 1;
+        float placementThreshold = 2.f;
+        float removalThreshold = 4.f;
+        float thresholdGap = 2.f;
+        uint blendingDelay = 240;
+        Falcor::OverlayMode overlayMode = Falcor::OverlayMode::IndirectLighting;
+
+        // Ray tracing.
+        uint rayStep = 3;
+        uint maxStep = 6;
+
+        // Integrate.
+        float shortMeanWindow = 0.03f;
+    };
+
+    struct StaticParams
+    {
+        uint surfelTargetArea = 40000;
+        float cellUnit = 0.05f;
+        uint cellDim = 250u;
+        uint cellCount = cellDim * cellDim * cellDim;
+        uint perCellSurfelLimit = 1024u;
+
+        bool useSurfelRadinace = true;
+        bool limitSurfelSearch = false;
+        uint maxSurfelForStep = 10;
+        bool useRayGuiding = false;
+
+        bool useIrradinaceSharing = false;
+
+        DefineList getDefines(const SurfelGI& owner) const;
+    };
+
+    RuntimeParams mRuntimeParams;
+    StaticParams mStaticParams;
+    StaticParams mTempStaticParams;
 
     uint mFrameIndex;
     uint mMaxFrameIndex;
@@ -45,8 +86,9 @@ private:
 
     bool mIsResourceDirty;
     bool mReadBackValid;
-    bool mResetSurfelBuffer;
     bool mLockSurfel;
+    bool mResetSurfelBuffer;
+    bool mRecompile;
 
     std::vector<float> mSurfelCount;
     std::vector<float> mRayBudget;
@@ -88,9 +130,7 @@ private:
     ref<Buffer> mpSurfelReservationBuffer;
     ref<Buffer> mpSurfelRefCounter;
     ref<Buffer> mpSurfelCounter;
-    ref<Buffer> mpSurfelConfig;
 
     ref<Buffer> mpEmptySurfelBuffer;
     ref<Buffer> mpReadBackBuffer;
-
 };

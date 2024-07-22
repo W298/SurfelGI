@@ -14,31 +14,9 @@ enum class SurfelCounterOffset : int
     MissBounce      = 20
 };
 
-enum class OverlayMode : int
-{
-    IndirectLighting    = 0,
-    Variance            = 1,
-    RayCount            = 2,
-    RefCount            = 3,
-    Life                = 4,
-    Coverage            = 5,
-};
-
-FALCOR_ENUM_INFO(OverlayMode, {
-    { OverlayMode::IndirectLighting, "IndirectLighting" },
-    { OverlayMode::Variance, "Variance" },
-    { OverlayMode::RayCount, "RayCount" },
-    { OverlayMode::RefCount, "RefCount" },
-    { OverlayMode::Life, "Life" },
-    { OverlayMode::Coverage, "Coverage" },
-});
-FALCOR_ENUM_REGISTER(OverlayMode);
-
 static const uint2 kTileSize                = uint2(16, 16);
 static const uint kTotalSurfelLimit         = 150000;
 static const uint kRayBudget                = 150000 * 64;
-static const uint3 kCellDimension           = uint3(250, 250, 250);
-static const uint kCellCount                = kCellDimension.x * kCellDimension.y * kCellDimension.z;
 static const uint kRefCountThreshold        = 32u;
 static const uint kMaxLife                  = 240u;
 static const uint kSleepingMaxLife          = kMaxLife / 4;
@@ -81,13 +59,6 @@ struct CellInfo
 {
     uint surfelCount;
     uint cellToSurfelBufferOffset;
-};
-
-struct SurfelConfig
-{
-    float surfelTargetArea  = 40000.f;
-    float cellUnit          = 0.05f;
-    uint perCellSurfelLimit = 1024u;
 };
 
 struct SurfelRayResult

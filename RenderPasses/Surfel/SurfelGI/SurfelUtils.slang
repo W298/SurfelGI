@@ -3,6 +3,7 @@
 
 import RenderPasses.Surfel.Random;
 import RenderPasses.Surfel.SurfelGI.SurfelTypes;
+import RenderPasses.Surfel.SurfelGI.StaticParams;
 
 static const int3 neighborOffset[125] =
 {
@@ -182,17 +183,17 @@ int3 getCellPos(float3 posW, float3 cameraPosW, float cellUnit)
 
 uint getFlattenCellIndex(int3 cellPos)
 {
-    uint3 unsignedPos = cellPos + kCellDimension / 2;
-    return (unsignedPos.z * kCellDimension.x * kCellDimension.y) + (unsignedPos.y * kCellDimension.x) + unsignedPos.x;
+    uint3 unsignedPos = cellPos + uint3(kCellDimension / 2);
+    return (unsignedPos.z * kCellDimension * kCellDimension) + (unsignedPos.y * kCellDimension) + unsignedPos.x;
 }
 
 bool isCellValid(int3 cellPos)
 {
-    if (abs(cellPos.x) >= kCellDimension.x / 2)
+    if (abs(cellPos.x) >= kCellDimension / 2)
         return false;
-    if (abs(cellPos.y) >= kCellDimension.y / 2)
+    if (abs(cellPos.y) >= kCellDimension / 2)
         return false;
-    if (abs(cellPos.z) >= kCellDimension.z / 2)
+    if (abs(cellPos.z) >= kCellDimension / 2)
         return false;
 
     return true;

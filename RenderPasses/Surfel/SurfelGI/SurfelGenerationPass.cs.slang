@@ -3,6 +3,7 @@ import RenderPasses.Surfel.Random;
 import RenderPasses.Surfel.HashUtils;
 import RenderPasses.Surfel.SurfelGI.SurfelTypes;
 import RenderPasses.Surfel.SurfelGI.SurfelUtils;
+import RenderPasses.Surfel.SurfelGI.StaticParams;
 
 cbuffer CB
 {
@@ -27,7 +28,6 @@ RWStructuredBuffer<SurfelRecycleInfo> gSurfelRecycleInfoBuffer;
 
 RWByteAddressBuffer gSurfelRefCounter;
 RWByteAddressBuffer gSurfelCounter;
-ByteAddressBuffer gSurfelConfig;
 
 Texture2D<uint4> gPackedHitInfo;
 RWTexture2D<float4> gOutput;
@@ -62,8 +62,6 @@ void csMain(
     RNG randomState;
     randomState.init(pixelPos, gFrameIndex);
 
-    SurfelConfig config = gSurfelConfig.Load<SurfelConfig>(0);
-
     HitInfo hitInfo = HitInfo(gPackedHitInfo[pixelPos]);
     if (!hitInfo.isValid())
         return;
@@ -73,7 +71,7 @@ void csMain(
     float4 curPosH = mul(gScene.camera.data.viewProjMatNoJitter, float4(v.posW, 1.f));
     float depth = curPosH.z / curPosH.w;
 
-    int3 cellPos = getCellPos(v.posW, gScene.camera.getPosition(), config.cellUnit);
+    int3 cellPos = getCellPos(v.posW, gScene.camera.getPosition(), kCellUnit);
     if (!isCellValid(cellPos))
         return;
 
@@ -204,7 +202,7 @@ void csMain(
     uint x = (coverageData & 0x000000F0) >> 4;
     uint y = (coverageData & 0x0000000F) >> 0;
 
-    if (cellInfo.surfelCount < config.perCellSurfelLimit)
+    if (cellInfo.surfelCount < kPerCellSurfelLimit)
     {
         if (groupThreadID.x == x && groupThreadID.y == y)
         {
@@ -231,8 +229,8 @@ void csMain(
                                 distance(gScene.camera.getPosition(), v.posW),
                                 gFOVy,
                                 gResolution,
-                                config.surfelTargetArea,
-                                config.cellUnit
+                                kSurfelTargetArea,
+                                kCellUnit
                             );
 
                             Surfel newSurfel = Surfel(v.posW, v.normalW, varRadius);

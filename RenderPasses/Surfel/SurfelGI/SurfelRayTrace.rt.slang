@@ -9,6 +9,7 @@ import Utils.Math.MathHelpers;
 import RenderPasses.Surfel.Random;
 import RenderPasses.Surfel.SurfelGI.SurfelTypes;
 import RenderPasses.Surfel.SurfelGI.SurfelUtils;
+import RenderPasses.Surfel.SurfelGI.StaticParams;
 
 /**
     Raytracing shader for surfel GI.
@@ -27,10 +28,6 @@ cbuffer CB
     uint gFrameIndex;                   ///< Frame index.
     uint gRayStep;                      ///< How many steps does ray go.
     uint gMaxStep;                      ///< Global maxium step count. No ray step can exceed this value.
-    bool gUseSurfelRadiance;            ///< Use surfel radiance or not.
-    bool gLimitSurfelSearch;
-    uint gMaxSurfelForStep;
-    bool gUseRayGuiding;
 }
 
 // [status]
@@ -75,7 +72,6 @@ RWStructuredBuffer<SurfelRecycleInfo> gSurfelRecycleInfoBuffer;
 RWByteAddressBuffer gSurfelReservationBuffer;
 RWByteAddressBuffer gSurfelRefCounter;
 RWByteAddressBuffer gSurfelCounter;
-ByteAddressBuffer gSurfelConfig;
 
 RWTexture2D<float> gIrradianceMap;
 
@@ -160,15 +156,11 @@ float3 evalAnalyticLight(const ShadingData sd, const IMaterialInstance mi, inout
 // Return false if surfel is invalid, so need to goto next step.
 bool finalize(inout ScatterPayload scatterPayload, const VertexData v, const TriangleHit triangleHit)
 {
-    if (!gUseSurfelRadiance)
-    {
-        return true;
-    }
+#ifdef USE_SURFEL_RADIANCE
 
     float4 Lr = float4(0.f);
-    SurfelConfig config = gSurfelConfig.Load<SurfelConfig>(0);
 
-    int3 cellPos = getCellPos(v.posW, gScene.camera.getPosition(), config.cellUnit);
+    int3 cellPos = getCellPos(v.posW, gScene.camera.getPosition(), kCellUnit);
     if (!isCellValid(cellPos))
     {
         // Surfel radiance is invalid.
@@ -191,94 +183,95 @@ bool finalize(inout ScatterPayload scatterPayload, const VertexData v, const Tri
     float maxContribution = 0.f;
     int maxContributionSleepingSurfelIndex = -1;
 
-    if (gLimitSurfelSearch)
+#ifdef LIMIT_SURFEL_SEARCH
+
+    const uint selectionCount = min(kMaxSurfelForStep, cellInfo.surfelCount);
+    for (uint i = 0; i < selectionCount; ++i)
     {
-        const uint selectionCount = min(gMaxSurfelForStep, cellInfo.surfelCount);
-        for (uint i = 0; i < selectionCount; ++i)
+        uint randomSelection = sampleNext1D(scatterPayload.sg) * (cellInfo.surfelCount - 1);
+        uint surfelIndex = gCellToSurfelBuffer[cellInfo.cellToSurfelBufferOffset + randomSelection];
+        Surfel surfel = gSurfelBuffer[surfelIndex];
+        SurfelRecycleInfo info = gSurfelRecycleInfoBuffer[surfelIndex];
+        bool isSleeping = info.status & 0x0001;
+
+        float3 bias = v.posW - surfel.position;
+        float dist2 = dot(bias, bias);
+
+        if (dist2 < surfel.radius * surfel.radius)
         {
-            uint randomSelection = sampleNext1D(scatterPayload.sg) * (cellInfo.surfelCount - 1);
-            uint surfelIndex = gCellToSurfelBuffer[cellInfo.cellToSurfelBufferOffset + randomSelection];
-            Surfel surfel = gSurfelBuffer[surfelIndex];
-            SurfelRecycleInfo info = gSurfelRecycleInfoBuffer[surfelIndex];
-            bool isSleeping = info.status & 0x0001;
+            float3 normal = normalize(surfel.normal);
 
-            float3 bias = v.posW - surfel.position;
-            float dist2 = dot(bias, bias);
-
-            if (dist2 < surfel.radius * surfel.radius)
+            float dotN = dot(v.normalW, normal);
+            if (dotN > 0)
             {
-                float3 normal = normalize(surfel.normal);
+                float dist = sqrt(dist2);
+                float contribution = 1.f;
 
-                float dotN = dot(v.normalW, normal);
-                if (dotN > 0)
+                contribution *= saturate(dotN);
+                contribution *= saturate(1 - dist / surfel.radius);
+                contribution = smoothstep(0, 1, contribution);
+
+                Lr += float4(surfel.radiance, 1.f) * contribution;
+
+                if (isSleeping)
                 {
-                    float dist = sqrt(dist2);
-                    float contribution = 1.f;
-
-                    contribution *= saturate(dotN);
-                    contribution *= saturate(1 - dist / surfel.radius);
-                    contribution = smoothstep(0, 1, contribution);
-
-                    Lr += float4(surfel.radiance, 1.f) * contribution;
-
-                    if (isSleeping)
+                    sleepingCoverage += contribution;
+                    if (maxContribution < contribution)
                     {
-                        sleepingCoverage += contribution;
-                        if (maxContribution < contribution)
-                        {
-                            maxContribution = contribution;
-                            maxContributionSleepingSurfelIndex = surfelIndex;
-                        }
+                        maxContribution = contribution;
+                        maxContributionSleepingSurfelIndex = surfelIndex;
                     }
-
-                    gSurfelRefCounter.InterlockedAdd(surfelIndex, 1);
                 }
+
+                gSurfelRefCounter.InterlockedAdd(surfelIndex, 1);
             }
         }
     }
-    else
+
+#else // LIMIT_SURFEL_SEARCH
+
+    for (uint i = 0; i < cellInfo.surfelCount; ++i)
     {
-        for (uint i = 0; i < cellInfo.surfelCount; ++i)
+        uint surfelIndex = gCellToSurfelBuffer[cellInfo.cellToSurfelBufferOffset + i];
+        Surfel surfel = gSurfelBuffer[surfelIndex];
+        SurfelRecycleInfo info = gSurfelRecycleInfoBuffer[surfelIndex];
+        bool isSleeping = info.status & 0x0001;
+
+        float3 bias = v.posW - surfel.position;
+        float dist2 = dot(bias, bias);
+
+        if (dist2 < surfel.radius * surfel.radius)
         {
-            uint surfelIndex = gCellToSurfelBuffer[cellInfo.cellToSurfelBufferOffset + i];
-            Surfel surfel = gSurfelBuffer[surfelIndex];
-            SurfelRecycleInfo info = gSurfelRecycleInfoBuffer[surfelIndex];
-            bool isSleeping = info.status & 0x0001;
+            float3 normal = normalize(surfel.normal);
 
-            float3 bias = v.posW - surfel.position;
-            float dist2 = dot(bias, bias);
-
-            if (dist2 < surfel.radius * surfel.radius)
+            float dotN = dot(v.normalW, normal);
+            if (dotN > 0)
             {
-                float3 normal = normalize(surfel.normal);
+                float dist = sqrt(dist2);
+                float contribution = 1.f;
 
-                float dotN = dot(v.normalW, normal);
-                if (dotN > 0)
+                contribution *= saturate(dotN);
+                contribution *= saturate(1 - dist / surfel.radius);
+                contribution = smoothstep(0, 1, contribution);
+
+                Lr += float4(surfel.radiance, 1.f) * contribution;
+
+                if (isSleeping)
                 {
-                    float dist = sqrt(dist2);
-                    float contribution = 1.f;
-
-                    contribution *= saturate(dotN);
-                    contribution *= saturate(1 - dist / surfel.radius);
-                    contribution = smoothstep(0, 1, contribution);
-
-                    Lr += float4(surfel.radiance, 1.f) * contribution;
-
-                    if (isSleeping)
+                    sleepingCoverage += contribution;
+                    if (maxContribution < contribution)
                     {
-                        sleepingCoverage += contribution;
-                        if (maxContribution < contribution)
-                        {
-                            maxContribution = contribution;
-                            maxContributionSleepingSurfelIndex = surfelIndex;
-                        }
+                        maxContribution = contribution;
+                        maxContributionSleepingSurfelIndex = surfelIndex;
                     }
-
-                    gSurfelRefCounter.InterlockedAdd(surfelIndex, 1);
                 }
+
+                gSurfelRefCounter.InterlockedAdd(surfelIndex, 1);
             }
         }
     }
+
+#endif // LIMIT_SURFEL_SEARCH
 
     // No surfel found.
     // Need to goto next step, so, do not terminate path.
@@ -331,6 +324,9 @@ bool finalize(inout ScatterPayload scatterPayload, const VertexData v, const Tri
     // Surfel radiance is valid, so use it.
     Lr.xyz /= Lr.w;
     scatterPayload.radiance += scatterPayload.thp * Lr.xyz;
+
+#else  // USE_SURFEL_RADIANCE
+#endif // USE_SURFEL_RADIANCE
 
     return true;
 }
@@ -487,8 +483,10 @@ void rayGen()
     );
     irrMapBase *= kIrradianceMapUnit;
 
+#ifdef USE_RAY_GUIDING
+
     // If hole dosen't exist, and ray count of surfel is bigger than 16, apply ray-guiding.
-    if (gUseRayGuiding && !surfel.hasHole && step(16u, surfel.rayCount))
+    if (!surfel.hasHole && step(16u, surfel.rayCount))
     {
         // Approximate inverse CDF for sampling.
         float randomCeil = rng.next_float() * surfel.sumLuminance;
@@ -524,6 +522,13 @@ void rayGen()
         dirLocal = normalize(hemispherepoint_uniform(rng.next_float(), rng.next_float()));
         pdf = 1.f / (16 * M_PI);
     }
+
+#else // USE_RAY_GUIDING
+
+    dirLocal = normalize(hemispherepoint_uniform(rng.next_float(), rng.next_float()));
+    pdf = 1.f / (16 * M_PI);
+
+#endif // USE_RAY_GUIDING
 
     float3 dirWorld = normalize(mul(dirLocal, get_tangentspace(surfel.normal)));
 
