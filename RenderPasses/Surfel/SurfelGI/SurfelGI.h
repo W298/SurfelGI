@@ -83,6 +83,7 @@ private:
     uint2 mFrameDim;
     float mFOVy;
     float3 mCamPos;
+    float mRenderScale;
 
     bool mIsResourceDirty;
     bool mReadBackValid;

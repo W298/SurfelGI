@@ -227,7 +227,7 @@ void SurfelGI::renderUI(Gui::Widgets& widget)
         std::rotate(mSurfelCount.begin(), mSurfelCount.begin() + 1, mSurfelCount.end());
         mSurfelCount[mSurfelCount.size() - 1] = (float)validSurfelCount / kTotalSurfelLimit;
 
-        widget.graph("", plotFunc, mSurfelCount.data(), mSurfelCount.size(), 0, 0, FLT_MAX, 0, 20u);
+        widget.graph("", plotFunc, mSurfelCount.data(), mSurfelCount.size(), 0, 0, FLT_MAX, 0, 25u);
 
         widget.text("Presented surfel");
         widget.text(std::to_string(validSurfelCount) + " / " + std::to_string(kTotalSurfelLimit), true);
@@ -236,37 +236,95 @@ void SurfelGI::renderUI(Gui::Widgets& widget)
         std::rotate(mRayBudget.begin(), mRayBudget.begin() + 1, mRayBudget.end());
         mRayBudget[mRayBudget.size() - 1] = (float)requestedRayCount / kRayBudget;
 
-        widget.graph("", plotFunc, mRayBudget.data(), mRayBudget.size(), 0, 0, FLT_MAX, 0, 20u);
+        widget.graph("", plotFunc, mRayBudget.data(), mRayBudget.size(), 0, 0, FLT_MAX, 0, 25u);
 
         widget.text("Ray budget");
         widget.text(std::to_string(requestedRayCount) + " / " + std::to_string(kRayBudget), true);
         widget.text("(" + std::to_string(requestedRayCount * 100.0f / kRayBudget) + " %)", true);
 
-        widget.text("Filled cell");
-        widget.text(std::to_string(filledCellCount), true);
-        widget.text("(" + std::to_string(filledCellCount * 100.0f / (mStaticParams.cellCount)) + " %)", true);
-
         widget.text("Surfel shortage");
         widget.text(std::to_string(mpReadBackBuffer->getElement<int>(2)), true);
+        widget.tooltip("Positive if there is enough memory for the new surfel, negative otherwise.");
 
         widget.text("Miss ray bounce");
         widget.text(std::to_string(mpReadBackBuffer->getElement<uint>(5)), true);
+        widget.tooltip("The number of rays that failed to find surfel and move on to the next step.");
+
+        widget.text("Visible distance");
+        widget.text(std::to_string(mStaticParams.cellDim * mStaticParams.cellUnit), true);
+        widget.tooltip(
+            "The maximum distance at which global illumination is drawn. This is affected by the dimensions and size "
+            "of the cell."
+        );
+    }
+
+    widget.dummy("#spacer0", {1, 10});
+
+    {
+        bool editted = false;
+
+        widget.text("Adjust render scale");
+        widget.tooltip(
+            "Adjust render scale, which affects cell unit and camera speed. Try adjusting this value if you think your "
+            "scene is too large or too small so the rendering isn't working properly."
+        );
+
+        if (widget.var("", mRenderScale, 1e-3f, 1e+3f, 2.f))
+        {
+            editted = true;
+        }
+        else if (widget.button("/4"))
+        {
+            editted = true;
+            mRenderScale /= 4;
+        }
+        else if (widget.button("/2", true))
+        {
+            editted = true;
+            mRenderScale /= 2;
+        }
+        else if (widget.button("x2", true))
+        {
+            editted = true;
+            mRenderScale *= 2;
+        }
+        else if (widget.button("x4", true))
+        {
+            editted = true;
+            mRenderScale *= 4;
+        }
+
+        if (editted)
+        {
+            mRenderScale = std::max(1e-3f, std::min(1e+3f, mRenderScale));
+
+            if (mpScene)
+                mpScene->setCameraSpeed(mRenderScale);
+
+            mTempStaticParams.cellUnit = 0.05f * mRenderScale;
+            resetAndRecompile();
+        }
     }
 
     widget.dummy("#spacer0", {1, 10});
 
     if (widget.button(!mLockSurfel ? "Lock Surfel" : "Unlock Surfel"))
         mLockSurfel = !mLockSurfel;
+    widget.tooltip("Lock / Unlock surfel generation and update operation.");
 
-    if (widget.button("Reset Surfel"))
+    if (widget.button("Reset Surfel", true))
         mResetSurfelBuffer = true;
+    widget.tooltip("Clears all spawned surfels in the scene.");
 
     widget.dropdown("Overlay mode", mRuntimeParams.overlayMode);
+    widget.tooltip("Decide what to render.");
 
     widget.dummy("#spacer0", {1, 10});
 
     if (auto group = widget.group("Static Params (Needs re-compile)"))
     {
+        widget.tooltip("Following parameters needs re-compile. Please press below button after adjusting values.");
+
         if (widget.button("Recompile"))
             resetAndRecompile();
 
@@ -276,7 +334,8 @@ void SurfelGI::renderUI(Gui::Widgets& widget)
             g.var("Cell unit", mTempStaticParams.cellUnit, 0.005f, 100.f);
 
             if (g.var("Cell dimension", mTempStaticParams.cellDim, 25u, 1000u, 25u))
-                mTempStaticParams.cellCount = mTempStaticParams.cellDim * mTempStaticParams.cellDim * mTempStaticParams.cellDim;
+                mTempStaticParams.cellCount =
+                    mTempStaticParams.cellDim * mTempStaticParams.cellDim * mTempStaticParams.cellDim;
 
             g.slider("Per cell surfel limit", mTempStaticParams.perCellSurfelLimit, 2u, 1024u);
         }
@@ -341,6 +400,7 @@ void SurfelGI::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
     mFrameIndex = 0;
     mMaxFrameIndex = 1000000;
     mFrameDim = uint2(0, 0);
+    mRenderScale = 1.f;
     mIsResourceDirty = true;
     mReadBackValid = false;
     mLockSurfel = false;
