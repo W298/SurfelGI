@@ -339,6 +339,8 @@ void handleHit(TriangleHit triangleHit, inout ScatterPayload scatterPayload)
     ShadingData sd = gScene.materials.prepareShadingData(v, materialID, -scatterPayload.direction, lod);
     let mi = gScene.materials.getMaterialInstance(sd, lod);
 
+    scatterPayload.radiance += scatterPayload.thp * mi.getProperties(sd).emission;
+
     // Only use diffuse lobe.
     sd.mtl.setActiveLobes((uint)LobeType::Diffuse);
 

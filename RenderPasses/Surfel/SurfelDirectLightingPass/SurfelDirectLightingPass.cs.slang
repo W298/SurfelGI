@@ -87,11 +87,12 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupdId: SV_Grou
         let mi = gScene.materials.getMaterialInstance(sd, lod);
 
         SampleGenerator sg = SampleGenerator(pixelPos, gFrameIndex);
-        
+
         float3 finalGather = float3(0.f);
 
         const float3 directLighting = evalAnalyticLight(sd, mi, sg);
         const float3 indirectLighting = gIndirectLighting[pixelPos].xyz;
+        const float3 emissiveLighting = mi.getProperties(sd).emission;
 
         if (gRenderDirectLighting && gRenderIndirectLighting)
         {
@@ -106,11 +107,12 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupdId: SV_Grou
 
             BSDFProperties props = mi.getProperties(sd);
             float3 weight = props.diffuseReflectionAlbedo;
-            finalGather = directLighting + weight * indirectLighting;
+            finalGather = directLighting + weight * indirectLighting + emissiveLighting;
         }
         else
         {
             finalGather = gRenderDirectLighting ? directLighting : gRenderIndirectLighting ? indirectLighting : float3(0.f);
+            finalGather += emissiveLighting;
         }
 
         gOutput[pixelPos] = float4(finalGather, 1.f);

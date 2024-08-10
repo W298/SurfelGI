@@ -83,6 +83,10 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
     mFOVy = focalLengthToFovY(mpScene->getCamera()->getFocalLength(), mpScene->getCamera()->getFrameHeight());
     mCamPos = mpScene->getCamera()->getPosition();
 
+    // Request the light collection if emissive lights are enabled.
+    if (mpScene->getRenderSettings().useEmissiveLights)
+        mpScene->getLightCollection(pRenderContext);
+
     {
         FALCOR_PROFILE(pRenderContext, "Prepare Pass");
 
