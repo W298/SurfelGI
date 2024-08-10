@@ -49,6 +49,9 @@ private:
         Falcor::OverlayMode overlayMode = Falcor::OverlayMode::IndirectLighting;
 
         // Ray tracing.
+        float varianceSensitivity = 40.f;
+        uint minRayCount = 4u;
+        uint maxRayCount = 64u;
         uint rayStep = 3;
         uint maxStep = 6;
 

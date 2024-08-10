@@ -101,6 +101,9 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
         var["CB"]["gResolution"] = mFrameDim;
         var["CB"]["gFOVy"] = mFOVy;
         var["CB"]["gLockSurfel"] = mLockSurfel;
+        var["CB"]["gVarianceSensitivity"] = mRuntimeParams.varianceSensitivity;
+        var["CB"]["gMinRayCount"] = mRuntimeParams.minRayCount;
+        var["CB"]["gMaxRayCount"] = mRuntimeParams.maxRayCount;
 
         mpCollectCellInfoPass->execute(pRenderContext, uint3(kTotalSurfelLimit, 1, 1));
     }
@@ -374,6 +377,9 @@ void SurfelGI::renderUI(Gui::Widgets& widget)
 
         if (auto g = group.group("Ray Tracing", true))
         {
+            g.slider("Variance Sensitivity", mRuntimeParams.varianceSensitivity, 0.1f, 100.f);
+            g.slider("Min Ray Count", mRuntimeParams.minRayCount, 0u, mRuntimeParams.maxRayCount);
+            g.slider("Max Ray Count", mRuntimeParams.maxRayCount, mRuntimeParams.minRayCount, 256u);
             g.slider("Ray step", mRuntimeParams.rayStep, 0u, mRuntimeParams.maxStep);
             g.slider("Max step", mRuntimeParams.maxStep, mRuntimeParams.rayStep, 100u);
         }

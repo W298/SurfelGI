@@ -9,6 +9,9 @@ cbuffer CB
     uint2 gResolution;
     float gFOVy;
     bool gLockSurfel;
+    float gVarianceSensitivity;
+    uint gMinRayCount;
+    uint gMaxRayCount;
 }
 
 RWStructuredBuffer<Surfel> gSurfelBuffer;
@@ -111,11 +114,11 @@ void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)
         {
             // Ray allocation by using MSME variance.
             // If surfel is sleeping surfel, reduce ray count.
-            uint lower = isSleeping ? 1u : 4u;
-            uint upper = isSleeping ? 4u : 64u;
+            uint lower = isSleeping ? (gMinRayCount / 4u) : (gMaxRayCount / 4u);
+            uint upper = isSleeping ? gMinRayCount : gMaxRayCount;
 
             uint rayOffset = 0;
-            uint rayRequestCount = clamp(lerp(lower, upper, length(surfel.msmeData.variance) * 40.0f), lower, upper);
+            uint rayRequestCount = clamp(lerp(lower, upper, length(surfel.msmeData.variance) * gVarianceSensitivity), lower, upper);
             gSurfelCounter.InterlockedAdd((int)SurfelCounterOffset::RequestedRay, rayRequestCount, rayOffset);
 
             if (rayOffset < kRayBudget)
