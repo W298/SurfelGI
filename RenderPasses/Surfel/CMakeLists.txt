@@ -14,9 +14,9 @@ target_sources(Surfel PRIVATE
     SurfelVBuffer/SurfelVBuffer.h
     SurfelVBuffer/SurfelVBuffer.rt.slang
 
-    SurfelDirectLightingPass/SurfelDirectLightingPass.cpp
-    SurfelDirectLightingPass/SurfelDirectLightingPass.h
-    SurfelDirectLightingPass/SurfelDirectLightingPass.cs.slang
+    SurfelGIRenderPass/SurfelGIRenderPass.cpp
+    SurfelGIRenderPass/SurfelGIRenderPass.h
+    SurfelGIRenderPass/SurfelGIRenderPass.cs.slang
 
     SurfelGI/StaticParams.slang
     SurfelGI/OverlayMode.slang

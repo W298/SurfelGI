@@ -1,6 +1,6 @@
-#include "SurfelDirectLightingPass.h"
+#include "SurfelGIRenderPass.h"
 
-SurfelDirectLightingPass::SurfelDirectLightingPass(ref<Device> pDevice, const Properties& props) : RenderPass(pDevice)
+SurfelGIRenderPass::SurfelGIRenderPass(ref<Device> pDevice, const Properties& props) : RenderPass(pDevice)
 {
     // Check device feature support.
     mpDevice = pDevice;
@@ -15,7 +15,7 @@ SurfelDirectLightingPass::SurfelDirectLightingPass(ref<Device> pDevice, const Pr
     mFrameIndex = 0;
 }
 
-RenderPassReflection SurfelDirectLightingPass::reflect(const CompileData& compileData)
+RenderPassReflection SurfelGIRenderPass::reflect(const CompileData& compileData)
 {
     RenderPassReflection reflector;
 
@@ -36,7 +36,7 @@ RenderPassReflection SurfelDirectLightingPass::reflect(const CompileData& compil
     return reflector;
 }
 
-void SurfelDirectLightingPass::execute(RenderContext* pRenderContext, const RenderData& renderData)
+void SurfelGIRenderPass::execute(RenderContext* pRenderContext, const RenderData& renderData)
 {
     const auto& pPackedHitInfo = renderData.getTexture("packedHitInfo");
     const auto& pIndirectLighting = renderData.getTexture("indirectLighting");
@@ -68,13 +68,13 @@ void SurfelDirectLightingPass::execute(RenderContext* pRenderContext, const Rend
     mFrameIndex++;
 }
 
-void SurfelDirectLightingPass::renderUI(Gui::Widgets& widget)
+void SurfelGIRenderPass::renderUI(Gui::Widgets& widget)
 {
     widget.checkbox("Direct Lighting", mRenderDirectLighting);
     widget.checkbox("Indirect Lighting", mRenderIndirectLighting);
 }
 
-void SurfelDirectLightingPass::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
+void SurfelGIRenderPass::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
 {
     mpScene = pScene;
     mRenderDirectLighting = true;
@@ -84,7 +84,7 @@ void SurfelDirectLightingPass::setScene(RenderContext* pRenderContext, const ref
     {
         ProgramDesc desc;
         desc.addShaderModules(mpScene->getShaderModules());
-        desc.addShaderLibrary("RenderPasses/Surfel/SurfelDirectLightingPass/SurfelDirectLightingPass.cs.slang")
+        desc.addShaderLibrary("RenderPasses/Surfel/SurfelGIRenderPass/SurfelGIRenderPass.cs.slang")
             .csEntry("csMain");
         desc.addTypeConformances(mpScene->getTypeConformances());
 

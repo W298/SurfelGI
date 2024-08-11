@@ -4,17 +4,17 @@
 
 using namespace Falcor;
 
-class SurfelDirectLightingPass : public RenderPass
+class SurfelGIRenderPass : public RenderPass
 {
 public:
-    FALCOR_PLUGIN_CLASS(SurfelDirectLightingPass, "SurfelDirectLightingPass", "Direct lighting pass for SurfelGI");
+    FALCOR_PLUGIN_CLASS(SurfelGIRenderPass, "SurfelGIRenderPass", "Calculate direct lighting and integrate with input indirect lighting");
 
-    static ref<SurfelDirectLightingPass> create(ref<Device> pDevice, const Properties& props)
+    static ref<SurfelGIRenderPass> create(ref<Device> pDevice, const Properties& props)
     {
-        return make_ref<SurfelDirectLightingPass>(pDevice, props);
+        return make_ref<SurfelGIRenderPass>(pDevice, props);
     }
 
-    SurfelDirectLightingPass(ref<Device> pDevice, const Properties& props);
+    SurfelGIRenderPass(ref<Device> pDevice, const Properties& props);
 
     virtual Properties getProperties() const override { return {}; }
     virtual RenderPassReflection reflect(const CompileData& compileData) override;
