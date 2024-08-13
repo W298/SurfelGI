@@ -16,6 +16,7 @@ cbuffer CB
     float gRemovalThreshold;
     uint gBlendingDelay;
     uint gOverlayMode;
+    bool gUseSurfelDepth;
 }
 
 RWStructuredBuffer<Surfel> gSurfelBuffer;
@@ -32,6 +33,9 @@ RWByteAddressBuffer gSurfelCounter;
 Texture2D<uint4> gPackedHitInfo;
 RWTexture2D<float4> gOutput;
 RWTexture2D<float4> gDebug;
+Texture2D<float2> gSurfelDepth;
+
+SamplerState gSurfelDepthSampler;
 
 groupshared uint groupShareMinCoverage;
 groupshared uint groupShareMaxContribution;
@@ -121,6 +125,36 @@ void csMain(
                         contribution = smoothstep(0, 1, contribution);
 
                         coverage += contribution;
+
+                        if (gUseSurfelDepth)
+                        {
+                            uint2 ltCoord = uint2(
+                                surfelIndex % (kSurfelDepthTextureRes.x / kSurfelDepthTextureUnit.x),
+                                surfelIndex / (kSurfelDepthTextureRes.x / kSurfelDepthTextureUnit.y)
+                            );
+                            ltCoord *= kSurfelDepthTextureUnit;
+                            ltCoord += float2(kSrufelDepthTexturePadding, kSrufelDepthTexturePadding);
+                            float2 ltUV = (float2)ltCoord / kSurfelDepthTextureRes;
+
+                            float3 worldVec = bias / dist;
+                            float3 localVec = mul(get_tangentspace(normal), worldVec);
+
+                            float2 localSignedUV = octEncode(normalize(localVec));
+                            float2 localUnsignedUV = (localSignedUV + float2(1.f, 1.f)) / 2.f;
+                            float2 localToWorld = (float2)(kSurfelDepthTextureUnit - uint2(kSrufelDepthTexturePadding, kSrufelDepthTexturePadding) * 2u) / kSurfelDepthTextureRes;
+                            float2 uv = ltUV + localUnsignedUV * localToWorld;
+
+                            float2 surfelDepth = gSurfelDepth.SampleLevel(gSurfelDepthSampler, uv, 0u);
+
+                            float mean = surfelDepth.x;
+                            float sqrMean = surfelDepth.y;
+
+                            if (dist > mean)
+                            {
+                                float variance = sqrMean - pow(mean, 2);
+                                contribution *= variance / (variance + pow(dist - mean, 2));
+                            }
+                        }
 
                         // Delay blending if not sufficient sample is accumulated.
                         // Because samples are updated per frame, so do not use sample count directly.

@@ -28,6 +28,7 @@ cbuffer CB
     uint gFrameIndex;                   ///< Frame index.
     uint gRayStep;                      ///< How many steps does ray go.
     uint gMaxStep;                      ///< Global maxium step count. No ray step can exceed this value.
+    bool gUseSurfelDepth;
 }
 
 // [status]
@@ -39,6 +40,7 @@ struct ScatterPayload
     float3 thp;
     float3 origin;
     float3 direction;
+    float firstRayLength;
     uint16_t currStep;
     uint16_t status;
 
@@ -50,6 +52,7 @@ struct ScatterPayload
         this.thp = float3(1, 1, 1);
         this.origin = float3(0, 0, 0);
         this.direction = float3(0, 0, 0);
+        this.firstRayLength = 0.f;
         this.currStep = 1u;                             // Be aware. Start from 1.
         this.status = isSleeping ? 0x0001 : 0x0000;
     }
@@ -74,6 +77,9 @@ RWByteAddressBuffer gSurfelRefCounter;
 RWByteAddressBuffer gSurfelCounter;
 
 RWTexture2D<float> gIrradianceMap;
+Texture2D<float2> gSurfelDepth;
+
+SamplerState gSurfelDepthSampler;
 
 bool traceShadowRay(float3 origin, float3 dir, float distance)
 {
@@ -254,6 +260,36 @@ bool finalize(inout ScatterPayload scatterPayload, const VertexData v, const Tri
                 contribution *= saturate(1 - dist / surfel.radius);
                 contribution = smoothstep(0, 1, contribution);
 
+                if (gUseSurfelDepth)
+                {
+                    uint2 ltCoord = uint2(
+                        surfelIndex % (kSurfelDepthTextureRes.x / kSurfelDepthTextureUnit.x),
+                        surfelIndex / (kSurfelDepthTextureRes.x / kSurfelDepthTextureUnit.y)
+                    );
+                    ltCoord *= kSurfelDepthTextureUnit;
+                    ltCoord += float2(kSrufelDepthTexturePadding, kSrufelDepthTexturePadding);
+                    float2 ltUV = (float2)ltCoord / kSurfelDepthTextureRes;
+
+                    float3 worldVec = bias / dist;
+                    float3 localVec = mul(get_tangentspace(normal), worldVec);
+
+                    float2 localSignedUV = octEncode(normalize(localVec));
+                    float2 localUnsignedUV = (localSignedUV + float2(1.f, 1.f)) / 2.f;
+                    float2 localToWorld = (float2)(kSurfelDepthTextureUnit - uint2(kSrufelDepthTexturePadding, kSrufelDepthTexturePadding) * 2u) / kSurfelDepthTextureRes;
+                    float2 uv = ltUV + localUnsignedUV * localToWorld;
+
+                    float2 surfelDepth = gSurfelDepth.SampleLevel(gSurfelDepthSampler, uv, 0u);
+
+                    float mean = surfelDepth.x;
+                    float sqrMean = surfelDepth.y;
+
+                    if (dist > mean)
+                    {
+                        float variance = sqrMean - pow(mean, 2);
+                        contribution *= variance / (variance + pow(dist - mean, 2));
+                    }
+                }
+
                 Lr += float4(surfel.radiance, 1.f) * contribution;
 
                 if (isSleeping)
@@ -338,6 +374,9 @@ void handleHit(TriangleHit triangleHit, inout ScatterPayload scatterPayload)
     let lod = ExplicitLodTextureSampler(0.f);
     ShadingData sd = gScene.materials.prepareShadingData(v, materialID, -scatterPayload.direction, lod);
     let mi = gScene.materials.getMaterialInstance(sd, lod);
+
+    if (scatterPayload.currStep == 1u)
+        scatterPayload.firstRayLength = distance(scatterPayload.origin, v.posW);
 
     scatterPayload.radiance += scatterPayload.thp * mi.getProperties(sd).emission;
 
@@ -546,6 +585,8 @@ void rayGen()
     const uint maxStep = isSleeping ? gMaxStep * 2u : gMaxStep;
     while (!(scatterPayload.status & 0x0002) && scatterPayload.currStep <= maxStep)
         traceScatterRay(scatterPayload);
+
+    surfelRayResult.firstRayLength = scatterPayload.firstRayLength;
 
     // Store final radiance to result.
     surfelRayResult.radiance = scatterPayload.radiance;

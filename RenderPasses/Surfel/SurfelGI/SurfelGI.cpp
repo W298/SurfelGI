@@ -14,6 +14,8 @@ const std::string kPackedHitInfoTextureName = "packedHitInfo";
 const std::string kOutputTextureName = "output";
 const std::string kDebugTextureName = "debug";
 const std::string kIrradianceMapTextureName = "irradiance map";
+const std::string kSurfelDepthTextureName = "surfel depth";
+const std::string kSurfelDepthTextureReadOnlyName = "surfel depth read only";
 
 const std::string kSurfelBufferVarName = "gSurfelBuffer";
 const std::string kSurfelGeometryBufferVarName = "gSurfelGeometryBuffer";
@@ -41,6 +43,12 @@ SurfelGI::SurfelGI(ref<Device> pDevice, const Properties& props) : RenderPass(pD
 
     mpFence = mpDevice->createFence();
     mpSampleGenerator = SampleGenerator::create(mpDevice, SAMPLE_GENERATOR_UNIFORM);
+
+    // Create sampler.
+    Sampler::Desc samplerDesc;
+    samplerDesc.setFilterMode(TextureFilteringMode::Linear, TextureFilteringMode::Linear, TextureFilteringMode::Linear);
+    samplerDesc.setAddressingMode(TextureAddressingMode::Clamp, TextureAddressingMode::Clamp, TextureAddressingMode::Clamp);
+    mpSurfelDepthSampler = mpDevice->createSampler(samplerDesc);
 }
 
 RenderPassReflection SurfelGI::reflect(const CompileData& compileData)
@@ -158,6 +166,7 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
             var["CB"]["gFrameIndex"] = mFrameIndex;
             var["CB"]["gRayStep"] = mRuntimeParams.rayStep;
             var["CB"]["gMaxStep"] = mRuntimeParams.maxStep;
+            var["CB"]["gUseSurfelDepth"] = mRuntimeParams.useSurfelDepth;
 
             mpScene->raytrace(pRenderContext, mRtPass.pProgram.get(), mRtPass.pVars, uint3(kRayBudget, 1, 1));
         }
@@ -171,6 +180,8 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
             var["CB"]["gCameraPos"] = mCamPos;
 
             mpSurfelIntegratePass->execute(pRenderContext, uint3(kTotalSurfelLimit, 1, 1));
+
+            pRenderContext->copyResource(mpSurfelDepthTextureReadOnly.get(), mpSurfelDepthTexture.get());
         }
 
         {
@@ -189,6 +200,7 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
             var["CB"]["gRemovalThreshold"] = mRuntimeParams.removalThreshold;
             var["CB"]["gOverlayMode"] = (uint)mRuntimeParams.overlayMode;
             var["CB"]["gBlendingDelay"] = mRuntimeParams.blendingDelay;
+            var["CB"]["gUseSurfelDepth"] = mRuntimeParams.useSurfelDepth;
 
             pRenderContext->clearUAV(mpOutputTexture->getUAV().get(), float4(0));
             pRenderContext->clearUAV(mpDebugTexture->getUAV().get(), float4(0));
@@ -204,7 +216,11 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
         if (mResetSurfelBuffer)
         {
             pRenderContext->copyResource(mpSurfelBuffer.get(), mpEmptySurfelBuffer.get());
+
             pRenderContext->clearUAV(mpIrradianceMapTexture->getUAV().get(), float4(0));
+            pRenderContext->clearUAV(mpSurfelDepthTexture->getUAV().get(), float4(0));
+            pRenderContext->clearTexture(mpSurfelDepthTextureReadOnly.get(), float4(0));
+
             mResetSurfelBuffer = false;
             mFrameIndex = 0;
         }
@@ -389,7 +405,10 @@ void SurfelGI::renderUI(Gui::Widgets& widget)
         }
 
         if (auto g = group.group("Integrate", true))
+        {
             g.slider("Short mean window", mRuntimeParams.shortMeanWindow, 0.01f, 0.5f);
+            g.checkbox("Use surfel depth", mRuntimeParams.useSurfelDepth);
+        }
     }
 }
 
@@ -455,6 +474,16 @@ void SurfelGI::reflectOutput(RenderPassReflection& reflector, uint2 resolution)
         .format(ResourceFormat::R32Float)
         .bindFlags(ResourceBindFlags::UnorderedAccess)
         .texture2D(kIrradianceMapRes.x, kIrradianceMapRes.y);
+
+    reflector.addOutput(kSurfelDepthTextureName, "surfel depth texture")
+        .format(ResourceFormat::RG32Float)
+        .bindFlags(ResourceBindFlags::UnorderedAccess)
+        .texture2D(kSurfelDepthTextureRes.x, kSurfelDepthTextureRes.y);
+
+    reflector.addOutput(kSurfelDepthTextureReadOnlyName, "surfel depth read only texture")
+        .format(ResourceFormat::RG32Float)
+        .bindFlags(ResourceBindFlags::ShaderResource)
+        .texture2D(kSurfelDepthTextureRes.x, kSurfelDepthTextureRes.y);
 }
 
 void SurfelGI::resetAndRecompile()
@@ -488,6 +517,8 @@ void SurfelGI::resetAndRecompile()
     mpSurfelCounter = nullptr;
     mpEmptySurfelBuffer = nullptr;
     mpReadBackBuffer = nullptr;
+
+    // #TODO Should reset texture reousrces also?
 
     // Reset variables.
     mFrameIndex = 0;
@@ -664,6 +695,8 @@ void SurfelGI::bindResources(const RenderData& renderData)
     mpOutputTexture = renderData.getTexture(kOutputTextureName);
     mpDebugTexture = renderData.getTexture(kDebugTextureName);
     mpIrradianceMapTexture = renderData.getTexture(kIrradianceMapTextureName);
+    mpSurfelDepthTexture = renderData.getTexture(kSurfelDepthTextureName);
+    mpSurfelDepthTextureReadOnly = renderData.getTexture(kSurfelDepthTextureReadOnlyName);
 
     // Evaluation Pass
     {
@@ -743,6 +776,9 @@ void SurfelGI::bindResources(const RenderData& renderData)
         var[kSurfelCounterVarName] = mpSurfelCounter;
 
         var["gIrradianceMap"] = mpIrradianceMapTexture;
+        var["gSurfelDepth"] = mpSurfelDepthTextureReadOnly;
+
+        var["gSurfelDepthSampler"] = mpSurfelDepthSampler;
     }
 
     // Surfel Generation Pass
@@ -763,6 +799,9 @@ void SurfelGI::bindResources(const RenderData& renderData)
         var["gPackedHitInfo"] = pPackedHitInfoTexture;
         var["gOutput"] = mpOutputTexture;
         var["gDebug"] = mpDebugTexture;
+        var["gSurfelDepth"] = mpSurfelDepthTextureReadOnly;
+
+        var["gSurfelDepthSampler"] = mpSurfelDepthSampler;
     }
 
     // Surfel Integrate Pass
@@ -778,6 +817,7 @@ void SurfelGI::bindResources(const RenderData& renderData)
         var[kSurfelCounterVarName] = mpSurfelCounter;
 
         var["gIrradianceMap"] = mpIrradianceMapTexture;
+        var["gSurfelDepth"] = mpSurfelDepthTexture;
     }
 }
 

@@ -57,6 +57,7 @@ private:
 
         // Integrate.
         float shortMeanWindow = 0.03f;
+        bool useSurfelDepth = true;
     };
 
     struct StaticParams
@@ -120,6 +121,8 @@ private:
     ref<Texture> mpOutputTexture;
     ref<Texture> mpDebugTexture;
     ref<Texture> mpIrradianceMapTexture;
+    ref<Texture> mpSurfelDepthTexture;
+    ref<Texture> mpSurfelDepthTextureReadOnly;
 
     ref<Buffer> mpSurfelBuffer;
     ref<Buffer> mpSurfelGeometryBuffer;
@@ -137,4 +140,6 @@ private:
 
     ref<Buffer> mpEmptySurfelBuffer;
     ref<Buffer> mpReadBackBuffer;
+
+    ref<Sampler> mpSurfelDepthSampler;
 };

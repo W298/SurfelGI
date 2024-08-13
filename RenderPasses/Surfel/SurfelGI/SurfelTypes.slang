@@ -26,6 +26,11 @@ static const uint2 kIrradianceMapRes        = uint2(3840, 2160);
 static const uint2 kIrradianceMapUnit       = uint2(7, 7);
 static const uint2 kIrradianceMapHalfUnit   = kIrradianceMapUnit / 2u;
 
+static const uint2 kSurfelDepthTextureRes = uint2(3840, 2160);
+static const uint2 kSurfelDepthTextureUnit = uint2(7, 7);
+static const uint kSrufelDepthTexturePadding = 1u;
+static const uint2 kSurfelDepthTextureHalfUnit = kSurfelDepthTextureUnit / 2u;
+
 struct Surfel
 {
     float3 position;
@@ -66,7 +71,7 @@ struct SurfelRayResult
     float3 dirLocal;
     float3 dirWorld;
     float pdf;
-    float depth;
+    float firstRayLength;
     float3 radiance;
     uint surfelIndex;
 };

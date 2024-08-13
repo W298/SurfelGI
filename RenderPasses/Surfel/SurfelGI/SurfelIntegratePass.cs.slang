@@ -22,6 +22,7 @@ RWStructuredBuffer<SurfelRayResult> gSurfelRayResultBuffer;
 RWByteAddressBuffer gSurfelCounter;
 
 RWTexture2D<float> gIrradianceMap;
+RWTexture2D<float2> gSurfelDepth;
 
 // Will be moved at Update Pass later for optimzation.
 [numthreads(32, 1, 1)]
@@ -44,6 +45,12 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID)
     );
     irrMapBase *= kIrradianceMapUnit;
 
+    uint2 surfelDepthLTCoord = uint2(
+        surfelIndex % (kSurfelDepthTextureRes.x / kSurfelDepthTextureUnit.x),
+        surfelIndex / (kSurfelDepthTextureRes.x / kSurfelDepthTextureUnit.y)
+    );
+    surfelDepthLTCoord *= kSurfelDepthTextureUnit;
+
     float3 surfelRadiance = float3(0.f);
     for (uint rayIndex = 0; rayIndex < surfel.rayCount; ++rayIndex)
     {
@@ -54,12 +61,21 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID)
         float3 dirWorld = rayResult.dirWorld;
         float pdf = rayResult.pdf;
 
+        float surfelDepth = rayResult.firstRayLength > 0 ? clamp(rayResult.firstRayLength, 0, surfel.radius) : surfel.radius;
+
         float2 uv = octEncode(normalize(dirLocal));
+
         uint2 irrMapOffset = kIrradianceMapHalfUnit + int2(
             sign(uv.x) * round(abs(uv.x * kIrradianceMapHalfUnit.x)),
             sign(uv.y) * round(abs(uv.y * kIrradianceMapHalfUnit.y))
         );
         uint2 irrMapCoord = irrMapBase + irrMapOffset;
+
+        uint2 surfelDepthTextureOffset = kSurfelDepthTextureHalfUnit + int2(
+            sign(uv.x) * round(abs(uv.x * (kSurfelDepthTextureHalfUnit.x - kSrufelDepthTexturePadding))),
+            sign(uv.y) * round(abs(uv.y * (kSurfelDepthTextureHalfUnit.y - kSrufelDepthTexturePadding)))
+        );
+        uint2 surfelDepthTextureCoord = surfelDepthLTCoord + surfelDepthTextureOffset;
 
         // Write radiance of ray at texture for ray-guiding.
         // Mininum boundary is 1e-3f, because pdf should not be 0 for importance sampling.
@@ -67,9 +83,34 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID)
         float delta = luminance(Lr) - gIrradianceMap[irrMapCoord];
         gIrradianceMap[irrMapCoord] = max(1e-3f, gIrradianceMap[irrMapCoord] + k * delta);
 
+        float3 texelDir = octDecode(uv);
+        float depthWeight = saturate(dot(dirLocal, texelDir) + 1e-2);
+        depthWeight = pow(depthWeight, 32);
+
+        float k2 = 1e-2f;
+        float2 delta2 = float2(surfelDepth, pow(surfelDepth, 2)) - gSurfelDepth[surfelDepthTextureCoord];
+        gSurfelDepth[surfelDepthTextureCoord] = gSurfelDepth[surfelDepthTextureCoord] + k2 * delta2 * depthWeight;
+
         // Calculate incident radiance by using importance sampling.
         surfelRadiance += Lr * dot(dirWorld, surfel.normal) * ((1.f / (16 * M_PI)) / max(1e-12f, pdf));
     }
+
+    for (uint x = 1; x < 6; ++x)
+        gSurfelDepth[surfelDepthLTCoord + uint2(x, 0)] = gSurfelDepth[surfelDepthLTCoord + uint2(x, 1)];
+
+    for (uint x = 1; x < 6; ++x)
+        gSurfelDepth[surfelDepthLTCoord + uint2(x, 6)] = gSurfelDepth[surfelDepthLTCoord + uint2(x, 5)];
+
+    for (uint y = 1; y < 6; ++y)
+        gSurfelDepth[surfelDepthLTCoord + uint2(0, y)] = gSurfelDepth[surfelDepthLTCoord + uint2(1, y)];
+
+    for (uint y = 1; y < 6; ++y)
+        gSurfelDepth[surfelDepthLTCoord + uint2(6, y)] = gSurfelDepth[surfelDepthLTCoord + uint2(5, y)];
+
+    gSurfelDepth[surfelDepthLTCoord + uint2(0, 0)] = (gSurfelDepth[surfelDepthLTCoord + uint2(0, 1)] + gSurfelDepth[surfelDepthLTCoord + uint2(1, 0)]) / 2.f;
+    gSurfelDepth[surfelDepthLTCoord + uint2(0, 6)] = (gSurfelDepth[surfelDepthLTCoord + uint2(0, 5)] + gSurfelDepth[surfelDepthLTCoord + uint2(1, 6)]) / 2.f;
+    gSurfelDepth[surfelDepthLTCoord + uint2(6, 6)] = (gSurfelDepth[surfelDepthLTCoord + uint2(6, 5)] + gSurfelDepth[surfelDepthLTCoord + uint2(5, 6)]) / 2.f;
+    gSurfelDepth[surfelDepthLTCoord + uint2(6, 0)] = (gSurfelDepth[surfelDepthLTCoord + uint2(6, 1)] + gSurfelDepth[surfelDepthLTCoord + uint2(5, 0)]) / 2.f;
 
     surfelRadiance /= surfel.rayCount;
 
