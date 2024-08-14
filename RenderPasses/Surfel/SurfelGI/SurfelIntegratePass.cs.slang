@@ -11,6 +11,8 @@ cbuffer CB
 {
     float gShortMeanWindow;
     float3 gCameraPos;
+    bool gUseIrradianceSharing;
+    float gVarianceSensitivity;
 }
 
 RWStructuredBuffer<Surfel> gSurfelBuffer;
@@ -132,53 +134,81 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID)
     surfel.hasHole = hasHole;
 
     // Irradiance sharing.
-#ifdef USE_IRRADIANCE_SHARING
-
-    float4 sharedRadiance = float4(0.f);
-    int3 cellPos = getCellPos(surfel.position, gScene.camera.getPosition(), kCellUnit);
-    if (isCellValid(cellPos))
+    if (gUseIrradianceSharing)
     {
-        const float3 centerPos = surfel.position;
-        const float3 centerNormal = surfel.normal;
-
-        uint flattenIndex = getFlattenCellIndex(cellPos);
-        CellInfo cellInfo = gCellInfoBuffer[flattenIndex];
-
-        for (uint i = 0; i < cellInfo.surfelCount; ++i)
+        float4 sharedRadiance = float4(0.f);
+        int3 cellPos = getCellPos(surfel.position, gCameraPos, kCellUnit);
+        if (isCellValid(cellPos))
         {
-            uint neiSurfelIndex = gCellToSurfelBuffer[cellInfo.cellToSurfelBufferOffset + i];
-            Surfel neiSurfel = gSurfelBuffer[neiSurfelIndex];
+            const float3 centerPos = surfel.position;
+            const float3 centerNormal = surfel.normal;
 
-            float3 bias = centerPos - neiSurfel.position;
-            float dist2 = dot(bias, bias);
-            float affectRadius = kCellUnit * sqrt(3);
+            uint flattenIndex = getFlattenCellIndex(cellPos);
+            CellInfo cellInfo = gCellInfoBuffer[flattenIndex];
 
-            if (dist2 < pow(affectRadius, 2))
+            for (uint i = 0; i < cellInfo.surfelCount; ++i)
             {
-                float dotN = dot(neiSurfel.normal, centerNormal);
-                if (dotN > 0)
+                uint neiSurfelIndex = gCellToSurfelBuffer[cellInfo.cellToSurfelBufferOffset + i];
+                Surfel neiSurfel = gSurfelBuffer[neiSurfelIndex];
+
+                float3 bias = centerPos - neiSurfel.position;
+                float dist2 = dot(bias, bias);
+                float affectRadius = kCellUnit * sqrt(2);
+
+                if (dist2 < pow(affectRadius, 2))
                 {
-                    float dist = sqrt(dist2);
-                    float contribution = 1.f;
+                    float dotN = dot(neiSurfel.normal, centerNormal);
+                    if (dotN > 0)
+                    {
+                        float dist = sqrt(dist2);
+                        float contribution = 1.f;
 
-                    contribution *= saturate(dotN);
-                    contribution *= saturate(1 - dist / affectRadius);
-                    contribution = smoothstep(0, 1, contribution);
+                        contribution *= saturate(dotN);
+                        contribution *= saturate(1 - dist / affectRadius);
+                        contribution = smoothstep(0, 1, contribution);
 
-                    sharedRadiance += float4(neiSurfel.radiance, 1.f) * contribution;
+                        // #TODO: Use sampler?
+                        {
+                            uint2 ltCoord = uint2(
+                                surfelIndex % (kSurfelDepthTextureRes.x / kSurfelDepthTextureUnit.x),
+                                surfelIndex / (kSurfelDepthTextureRes.x / kSurfelDepthTextureUnit.y)
+                            );
+                            ltCoord *= kSurfelDepthTextureUnit;
+                            ltCoord += float2(kSrufelDepthTexturePadding, kSrufelDepthTexturePadding);
+                            float2 ltUV = (float2)ltCoord / kSurfelDepthTextureRes;
+
+                            float3 worldVec = bias / dist;
+                            float3 localVec = mul(get_tangentspace(centerNormal), worldVec);
+
+                            float2 localSignedUV = octEncode(normalize(localVec));
+                            float2 localUnsignedUV = (localSignedUV + float2(1.f, 1.f)) / 2.f;
+                            float2 localToWorld = (float2)(kSurfelDepthTextureUnit - uint2(kSrufelDepthTexturePadding, kSrufelDepthTexturePadding) * 2u) / kSurfelDepthTextureRes;
+                            float2 uv = ltUV + localUnsignedUV * localToWorld;
+
+                            float2 surfelDepth = gSurfelDepth[round(uv * kSurfelDepthTextureRes)];
+
+                            float mean = surfelDepth.x;
+                            float sqrMean = surfelDepth.y;
+
+                            if (dist > mean)
+                            {
+                                float variance = sqrMean - pow(mean, 2);
+                                contribution *= variance / (variance + pow(dist - mean, 2));
+                            }
+                        }
+
+                        sharedRadiance += float4(neiSurfel.radiance, 1.f) * contribution;
+                    }
                 }
             }
-        }
 
-        if (sharedRadiance.w > 0)
-        {
-            sharedRadiance.xyz /= sharedRadiance.w;
-            surfelRadiance = surfelRadiance + sharedRadiance.xyz;
+            if (sharedRadiance.w > 0)
+            {
+                sharedRadiance.xyz /= sharedRadiance.w;
+                surfelRadiance = lerp(surfelRadiance, sharedRadiance.xyz, clamp(length(surfel.msmeData.variance) * gVarianceSensitivity, 0.5f, 1.f));
+            }
         }
     }
-
-#else  // USE_IRRADIANCE_SHARING
-#endif // USE_IRRADIANCE_SHARING
 
     // Update surfel radiance using Multiscale Mean Estimator.
     float3 mean = MSME(surfelRadiance, surfel.msmeData, gShortMeanWindow);

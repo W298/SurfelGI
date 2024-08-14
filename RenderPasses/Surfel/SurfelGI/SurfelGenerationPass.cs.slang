@@ -17,6 +17,7 @@ cbuffer CB
     uint gBlendingDelay;
     uint gOverlayMode;
     bool gUseSurfelDepth;
+    float gVarianceSensitivity;
 }
 
 RWStructuredBuffer<Surfel> gSurfelBuffer;
@@ -93,6 +94,7 @@ void csMain(
         uint refCount = 0;
         uint life = 0;
 
+        float maxVariance = 0.f;
         float maxContribution = 0.f;
         uint maxContributionSurfelIndex = randomState.next_uint(cellInfo.surfelCount);
 
@@ -171,6 +173,8 @@ void csMain(
                             maxContribution = contribution;
                             maxContributionSurfelIndex = i;
                         }
+
+                        maxVariance = max(maxVariance, length(surfel.msmeData.variance));
                     }
 
                     if (!lastSeen)
@@ -194,7 +198,7 @@ void csMain(
             }
             else if (gOverlayMode == 1)
             {
-                gOutput[pixelPos] = float4(stepColor(varianceEx, 0.1f, 0.05f), 1);
+                gOutput[pixelPos] = float4(stepColor(maxVariance * gVarianceSensitivity, 0.8f, 0.5f), 1);
             }
             else if (gOverlayMode == 2)
             {

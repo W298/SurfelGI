@@ -178,6 +178,8 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
             auto var = mpSurfelIntegratePass->getRootVar();
             var["CB"]["gShortMeanWindow"] = mRuntimeParams.shortMeanWindow;
             var["CB"]["gCameraPos"] = mCamPos;
+            var["CB"]["gUseIrradianceSharing"] = mRuntimeParams.useIrradianceSharing;
+            var["CB"]["gVarianceSensitivity"] = mRuntimeParams.varianceSensitivity;
 
             mpSurfelIntegratePass->execute(pRenderContext, uint3(kTotalSurfelLimit, 1, 1));
 
@@ -201,6 +203,7 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
             var["CB"]["gOverlayMode"] = (uint)mRuntimeParams.overlayMode;
             var["CB"]["gBlendingDelay"] = mRuntimeParams.blendingDelay;
             var["CB"]["gUseSurfelDepth"] = mRuntimeParams.useSurfelDepth;
+            var["CB"]["gVarianceSensitivity"] = mRuntimeParams.varianceSensitivity;
 
             pRenderContext->clearUAV(mpOutputTexture->getUAV().get(), float4(0));
             pRenderContext->clearUAV(mpDebugTexture->getUAV().get(), float4(0));
@@ -373,9 +376,6 @@ void SurfelGI::renderUI(Gui::Widgets& widget)
 
             g.checkbox("Use ray guiding", mTempStaticParams.useRayGuiding);
         }
-
-        if (auto g = group.group("Integrate", true))
-            g.checkbox("Use irradiance sharing", mTempStaticParams.useIrradinaceSharing);
     }
 
     if (auto group = widget.group("Runtime Params"))
@@ -408,6 +408,7 @@ void SurfelGI::renderUI(Gui::Widgets& widget)
         {
             g.slider("Short mean window", mRuntimeParams.shortMeanWindow, 0.01f, 0.5f);
             g.checkbox("Use surfel depth", mRuntimeParams.useSurfelDepth);
+            g.checkbox("Use irradiance sharing", mRuntimeParams.useIrradianceSharing);
         }
     }
 }
@@ -841,9 +842,6 @@ Falcor::DefineList SurfelGI::StaticParams::getDefines(const SurfelGI& owner) con
 
     if (useRayGuiding)
         defines.add("USE_RAY_GUIDING");
-
-    if (useIrradinaceSharing)
-        defines.add("USE_IRRADIANCE_SHARING");
 
     return defines;
 }
