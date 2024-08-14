@@ -83,9 +83,8 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID)
         float delta = luminance(Lr) - gIrradianceMap[irrMapCoord];
         gIrradianceMap[irrMapCoord] = max(1e-3f, gIrradianceMap[irrMapCoord] + k * delta);
 
-        float3 texelDir = octDecode(uv);
-        float depthWeight = saturate(dot(dirLocal, texelDir) + 1e-2);
-        depthWeight = pow(depthWeight, 32);
+        float3 texelDir = octDecode(((int2)surfelDepthTextureOffset - kSurfelDepthTextureHalfUnit) / (kSurfelDepthTextureHalfUnit - int2(1, 1)));
+        float depthWeight = saturate(dot(dirLocal, texelDir));
 
         float k2 = 1e-2f;
         float2 delta2 = float2(surfelDepth, pow(surfelDepth, 2)) - gSurfelDepth[surfelDepthTextureCoord];
