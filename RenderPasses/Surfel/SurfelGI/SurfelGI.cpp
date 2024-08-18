@@ -15,7 +15,6 @@ const std::string kOutputTextureName = "output";
 const std::string kDebugTextureName = "debug";
 const std::string kIrradianceMapTextureName = "irradiance map";
 const std::string kSurfelDepthTextureName = "surfel depth";
-const std::string kSurfelDepthTextureReadOnlyName = "surfel depth read only";
 
 const std::string kSurfelBufferVarName = "gSurfelBuffer";
 const std::string kSurfelGeometryBufferVarName = "gSurfelGeometryBuffer";
@@ -166,7 +165,6 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
             var["CB"]["gFrameIndex"] = mFrameIndex;
             var["CB"]["gRayStep"] = mRuntimeParams.rayStep;
             var["CB"]["gMaxStep"] = mRuntimeParams.maxStep;
-            var["CB"]["gUseSurfelDepth"] = mRuntimeParams.useSurfelDepth;
 
             mpScene->raytrace(pRenderContext, mRtPass.pProgram.get(), mRtPass.pVars, uint3(kRayBudget, 1, 1));
         }
@@ -178,13 +176,12 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
             auto var = mpSurfelIntegratePass->getRootVar();
             var["CB"]["gShortMeanWindow"] = mRuntimeParams.shortMeanWindow;
             var["CB"]["gCameraPos"] = mCamPos;
-            var["CB"]["gUseIrradianceSharing"] = mRuntimeParams.useIrradianceSharing;
             var["CB"]["gVarianceSensitivity"] = mRuntimeParams.varianceSensitivity;
-            var["CB"]["gUseSurfelDepth"] = mRuntimeParams.useSurfelDepth;
 
             mpSurfelIntegratePass->execute(pRenderContext, uint3(kTotalSurfelLimit, 1, 1));
 
-            pRenderContext->copyResource(mpSurfelDepthTextureReadOnly.get(), mpSurfelDepthTexture.get());
+            if (mStaticParams.useSurfelDepth)
+                pRenderContext->copyResource(mpSurfelDepthTextureReadOnly.get(), mpSurfelDepthTexture.get());
         }
 
         {
@@ -203,7 +200,6 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
             var["CB"]["gRemovalThreshold"] = mRuntimeParams.removalThreshold;
             var["CB"]["gOverlayMode"] = (uint)mRuntimeParams.overlayMode;
             var["CB"]["gBlendingDelay"] = mRuntimeParams.blendingDelay;
-            var["CB"]["gUseSurfelDepth"] = mRuntimeParams.useSurfelDepth;
             var["CB"]["gVarianceSensitivity"] = mRuntimeParams.varianceSensitivity;
 
             pRenderContext->clearUAV(mpOutputTexture->getUAV().get(), float4(0));
@@ -377,6 +373,12 @@ void SurfelGI::renderUI(Gui::Widgets& widget)
 
             g.checkbox("Use ray guiding", mTempStaticParams.useRayGuiding);
         }
+
+        if (auto g = group.group("Integrate", true))
+        {
+            g.checkbox("Use surfel depth", mTempStaticParams.useSurfelDepth);
+            g.checkbox("Use irradiance sharing", mTempStaticParams.useIrradianceSharing);
+        }
     }
 
     if (auto group = widget.group("Runtime Params"))
@@ -408,8 +410,6 @@ void SurfelGI::renderUI(Gui::Widgets& widget)
         if (auto g = group.group("Integrate", true))
         {
             g.slider("Short mean window", mRuntimeParams.shortMeanWindow, 0.01f, 0.5f);
-            g.checkbox("Use surfel depth", mRuntimeParams.useSurfelDepth);
-            g.checkbox("Use irradiance sharing", mRuntimeParams.useIrradianceSharing);
         }
     }
 }
@@ -480,11 +480,6 @@ void SurfelGI::reflectOutput(RenderPassReflection& reflector, uint2 resolution)
     reflector.addOutput(kSurfelDepthTextureName, "surfel depth texture")
         .format(ResourceFormat::RG32Float)
         .bindFlags(ResourceBindFlags::UnorderedAccess)
-        .texture2D(kSurfelDepthTextureRes.x, kSurfelDepthTextureRes.y);
-
-    reflector.addOutput(kSurfelDepthTextureReadOnlyName, "surfel depth read only texture")
-        .format(ResourceFormat::RG32Float)
-        .bindFlags(ResourceBindFlags::ShaderResource)
         .texture2D(kSurfelDepthTextureRes.x, kSurfelDepthTextureRes.y);
 }
 
@@ -855,6 +850,12 @@ Falcor::DefineList SurfelGI::StaticParams::getDefines(const SurfelGI& owner) con
 
     if (useRayGuiding)
         defines.add("USE_RAY_GUIDING");
+
+    if (useSurfelDepth)
+        defines.add("USE_SURFEL_DEPTH");
+
+    if (useIrradianceSharing)
+        defines.add("USE_IRRADIANCE_SHARING");
 
     return defines;
 }

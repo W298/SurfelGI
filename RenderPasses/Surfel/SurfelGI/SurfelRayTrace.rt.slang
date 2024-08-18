@@ -28,7 +28,6 @@ cbuffer CB
     uint gFrameIndex;                   ///< Frame index.
     uint gRayStep;                      ///< How many steps does ray go.
     uint gMaxStep;                      ///< Global maxium step count. No ray step can exceed this value.
-    bool gUseSurfelDepth;
 }
 
 // [status]
@@ -275,7 +274,7 @@ bool finalize(inout ScatterPayload scatterPayload, const VertexData v, const Tri
                 contribution *= saturate(1 - dist / surfel.radius);
                 contribution = smoothstep(0, 1, contribution);
 
-                if (gUseSurfelDepth)
+                #ifdef USE_SURFEL_DEPTH
                 {
                     float2 uv = getSurfelDepthUV(surfelIndex, bias / dist, normal);
                     float2 surfelDepth = gSurfelDepth.SampleLevel(gSurfelDepthSampler, uv, 0u);
@@ -289,6 +288,8 @@ bool finalize(inout ScatterPayload scatterPayload, const VertexData v, const Tri
                         contribution *= variance / (variance + pow(dist - mean, 2));
                     }
                 }
+                #else  // USE_SURFEL_DEPTH
+                #endif // USE_SURFEL_DEPTH
 
                 Lr += float4(surfel.radiance, 1.f) * contribution;
 

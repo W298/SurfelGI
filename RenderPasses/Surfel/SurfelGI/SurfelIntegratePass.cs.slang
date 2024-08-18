@@ -11,9 +11,7 @@ cbuffer CB
 {
     float gShortMeanWindow;
     float3 gCameraPos;
-    bool gUseIrradianceSharing;
     float gVarianceSensitivity;
-    bool gUseSurfelDepth;
 }
 
 RWStructuredBuffer<Surfel> gSurfelBuffer;
@@ -73,41 +71,75 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID)
         // Encode ray direction.
         float2 uv = octEncode(normalize(dirLocal));
 
+#ifdef USE_RAY_GUIDING
+
         // Write luminance at irradiance map.
-        {
-            uint2 irrMapOffset = kIrradianceMapHalfUnit + int2(
-                sign(uv.x) * round(abs(uv.x * kIrradianceMapHalfUnit.x)),
-                sign(uv.y) * round(abs(uv.y * kIrradianceMapHalfUnit.y))
-            );
-            uint2 irrMapCoord = irrMapLT + irrMapOffset;
+        uint2 irrMapOffset = kIrradianceMapHalfUnit + int2(
+            sign(uv.x) * round(abs(uv.x * kIrradianceMapHalfUnit.x)),
+            sign(uv.y) * round(abs(uv.y * kIrradianceMapHalfUnit.y))
+        );
+        uint2 irrMapCoord = irrMapLT + irrMapOffset;
 
-            // Write radiance of ray at texture for ray-guiding.
-            // Mininum boundary is 1e-3f, because pdf should not be 0 for importance sampling.
-            float k = 1e-2f;
-            float delta = luminance(Lr) - gIrradianceMap[irrMapCoord];
-            gIrradianceMap[irrMapCoord] = max(1e-3f, gIrradianceMap[irrMapCoord] + k * delta);
+        // Write radiance of ray at texture for ray-guiding.
+        // Mininum boundary is 1e-3f, because pdf should not be 0 for importance sampling.
+        float k = 1e-2f;
+        float delta = luminance(Lr) - gIrradianceMap[irrMapCoord];
+        gIrradianceMap[irrMapCoord] = max(1e-3f, gIrradianceMap[irrMapCoord] + k * delta);
 
-            // Calculate incident radiance by using importance sampling.
-            surfelRadiance += Lr * dot(dirWorld, surfel.normal) * ((1.f / (16 * M_PI)) / max(1e-12f, pdf));
-        }
+#else  // USE_RAY_GUIDING
+#endif // USE_RAY_GUIDING  
+
+#ifdef USE_SURFEL_DEPTH
 
         // Write surfel depth.
+        uint2 surfelDepthTextureOffset = kSurfelDepthTextureHalfUnit + int2(
+            sign(uv.x) * round(abs(uv.x * (kSurfelDepthTextureHalfUnit.x - 1))),
+            sign(uv.y) * round(abs(uv.y * (kSurfelDepthTextureHalfUnit.y - 1)))
+        );
+        uint2 surfelDepthTextureCoord = surfelDepthLT + surfelDepthTextureOffset;
+
+        float2 signedUV = ((int2)surfelDepthTextureOffset - kSurfelDepthTextureHalfUnit) / (kSurfelDepthTextureHalfUnit - int2(1, 1));
+        float3 texelDir = octDecode(signedUV);
+        float depthWeight = saturate(dot(dirLocal, texelDir));
+
+        float k2 = 1e-2f;
+        float2 delta2 = float2(surfelDepth, pow(surfelDepth, 2)) - gSurfelDepthRW[surfelDepthTextureCoord];
+        gSurfelDepthRW[surfelDepthTextureCoord] = gSurfelDepthRW[surfelDepthTextureCoord] + k2 * delta2 * depthWeight;
+
+#else  // USE_SURFEL_DEPTH
+#endif // USE_SURFEL_DEPTH
+
+        // Calculate incident radiance by using importance sampling.
+        surfelRadiance += Lr * dot(dirWorld, surfel.normal) * ((1.f / (16 * M_PI)) / max(1e-12f, pdf));
+    }
+
+    // Average radiance.
+    surfelRadiance /= surfel.rayCount;
+
+#ifdef USE_RAY_GUIDING
+
+    // Sum luminances and check if irradiance map of surfel has hole (not sampled yet).
+    float sumLuminance = 0.f;
+    bool hasHole = false;
+
+    for (uint y = 0; y < kIrradianceMapUnit.y; ++y)
+    {
+        for (uint x = 0; x < kIrradianceMapUnit.x; ++x)
         {
-            uint2 surfelDepthTextureOffset = kSurfelDepthTextureHalfUnit + int2(
-                sign(uv.x) * round(abs(uv.x * (kSurfelDepthTextureHalfUnit.x - 1))),
-                sign(uv.y) * round(abs(uv.y * (kSurfelDepthTextureHalfUnit.y - 1)))
-            );
-            uint2 surfelDepthTextureCoord = surfelDepthLT + surfelDepthTextureOffset;
-
-            float2 signedUV = ((int2)surfelDepthTextureOffset - kSurfelDepthTextureHalfUnit) / (kSurfelDepthTextureHalfUnit - int2(1, 1));
-            float3 texelDir = octDecode(signedUV);
-            float depthWeight = saturate(dot(dirLocal, texelDir));
-
-            float k = 1e-2f;
-            float2 delta = float2(surfelDepth, pow(surfelDepth, 2)) - gSurfelDepthRW[surfelDepthTextureCoord];
-            gSurfelDepthRW[surfelDepthTextureCoord] = gSurfelDepthRW[surfelDepthTextureCoord] + k * delta * depthWeight;
+            const float l = gIrradianceMap[irrMapLT + uint2(x, y)];
+            sumLuminance += l;
+            if (!hasHole && step(l, 1e-12f))
+                hasHole = true;
         }
     }
+
+    surfel.sumLuminance = sumLuminance;
+    surfel.hasHole = hasHole;
+
+#else  // USE_RAY_GUIDING
+#endif // USE_RAY_GUIDING
+
+#ifdef USE_SURFEL_DEPTH
 
     // Write border.
     for (uint x = 1; x < kSurfelDepthTextureUnit.x - 1; ++x)
@@ -144,91 +176,77 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID)
         gSurfelDepthRW[surfelDepthLT + uint2(kSurfelDepthTextureUnit.x - 2, 0)]
     ) / 2.f;
 
-    surfelRadiance /= surfel.rayCount;
+#else  // USE_SURFEL_DEPTH
+#endif // USE_SURFEL_DEPTH
 
-    float sumLuminance = 0.f;
-    bool hasHole = false;
+#ifdef USE_IRRADIANCE_SHARING
 
-    // Sum luminances and check if irradiance map of surfel has hole (not sampled yet).
-    for (uint y = 0; y < kIrradianceMapUnit.y; ++y)
+    float4 sharedRadiance = float4(0.f);
+    int3 cellPos = getCellPos(surfel.position, gCameraPos, kCellUnit);
+    if (isCellValid(cellPos))
     {
-        for (uint x = 0; x < kIrradianceMapUnit.x; ++x)
+        const float3 centerPos = surfel.position;
+        const float3 centerNormal = surfel.normal;
+
+        uint flattenIndex = getFlattenCellIndex(cellPos);
+        CellInfo cellInfo = gCellInfoBuffer[flattenIndex];
+
+        for (uint i = 0; i < cellInfo.surfelCount; ++i)
         {
-            const float l = gIrradianceMap[irrMapLT + uint2(x, y)];
-            sumLuminance += l;
-            if (!hasHole && step(l, 1e-12f))
-                hasHole = true;
-        }
-    }
+            uint neiSurfelIndex = gCellToSurfelBuffer[cellInfo.cellToSurfelBufferOffset + i];
+            Surfel neiSurfel = gSurfelBuffer[neiSurfelIndex];
 
-    surfel.sumLuminance = sumLuminance;
-    surfel.hasHole = hasHole;
+            float3 bias = centerPos - neiSurfel.position;
+            float dist2 = dot(bias, bias);
+            float affectRadius = kCellUnit * sqrt(2);
 
-    // Irradiance sharing.
-    if (gUseIrradianceSharing)
-    {
-        float4 sharedRadiance = float4(0.f);
-        int3 cellPos = getCellPos(surfel.position, gCameraPos, kCellUnit);
-        if (isCellValid(cellPos))
-        {
-            const float3 centerPos = surfel.position;
-            const float3 centerNormal = surfel.normal;
-
-            uint flattenIndex = getFlattenCellIndex(cellPos);
-            CellInfo cellInfo = gCellInfoBuffer[flattenIndex];
-
-            for (uint i = 0; i < cellInfo.surfelCount; ++i)
+            if (dist2 < pow(affectRadius, 2))
             {
-                uint neiSurfelIndex = gCellToSurfelBuffer[cellInfo.cellToSurfelBufferOffset + i];
-                Surfel neiSurfel = gSurfelBuffer[neiSurfelIndex];
-
-                float3 bias = centerPos - neiSurfel.position;
-                float dist2 = dot(bias, bias);
-                float affectRadius = kCellUnit * sqrt(2);
-
-                if (dist2 < pow(affectRadius, 2))
+                float dotN = dot(neiSurfel.normal, centerNormal);
+                if (dotN > 0)
                 {
-                    float dotN = dot(neiSurfel.normal, centerNormal);
-                    if (dotN > 0)
+                    float dist = sqrt(dist2);
+                    float contribution = 1.f;
+
+                    contribution *= saturate(dotN);
+                    contribution *= saturate(1 - dist / affectRadius);
+                    contribution = smoothstep(0, 1, contribution);
+
+                    #ifdef USE_SURFEL_DEPTH
                     {
-                        float dist = sqrt(dist2);
-                        float contribution = 1.f;
+                        float2 uv = getSurfelDepthUV(surfelIndex, bias / dist, centerNormal);
+                        float2 surfelDepth = gSurfelDepth.SampleLevel(gSurfelDepthSampler, uv, 0u);
 
-                        contribution *= saturate(dotN);
-                        contribution *= saturate(1 - dist / affectRadius);
-                        contribution = smoothstep(0, 1, contribution);
+                        float mean = surfelDepth.x;
+                        float sqrMean = surfelDepth.y;
 
-                        if (gUseSurfelDepth)
+                        if (dist > mean)
                         {
-                            float2 uv = getSurfelDepthUV(surfelIndex, bias / dist, centerNormal);
-                            float2 surfelDepth = gSurfelDepth.SampleLevel(gSurfelDepthSampler, uv, 0u);
-
-                            float mean = surfelDepth.x;
-                            float sqrMean = surfelDepth.y;
-
-                            if (dist > mean)
-                            {
-                                float variance = sqrMean - pow(mean, 2);
-                                contribution *= variance / (variance + pow(dist - mean, 2));
-                            }
+                            float variance = sqrMean - pow(mean, 2);
+                            contribution *= variance / (variance + pow(dist - mean, 2));
                         }
-
-                        sharedRadiance += float4(neiSurfel.radiance, 1.f) * contribution;
                     }
+                    #else  // USE_SURFEL_DEPTH
+                    #endif // USE_SURFEL_DEPTH
+
+                    sharedRadiance += float4(neiSurfel.radiance, 1.f) * contribution;
                 }
             }
+        }
 
-            if (sharedRadiance.w > 0)
-            {
-                sharedRadiance.xyz /= sharedRadiance.w;
-                surfelRadiance = lerp(
-                    surfelRadiance,
-                    sharedRadiance.xyz,
-                    saturate(length(surfel.msmeData.variance) * gVarianceSensitivity)
-                );
-            }
+        if (sharedRadiance.w > 0)
+        {
+            sharedRadiance.xyz /= sharedRadiance.w;
+            surfelRadiance = lerp(
+                surfelRadiance,
+                sharedRadiance.xyz,
+                saturate(length(surfel.msmeData.variance) * gVarianceSensitivity)
+            );
         }
     }
+
+#else  // USE_IRRADIANCE_SHARING
+#endif // USE_IRRADIANCE_SHARING
 
     // Update surfel radiance using Multiscale Mean Estimator.
     float3 mean = MSME(surfelRadiance, surfel.msmeData, gShortMeanWindow);

@@ -57,8 +57,6 @@ private:
 
         // Integrate.
         float shortMeanWindow = 0.03f;
-        bool useSurfelDepth = true;
-        bool useIrradianceSharing = true;
     };
 
     struct StaticParams
@@ -73,6 +71,8 @@ private:
         bool limitSurfelSearch = false;
         uint maxSurfelForStep = 10;
         bool useRayGuiding = false;
+        bool useSurfelDepth = true;
+        bool useIrradianceSharing = true;
 
         DefineList getDefines(const SurfelGI& owner) const;
     };

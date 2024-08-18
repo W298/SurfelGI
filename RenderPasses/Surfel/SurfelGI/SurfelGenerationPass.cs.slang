@@ -16,7 +16,6 @@ cbuffer CB
     float gRemovalThreshold;
     uint gBlendingDelay;
     uint gOverlayMode;
-    bool gUseSurfelDepth;
     float gVarianceSensitivity;
 }
 
@@ -128,7 +127,7 @@ void csMain(
 
                         coverage += contribution;
 
-                        if (gUseSurfelDepth)
+                        #ifdef USE_SURFEL_DEPTH
                         {
                             float2 uv = getSurfelDepthUV(surfelIndex, bias / dist, normal);
                             float2 surfelDepth = gSurfelDepth.SampleLevel(gSurfelDepthSampler, uv, 0u);
@@ -142,6 +141,8 @@ void csMain(
                                 contribution *= variance / (variance + pow(dist - mean, 2));
                             }
                         }
+                        #else  // USE_SURFEL_DEPTH
+                        #endif // USE_SURFEL_DEPTH
 
                         // Delay blending if not sufficient sample is accumulated.
                         // Because samples are updated per frame, so do not use sample count directly.
