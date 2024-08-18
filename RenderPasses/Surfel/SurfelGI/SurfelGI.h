@@ -33,8 +33,8 @@ private:
     void reflectOutput(RenderPassReflection& reflector, uint2 resolution);
     void resetAndRecompile();
     void createPasses();
-    void createBufferResources();
-    void createTextureResources();
+    void createResolutionIndependentResources();
+    void createResolutionDependentResources();
     void bindResources(const RenderData& renderData);
 
     struct RuntimeParams
@@ -88,7 +88,7 @@ private:
     float3 mCamPos;
     float mRenderScale;
 
-    bool mIsResourceDirty;
+    bool mIsFrameDimChanged;
     bool mReadBackValid;
     bool mLockSurfel;
     bool mResetSurfelBuffer;

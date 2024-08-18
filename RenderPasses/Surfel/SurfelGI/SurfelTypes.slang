@@ -28,7 +28,6 @@ static const uint2 kIrradianceMapHalfUnit   = kIrradianceMapUnit / 2u;
 
 static const uint2 kSurfelDepthTextureRes = uint2(3840, 2160);
 static const uint2 kSurfelDepthTextureUnit = uint2(7, 7);
-static const uint kSrufelDepthTexturePadding = 1u;
 static const uint2 kSurfelDepthTextureHalfUnit = kSurfelDepthTextureUnit / 2u;
 
 struct Surfel

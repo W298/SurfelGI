@@ -60,7 +60,7 @@ RenderPassReflection SurfelGI::reflect(const CompileData& compileData)
 
     if (math::any(mFrameDim != compileData.defaultTexDims))
     {
-        mIsResourceDirty = true;
+        mIsFrameDimChanged = true;
         mFrameDim = compileData.defaultTexDims;
     }
 
@@ -75,15 +75,15 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
     if (mRecompile)
     {
         createPasses();
-        createBufferResources();
+        createResolutionIndependentResources();
 
         mRecompile = false;
     }
 
-    if (mIsResourceDirty)
+    if (mIsFrameDimChanged)
     {
-        createTextureResources();
-        mIsResourceDirty = false;
+        createResolutionDependentResources();
+        mIsFrameDimChanged = false;
     }
 
     bindResources(renderData);
@@ -180,6 +180,7 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
             var["CB"]["gCameraPos"] = mCamPos;
             var["CB"]["gUseIrradianceSharing"] = mRuntimeParams.useIrradianceSharing;
             var["CB"]["gVarianceSensitivity"] = mRuntimeParams.varianceSensitivity;
+            var["CB"]["gUseSurfelDepth"] = mRuntimeParams.useSurfelDepth;
 
             mpSurfelIntegratePass->execute(pRenderContext, uint3(kTotalSurfelLimit, 1, 1));
 
@@ -431,7 +432,7 @@ void SurfelGI::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
     mMaxFrameIndex = 1000000;
     mFrameDim = uint2(0, 0);
     mRenderScale = 1.f;
-    mIsResourceDirty = true;
+    mIsFrameDimChanged = true;
     mReadBackValid = false;
     mLockSurfel = false;
     mResetSurfelBuffer = false;
@@ -440,7 +441,7 @@ void SurfelGI::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
     mRayBudget = std::vector<float>(1000, 0.f);
 
     createPasses();
-    createBufferResources();
+    createResolutionIndependentResources();
 }
 
 bool SurfelGI::onKeyEvent(const KeyboardEvent& keyEvent)
@@ -523,7 +524,7 @@ void SurfelGI::resetAndRecompile()
 
     // Reset variables.
     mFrameIndex = 0;
-    mIsResourceDirty = true;
+    mIsFrameDimChanged = true;
     mReadBackValid = false;
     mLockSurfel = false;
 
@@ -599,7 +600,7 @@ void SurfelGI::createPasses()
         ComputePass::create(mpDevice, "RenderPasses/Surfel/SurfelGI/SurfelIntegratePass.cs.slang", "csMain", defines);
 }
 
-void SurfelGI::createBufferResources()
+void SurfelGI::createResolutionIndependentResources()
 {
     mpSurfelBuffer = mpDevice->createStructuredBuffer(
         sizeof(Surfel), kTotalSurfelLimit, ResourceBindFlags::UnorderedAccess, MemoryType::DeviceLocal, nullptr, false
@@ -686,9 +687,19 @@ void SurfelGI::createBufferResources()
     mpEmptySurfelBuffer = mpDevice->createStructuredBuffer(
         sizeof(Surfel), kTotalSurfelLimit, ResourceBindFlags::UnorderedAccess, MemoryType::DeviceLocal, nullptr, false
     );
+
+    mpSurfelDepthTextureReadOnly = mpDevice->createTexture2D(
+        kSurfelDepthTextureRes.x,
+        kSurfelDepthTextureRes.y,
+        ResourceFormat::RG32Float,
+        1u,
+        1u,
+        nullptr,
+        ResourceBindFlags::ShaderResource
+    );
 }
 
-void SurfelGI::createTextureResources() {}
+void SurfelGI::createResolutionDependentResources() {}
 
 void SurfelGI::bindResources(const RenderData& renderData)
 {
@@ -697,7 +708,6 @@ void SurfelGI::bindResources(const RenderData& renderData)
     mpDebugTexture = renderData.getTexture(kDebugTextureName);
     mpIrradianceMapTexture = renderData.getTexture(kIrradianceMapTextureName);
     mpSurfelDepthTexture = renderData.getTexture(kSurfelDepthTextureName);
-    mpSurfelDepthTextureReadOnly = renderData.getTexture(kSurfelDepthTextureReadOnlyName);
 
     // Evaluation Pass
     {
@@ -818,7 +828,10 @@ void SurfelGI::bindResources(const RenderData& renderData)
         var[kSurfelCounterVarName] = mpSurfelCounter;
 
         var["gIrradianceMap"] = mpIrradianceMapTexture;
-        var["gSurfelDepth"] = mpSurfelDepthTexture;
+        var["gSurfelDepthRW"] = mpSurfelDepthTexture;
+        var["gSurfelDepth"] = mpSurfelDepthTextureReadOnly;
+
+        var["gSurfelDepthSampler"] = mpSurfelDepthSampler;
     }
 }
 

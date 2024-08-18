@@ -130,22 +130,7 @@ void csMain(
 
                         if (gUseSurfelDepth)
                         {
-                            uint2 ltCoord = uint2(
-                                surfelIndex % (kSurfelDepthTextureRes.x / kSurfelDepthTextureUnit.x),
-                                surfelIndex / (kSurfelDepthTextureRes.x / kSurfelDepthTextureUnit.y)
-                            );
-                            ltCoord *= kSurfelDepthTextureUnit;
-                            ltCoord += float2(kSrufelDepthTexturePadding, kSrufelDepthTexturePadding);
-                            float2 ltUV = (float2)ltCoord / kSurfelDepthTextureRes;
-
-                            float3 worldVec = bias / dist;
-                            float3 localVec = mul(get_tangentspace(normal), worldVec);
-
-                            float2 localSignedUV = octEncode(normalize(localVec));
-                            float2 localUnsignedUV = (localSignedUV + float2(1.f, 1.f)) / 2.f;
-                            float2 localToWorld = (float2)(kSurfelDepthTextureUnit - uint2(kSrufelDepthTexturePadding, kSrufelDepthTexturePadding) * 2u) / kSurfelDepthTextureRes;
-                            float2 uv = ltUV + localUnsignedUV * localToWorld;
-
+                            float2 uv = getSurfelDepthUV(surfelIndex, bias / dist, normal);
                             float2 surfelDepth = gSurfelDepth.SampleLevel(gSurfelDepthSampler, uv, 0u);
 
                             float mean = surfelDepth.x;

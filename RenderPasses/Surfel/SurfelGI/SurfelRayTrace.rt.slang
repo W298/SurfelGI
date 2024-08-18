@@ -217,6 +217,21 @@ bool finalize(inout ScatterPayload scatterPayload, const VertexData v, const Tri
                 contribution *= saturate(1 - dist / surfel.radius);
                 contribution = smoothstep(0, 1, contribution);
 
+                if (gUseSurfelDepth)
+                {
+                    float2 uv = getSurfelDepthUV(surfelIndex, bias / dist, normal);
+                    float2 surfelDepth = gSurfelDepth.SampleLevel(gSurfelDepthSampler, uv, 0u);
+
+                    float mean = surfelDepth.x;
+                    float sqrMean = surfelDepth.y;
+
+                    if (dist > mean)
+                    {
+                        float variance = sqrMean - pow(mean, 2);
+                        contribution *= variance / (variance + pow(dist - mean, 2));
+                    }
+                }
+
                 Lr += float4(surfel.radiance, 1.f) * contribution;
 
                 if (isSleeping)
@@ -262,22 +277,7 @@ bool finalize(inout ScatterPayload scatterPayload, const VertexData v, const Tri
 
                 if (gUseSurfelDepth)
                 {
-                    uint2 ltCoord = uint2(
-                        surfelIndex % (kSurfelDepthTextureRes.x / kSurfelDepthTextureUnit.x),
-                        surfelIndex / (kSurfelDepthTextureRes.x / kSurfelDepthTextureUnit.y)
-                    );
-                    ltCoord *= kSurfelDepthTextureUnit;
-                    ltCoord += float2(kSrufelDepthTexturePadding, kSrufelDepthTexturePadding);
-                    float2 ltUV = (float2)ltCoord / kSurfelDepthTextureRes;
-
-                    float3 worldVec = bias / dist;
-                    float3 localVec = mul(get_tangentspace(normal), worldVec);
-
-                    float2 localSignedUV = octEncode(normalize(localVec));
-                    float2 localUnsignedUV = (localSignedUV + float2(1.f, 1.f)) / 2.f;
-                    float2 localToWorld = (float2)(kSurfelDepthTextureUnit - uint2(kSrufelDepthTexturePadding, kSrufelDepthTexturePadding) * 2u) / kSurfelDepthTextureRes;
-                    float2 uv = ltUV + localUnsignedUV * localToWorld;
-
+                    float2 uv = getSurfelDepthUV(surfelIndex, bias / dist, normal);
                     float2 surfelDepth = gSurfelDepth.SampleLevel(gSurfelDepthSampler, uv, 0u);
 
                     float mean = surfelDepth.x;
@@ -586,6 +586,7 @@ void rayGen()
     while (!(scatterPayload.status & 0x0002) && scatterPayload.currStep <= maxStep)
         traceScatterRay(scatterPayload);
 
+    // Store first ray length for estimating surfel depth function.
     surfelRayResult.firstRayLength = scatterPayload.firstRayLength;
 
     // Store final radiance to result.
