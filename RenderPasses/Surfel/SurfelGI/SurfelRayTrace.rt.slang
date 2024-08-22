@@ -75,8 +75,8 @@ RWByteAddressBuffer gSurfelReservationBuffer;
 RWByteAddressBuffer gSurfelRefCounter;
 RWByteAddressBuffer gSurfelCounter;
 
-RWTexture2D<float> gIrradianceMap;
 Texture2D<float2> gSurfelDepth;
+RWTexture2D<float> gIrradianceMap;
 
 SamplerState gSurfelDepthSampler;
 

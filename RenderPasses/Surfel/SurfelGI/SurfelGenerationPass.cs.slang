@@ -31,9 +31,8 @@ RWByteAddressBuffer gSurfelRefCounter;
 RWByteAddressBuffer gSurfelCounter;
 
 Texture2D<uint4> gPackedHitInfo;
-RWTexture2D<float4> gOutput;
-RWTexture2D<float4> gDebug;
 Texture2D<float2> gSurfelDepth;
+RWTexture2D<float4> gOutput;
 
 SamplerState gSurfelDepthSampler;
 

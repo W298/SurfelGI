@@ -118,10 +118,8 @@ private:
     } mRtPass;
 
     ref<Texture> mpOutputTexture;
-    ref<Texture> mpDebugTexture;
     ref<Texture> mpIrradianceMapTexture;
     ref<Texture> mpSurfelDepthTexture;
-    ref<Texture> mpSurfelDepthTextureReadOnly;
 
     ref<Buffer> mpSurfelBuffer;
     ref<Buffer> mpSurfelGeometryBuffer;

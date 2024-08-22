@@ -12,6 +12,7 @@ cbuffer CB
     float gRemovalThreshold;
     uint gBlendingDelay;
     uint gOverlayMode;
+    float gVarianceSensitivity;
 }
 
 RWStructuredBuffer<Surfel> gSurfelBuffer;
@@ -22,7 +23,10 @@ RWStructuredBuffer<SurfelRecycleInfo> gSurfelRecycleInfoBuffer;
 RWByteAddressBuffer gSurfelRefCounter;
 
 Texture2D<uint4> gPackedHitInfo;
+Texture2D<float2> gSurfelDepth;
 RWTexture2D<float4> gOutput;
+
+SamplerState gSurfelDepthSampler;
 
 [numthreads(16, 16, 1)]
 void csMain(
@@ -36,7 +40,6 @@ void csMain(
 
     RNG randomState;
     randomState.init(pixelPos, gFrameIndex);
-
 
     HitInfo hitInfo = HitInfo(gPackedHitInfo[pixelPos]);
     if (!hitInfo.isValid())
@@ -54,12 +57,14 @@ void csMain(
     uint flattenIndex = getFlattenCellIndex(cellPos);
     CellInfo cellInfo = gCellInfoBuffer[flattenIndex];
 
-    float coverage = 0.f;
     float4 indirectLighting = float4(0.f);
+    float coverage = 0.f;
     float varianceEx = 0.f;
     float rayCountEx = 0.f;
     uint refCount = 0;
     uint life = 0;
+
+    float maxVariance = 0.f;
 
     for (uint i = 0; i < cellInfo.surfelCount; ++i)
     {
@@ -85,6 +90,23 @@ void csMain(
 
                 coverage += contribution;
 
+                #ifdef USE_SURFEL_DEPTH
+                {
+                    float2 uv = getSurfelDepthUV(surfelIndex, bias / dist, normal);
+                    float2 surfelDepth = gSurfelDepth.SampleLevel(gSurfelDepthSampler, uv, 0u);
+
+                    float mean = surfelDepth.x;
+                    float sqrMean = surfelDepth.y;
+
+                    if (dist > mean)
+                    {
+                        float variance = sqrMean - pow(mean, 2);
+                        contribution *= variance / (variance + pow(dist - mean, 2));
+                    }
+                }
+                #else  // USE_SURFEL_DEPTH
+                #endif // USE_SURFEL_DEPTH
+
                 const SurfelRecycleInfo surfelRecycleInfo = gSurfelRecycleInfoBuffer[surfelIndex];
 
                 // Delay blending if not sufficient sample is accumulated.
@@ -96,6 +118,8 @@ void csMain(
 
                 refCount = max(refCount, gSurfelRefCounter.Load(surfelIndex));
                 life = max(life, surfelRecycleInfo.life);
+
+                maxVariance = max(maxVariance, length(surfel.msmeData.variance));
             }
         }
     }
@@ -115,7 +139,7 @@ void csMain(
         }
         else if (gOverlayMode == 1)
         {
-            gOutput[pixelPos] = float4(stepColor(varianceEx, 0.1f, 0.05f), 1);
+            gOutput[pixelPos] = float4(stepColor(maxVariance * gVarianceSensitivity, 0.8f, 0.5f), 1);
         }
         else if (gOverlayMode == 2)
         {

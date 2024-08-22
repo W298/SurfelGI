@@ -28,8 +28,6 @@ RWByteAddressBuffer gSurfelReservationBuffer;
 RWByteAddressBuffer gSurfelRefCounter;
 RWByteAddressBuffer gSurfelCounter;
 
-RWTexture2D<float2> gSurfelDepth;
-
 // Calculate how much surfels are located at cell.
 [numthreads(32, 1, 1)]
 void collectCellInfo(uint3 dispatchThreadId: SV_DispatchThreadID)

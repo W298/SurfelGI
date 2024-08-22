@@ -22,9 +22,9 @@ RWStructuredBuffer<SurfelRayResult> gSurfelRayResultBuffer;
 
 RWByteAddressBuffer gSurfelCounter;
 
-RWTexture2D<float> gIrradianceMap;
-RWTexture2D<float2> gSurfelDepthRW;
 Texture2D<float2> gSurfelDepth;
+RWTexture2D<float2> gSurfelDepthRW;
+RWTexture2D<float> gIrradianceMap;
 
 SamplerState gSurfelDepthSampler;
 
