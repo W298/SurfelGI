@@ -16,6 +16,7 @@ cbuffer CB
     float gRemovalThreshold;
     uint gBlendingDelay;
     uint gOverlayMode;
+    float gVarianceSensitivity;
 }
 
 RWStructuredBuffer<Surfel> gSurfelBuffer;
@@ -30,8 +31,10 @@ RWByteAddressBuffer gSurfelRefCounter;
 RWByteAddressBuffer gSurfelCounter;
 
 Texture2D<uint4> gPackedHitInfo;
+Texture2D<float2> gSurfelDepth;
 RWTexture2D<float4> gOutput;
-RWTexture2D<float4> gDebug;
+
+SamplerState gSurfelDepthSampler;
 
 groupshared uint groupShareMinCoverage;
 groupshared uint groupShareMaxContribution;
@@ -89,6 +92,7 @@ void csMain(
         uint refCount = 0;
         uint life = 0;
 
+        float maxVariance = 0.f;
         float maxContribution = 0.f;
         uint maxContributionSurfelIndex = randomState.next_uint(cellInfo.surfelCount);
 
@@ -122,6 +126,23 @@ void csMain(
 
                         coverage += contribution;
 
+                        #ifdef USE_SURFEL_DEPTH
+                        {
+                            float2 uv = getSurfelDepthUV(surfelIndex, bias / dist, normal);
+                            float2 surfelDepth = gSurfelDepth.SampleLevel(gSurfelDepthSampler, uv, 0u);
+
+                            float mean = surfelDepth.x;
+                            float sqrMean = surfelDepth.y;
+
+                            if (dist > mean)
+                            {
+                                float variance = sqrMean - pow(mean, 2);
+                                contribution *= variance / (variance + pow(dist - mean, 2));
+                            }
+                        }
+                        #else  // USE_SURFEL_DEPTH
+                        #endif // USE_SURFEL_DEPTH
+
                         // Delay blending if not sufficient sample is accumulated.
                         // Because samples are updated per frame, so do not use sample count directly.
                         indirectLighting += float4(surfel.radiance, 1.f) * contribution * smoothstep(0, gBlendingDelay, surfelRecycleInfo.frame);
@@ -137,6 +158,8 @@ void csMain(
                             maxContribution = contribution;
                             maxContributionSurfelIndex = i;
                         }
+
+                        maxVariance = max(maxVariance, length(surfel.msmeData.variance));
                     }
 
                     if (!lastSeen)
@@ -160,7 +183,7 @@ void csMain(
             }
             else if (gOverlayMode == 1)
             {
-                gOutput[pixelPos] = float4(stepColor(varianceEx, 0.1f, 0.05f), 1);
+                gOutput[pixelPos] = float4(stepColor(maxVariance * gVarianceSensitivity, 0.8f, 0.5f), 1);
             }
             else if (gOverlayMode == 2)
             {

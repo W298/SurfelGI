@@ -286,3 +286,23 @@ float3 stepColor(float t, float r, float g)
     else
         return float3(0, 0, 1);
 }
+
+float2 getSurfelDepthUV(uint surfelIndex, float3 dirW, float3 normalW)
+{
+    uint2 ltCoord = uint2(
+        surfelIndex % (kSurfelDepthTextureRes.x / kSurfelDepthTextureUnit.x),
+        surfelIndex / (kSurfelDepthTextureRes.x / kSurfelDepthTextureUnit.y)
+    );
+    ltCoord *= kSurfelDepthTextureUnit;
+    ltCoord += uint2(1, 1);
+    float2 ltUV = (float2)ltCoord / kSurfelDepthTextureRes;
+
+    float3 dirTangent = mul(get_tangentspace(normalW), dirW);
+
+    float2 localSignedUV = octEncode(normalize(dirTangent));
+    float2 localUnsignedUV = (localSignedUV + float2(1.f, 1.f)) / 2.f;
+    float2 localToGlobal = (float2)(kSurfelDepthTextureUnit - uint2(2, 2)) / kSurfelDepthTextureRes;
+    float2 uv = ltUV + localUnsignedUV * localToGlobal;
+
+    return uv;
+}

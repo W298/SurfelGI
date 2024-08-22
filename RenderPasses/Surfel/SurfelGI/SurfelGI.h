@@ -33,8 +33,8 @@ private:
     void reflectOutput(RenderPassReflection& reflector, uint2 resolution);
     void resetAndRecompile();
     void createPasses();
-    void createBufferResources();
-    void createTextureResources();
+    void createResolutionIndependentResources();
+    void createResolutionDependentResources();
     void bindResources(const RenderData& renderData);
 
     struct RuntimeParams
@@ -71,8 +71,8 @@ private:
         bool limitSurfelSearch = false;
         uint maxSurfelForStep = 10;
         bool useRayGuiding = false;
-
-        bool useIrradinaceSharing = false;
+        bool useSurfelDepth = true;
+        bool useIrradianceSharing = true;
 
         DefineList getDefines(const SurfelGI& owner) const;
     };
@@ -88,7 +88,7 @@ private:
     float3 mCamPos;
     float mRenderScale;
 
-    bool mIsResourceDirty;
+    bool mIsFrameDimChanged;
     bool mReadBackValid;
     bool mLockSurfel;
     bool mResetSurfelBuffer;
@@ -118,8 +118,8 @@ private:
     } mRtPass;
 
     ref<Texture> mpOutputTexture;
-    ref<Texture> mpDebugTexture;
     ref<Texture> mpIrradianceMapTexture;
+    ref<Texture> mpSurfelDepthTexture;
 
     ref<Buffer> mpSurfelBuffer;
     ref<Buffer> mpSurfelGeometryBuffer;
@@ -137,4 +137,6 @@ private:
 
     ref<Buffer> mpEmptySurfelBuffer;
     ref<Buffer> mpReadBackBuffer;
+
+    ref<Sampler> mpSurfelDepthSampler;
 };
