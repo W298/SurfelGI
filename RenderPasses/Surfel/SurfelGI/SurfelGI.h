@@ -117,7 +117,8 @@ private:
         ref<RtProgramVars> pVars;
     } mRtPass;
 
-    ref<Texture> mpOutputTexture;
+    ref<Texture> mpDiffuseOutputTexture;
+    ref<Texture> mpReflectionOutputTexture;
     ref<Texture> mpIrradianceMapTexture;
     ref<Texture> mpSurfelDepthTexture;
 

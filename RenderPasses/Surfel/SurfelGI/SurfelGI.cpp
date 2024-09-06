@@ -10,8 +10,11 @@ float plotFunc(void* data, int i)
     return static_cast<float*>(data)[i];
 }
 
-const std::string kPackedHitInfoTextureName = "packedHitInfo";
-const std::string kOutputTextureName = "output";
+const std::string kHitInfoTextureName = "hitInfo";
+const std::string kReflectionHitInfoTextureName = "reflectionHitInfo";
+
+const std::string kDiffuseOutputTextureName = "diffuse output";
+const std::string kReflectionOutputTextureName = "reflection output";
 const std::string kIrradianceMapTextureName = "irradiance map";
 const std::string kSurfelDepthTextureName = "surfel depth";
 
@@ -153,7 +156,7 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
         var["CB"]["gOverlayMode"] = (uint)mRuntimeParams.overlayMode;
         var["CB"]["gVarianceSensitivity"] = mRuntimeParams.varianceSensitivity;
 
-        pRenderContext->clearUAV(mpOutputTexture->getUAV().get(), float4(0));
+        pRenderContext->clearUAV(mpDiffuseOutputTexture->getUAV().get(), float4(0));
         mpSurfelEvaluationPass->execute(pRenderContext, uint3(mFrameDim, 1));
     }
     else
@@ -199,7 +202,32 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
             var["CB"]["gBlendingDelay"] = mRuntimeParams.blendingDelay;
             var["CB"]["gVarianceSensitivity"] = mRuntimeParams.varianceSensitivity;
 
-            pRenderContext->clearUAV(mpOutputTexture->getUAV().get(), float4(0));
+            pRenderContext->clearUAV(mpDiffuseOutputTexture->getUAV().get(), float4(0));
+            mpSurfelGenerationPass->execute(pRenderContext, uint3(mFrameDim, 1));
+        }
+
+        {
+            FALCOR_PROFILE(pRenderContext, "Surfel Generation Pass 2");
+
+            auto var = mpSurfelGenerationPass->getRootVar();
+
+            mpScene->setRaytracingShaderData(pRenderContext, var);
+
+            var["gHitInfo"] = renderData.getTexture(kReflectionHitInfoTextureName);
+            var["gOutput"] = mpReflectionOutputTexture;
+
+            var["CB"]["gResolution"] = mFrameDim;
+            var["CB"]["gFOVy"] = mFOVy;
+            var["CB"]["gFrameIndex"] = mFrameIndex;
+            var["CB"]["gChanceMultiply"] = mRuntimeParams.chanceMultiply;
+            var["CB"]["gChancePower"] = mRuntimeParams.chancePower;
+            var["CB"]["gPlacementThreshold"] = mRuntimeParams.placementThreshold;
+            var["CB"]["gRemovalThreshold"] = mRuntimeParams.removalThreshold;
+            var["CB"]["gOverlayMode"] = (uint)mRuntimeParams.overlayMode;
+            var["CB"]["gBlendingDelay"] = mRuntimeParams.blendingDelay;
+            var["CB"]["gVarianceSensitivity"] = mRuntimeParams.varianceSensitivity;
+
+            pRenderContext->clearUAV(mpReflectionOutputTexture->getUAV().get(), float4(0));
             mpSurfelGenerationPass->execute(pRenderContext, uint3(mFrameDim, 1));
         }
     }
@@ -417,11 +445,11 @@ void SurfelGI::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
 
     // Overwrite material property for rendering only diffuse.
     // It will be removed when specular (glossy) GI is implemented.
-    for (const auto& mat : mpScene->getMaterials())
+    /*for (const auto& mat : mpScene->getMaterials())
     {
         mat->toBasicMaterial()->setSpecularTexture(nullptr);
         mat->toBasicMaterial()->setSpecularParams(float4(0, 0, 0, 0));
-    }
+    }*/
 
     mFrameIndex = 0;
     mMaxFrameIndex = 1000000;
@@ -452,14 +480,22 @@ bool SurfelGI::onKeyEvent(const KeyboardEvent& keyEvent)
 
 void SurfelGI::reflectInput(RenderPassReflection& reflector, uint2 resolution)
 {
-    reflector.addInput(kPackedHitInfoTextureName, "packed hit info texture")
+    reflector.addInput(kHitInfoTextureName, "hit info texture")
+        .format(ResourceFormat::RGBA32Uint)
+        .bindFlags(ResourceBindFlags::ShaderResource);
+
+    reflector.addInput(kReflectionHitInfoTextureName, "reflection hit info texture")
         .format(ResourceFormat::RGBA32Uint)
         .bindFlags(ResourceBindFlags::ShaderResource);
 }
 
 void SurfelGI::reflectOutput(RenderPassReflection& reflector, uint2 resolution)
 {
-    reflector.addOutput(kOutputTextureName, "output texture")
+    reflector.addOutput(kDiffuseOutputTextureName, "diffuse indirect lighting texture")
+        .format(ResourceFormat::RGBA32Float)
+        .bindFlags(ResourceBindFlags::UnorderedAccess);
+
+    reflector.addOutput(kReflectionOutputTextureName, "reflection indirect lighting texture")
         .format(ResourceFormat::RGBA32Float)
         .bindFlags(ResourceBindFlags::UnorderedAccess);
 
@@ -679,8 +715,11 @@ void SurfelGI::createResolutionDependentResources() {}
 
 void SurfelGI::bindResources(const RenderData& renderData)
 {
-    const auto& pPackedHitInfoTexture = renderData.getTexture(kPackedHitInfoTextureName);
-    mpOutputTexture = renderData.getTexture(kOutputTextureName);
+    const auto& pHitInfoTexture = renderData.getTexture(kHitInfoTextureName);
+    const auto& pReflectionInfoTexture = renderData.getTexture(kReflectionHitInfoTextureName);
+
+    mpDiffuseOutputTexture = renderData.getTexture(kDiffuseOutputTextureName);
+    mpReflectionOutputTexture = renderData.getTexture(kReflectionOutputTextureName);
     mpIrradianceMapTexture = renderData.getTexture(kIrradianceMapTextureName);
     mpSurfelDepthTexture = renderData.getTexture(kSurfelDepthTextureName);
 
@@ -695,9 +734,9 @@ void SurfelGI::bindResources(const RenderData& renderData)
 
         var[kSurfelRefCounterVarName] = mpSurfelRefCounter;
 
-        var["gPackedHitInfo"] = pPackedHitInfoTexture;
+        var["gHitInfo"] = pHitInfoTexture;
         var["gSurfelDepth"] = mpSurfelDepthTexture;
-        var["gOutput"] = mpOutputTexture;
+        var["gOutput"] = mpDiffuseOutputTexture;
 
         var["gSurfelDepthSampler"] = mpSurfelDepthSampler;
     }
@@ -770,28 +809,6 @@ void SurfelGI::bindResources(const RenderData& renderData)
         var["gSurfelDepthSampler"] = mpSurfelDepthSampler;
     }
 
-    // Surfel Generation Pass
-    {
-        auto var = mpSurfelGenerationPass->getRootVar();
-
-        var[kSurfelBufferVarName] = mpSurfelBuffer;
-        var[kSurfelGeometryBufferVarName] = mpSurfelGeometryBuffer;
-        var[kSurfelFreeIndexBufferVarName] = mpSurfelFreeIndexBuffer;
-        var[kSurfelValidIndexBufferVarName] = mpSurfelValidIndexBuffer;
-        var[kCellInfoBufferVarName] = mpCellInfoBuffer;
-        var[kCellToSurfelBufferVarName] = mpCellToSurfelBuffer;
-        var[kSurfelRecycleInfoBufferVarName] = mpSurfelRecycleInfoBuffer;
-
-        var[kSurfelRefCounterVarName] = mpSurfelRefCounter;
-        var[kSurfelCounterVarName] = mpSurfelCounter;
-
-        var["gPackedHitInfo"] = pPackedHitInfoTexture;
-        var["gSurfelDepth"] = mpSurfelDepthTexture;
-        var["gOutput"] = mpOutputTexture;
-
-        var["gSurfelDepthSampler"] = mpSurfelDepthSampler;
-    }
-
     // Surfel Integrate Pass
     {
         auto var = mpSurfelIntegratePass->getRootVar();
@@ -807,6 +824,28 @@ void SurfelGI::bindResources(const RenderData& renderData)
         var["gSurfelDepth"] = mpSurfelDepthTexture;
         var["gSurfelDepthRW"] = mpSurfelDepthTexture;
         var["gIrradianceMap"] = mpIrradianceMapTexture;
+
+        var["gSurfelDepthSampler"] = mpSurfelDepthSampler;
+    }
+
+    // Surfel Generation Pass
+    {
+        auto var = mpSurfelGenerationPass->getRootVar();
+
+        var[kSurfelBufferVarName] = mpSurfelBuffer;
+        var[kSurfelGeometryBufferVarName] = mpSurfelGeometryBuffer;
+        var[kSurfelFreeIndexBufferVarName] = mpSurfelFreeIndexBuffer;
+        var[kSurfelValidIndexBufferVarName] = mpSurfelValidIndexBuffer;
+        var[kCellInfoBufferVarName] = mpCellInfoBuffer;
+        var[kCellToSurfelBufferVarName] = mpCellToSurfelBuffer;
+        var[kSurfelRecycleInfoBufferVarName] = mpSurfelRecycleInfoBuffer;
+
+        var[kSurfelRefCounterVarName] = mpSurfelRefCounter;
+        var[kSurfelCounterVarName] = mpSurfelCounter;
+
+        var["gHitInfo"] = pHitInfoTexture;
+        var["gSurfelDepth"] = mpSurfelDepthTexture;
+        var["gOutput"] = mpDiffuseOutputTexture;
 
         var["gSurfelDepthSampler"] = mpSurfelDepthSampler;
     }

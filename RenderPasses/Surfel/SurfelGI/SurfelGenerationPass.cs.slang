@@ -30,8 +30,9 @@ RWStructuredBuffer<SurfelRecycleInfo> gSurfelRecycleInfoBuffer;
 RWByteAddressBuffer gSurfelRefCounter;
 RWByteAddressBuffer gSurfelCounter;
 
-Texture2D<uint4> gPackedHitInfo;
+Texture2D<uint4> gHitInfo;
 Texture2D<float2> gSurfelDepth;
+
 RWTexture2D<float4> gOutput;
 
 SamplerState gSurfelDepthSampler;
@@ -65,7 +66,7 @@ void csMain(
     RNG randomState;
     randomState.init(pixelPos, gFrameIndex);
 
-    HitInfo hitInfo = HitInfo(gPackedHitInfo[pixelPos]);
+    HitInfo hitInfo = HitInfo(gHitInfo[pixelPos]);
     if (!hitInfo.isValid())
         return;
 

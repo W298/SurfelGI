@@ -36,4 +36,5 @@ private:
     uint                    mFrameIndex;
     bool                    mRenderDirectLighting;
     bool                    mRenderIndirectLighting;
+    bool                    mRenderReflection;
 };

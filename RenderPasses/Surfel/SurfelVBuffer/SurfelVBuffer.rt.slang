@@ -1,6 +1,7 @@
 #include "Utils/Math/MathConstants.slangh"
 
 import Scene.Raytracing;
+import RenderPasses.Surfel.HashUtils;
 
 cbuffer CB
 {
@@ -14,16 +15,18 @@ struct Payload
     uint length;
 };
 
-RWTexture2D<uint4> gPackedHitInfo;
-RWTexture2D<float> gDepth;
+RWTexture2D<uint4> gReflectionHitInfo;
+RWTexture2D<float4> gReflectionDirection;
+RWTexture2D<float4> gInstanceIDVisual;
 
 [shader("miss")]
 void miss(inout Payload payload)
 {
     uint2 pixelPos = DispatchRaysIndex().xy;
 
-    gPackedHitInfo[pixelPos] = {};
-    gDepth[pixelPos] = 1.f;
+    gReflectionHitInfo[pixelPos] = {};
+    gReflectionDirection[pixelPos] = float4(-payload.direction, 0.f);
+    gInstanceIDVisual[pixelPos] = float4(0.f);
 }
 
 [shader("anyhit")]
@@ -51,11 +54,9 @@ void closeHit(inout Payload payload, BuiltInTriangleIntersectionAttributes attri
 
     if (payload.length >= 1)
     {
-        float4 curPosH = mul(gScene.camera.data.viewProjMatNoJitter, float4(v.posW, 1.f));
-        float depth = curPosH.z / curPosH.w;
-
-        gPackedHitInfo[pixelPos] = triangleHit.pack();
-        gDepth[pixelPos] = depth;
+        gReflectionHitInfo[pixelPos] = triangleHit.pack();
+        gReflectionDirection[pixelPos] = float4(-payload.direction, 0.f);
+        gInstanceIDVisual[pixelPos] = float4(pseudocolor(triangleHit.instanceID.index), 1.f);
     }
     else
     {

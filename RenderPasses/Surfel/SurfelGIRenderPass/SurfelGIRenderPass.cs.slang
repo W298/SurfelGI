@@ -12,10 +12,15 @@ cbuffer CB
     uint gFrameIndex;
     bool gRenderDirectLighting;
     bool gRenderIndirectLighting;
+    bool gRenderReflection;
 }
 
-Texture2D<uint4> gPackedHitInfo;
-Texture2D<float4> gIndirectLighting;
+Texture2D<uint4> gHitInfo;
+Texture2D<uint4> gReflectionHitInfo;
+Texture2D<float4> gReflectionDirection;
+Texture2D<float4> gDiffuseIndirectLighting;
+Texture2D<float4> gReflectionIndirectLighting;
+
 RWTexture2D<float4> gOutput;
 
 // [Sample ALL light sources]
@@ -68,15 +73,53 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupdId: SV_Grou
         return;
 
     uint2 pixelPos = dispatchThreadId.xy;
-    HitInfo hitInfo = HitInfo(gPackedHitInfo[pixelPos]);
+    HitInfo hitInfo = HitInfo(gHitInfo[pixelPos]);
 
     // If hit is miss, draw environment map.
     if (!hitInfo.isValid())
     {
         const float3 ray = gScene.camera.computeRayPinhole(pixelPos, gResolution).dir;
         gOutput[pixelPos] = float4(gScene.envMap.eval(ray), 1);
+
+        return;
     }
-    else
+
+    SampleGenerator sg = SampleGenerator(pixelPos, gFrameIndex);
+
+    float3 reflectionLighting = float3(0.f);
+    {
+        HitInfo refHitInfo = HitInfo(gReflectionHitInfo[pixelPos]);
+        const float3 reflectionDir = gReflectionDirection[pixelPos].xyz;
+
+        // If reflection hit is miss, draw environment map.
+        if (!refHitInfo.isValid())
+        {
+            const float3 refRayDir = -reflectionDir;
+            reflectionLighting = gScene.envMap.eval(refRayDir);
+        }
+        else
+        {
+            TriangleHit triangleHit = refHitInfo.getTriangleHit();
+            VertexData v = gScene.getVertexData(triangleHit);
+            uint materialID = gScene.getMaterialID(triangleHit.instanceID);
+            let lod = ExplicitLodTextureSampler(0.f);
+            ShadingData sd = gScene.materials.prepareShadingData(v, materialID, reflectionDir, lod);
+            let mi = gScene.materials.getMaterialInstance(sd, lod);
+
+            BSDFProperties props = mi.getProperties(sd);
+            float3 weight = props.diffuseReflectionAlbedo;
+
+            if (gRenderDirectLighting)
+                reflectionLighting += evalAnalyticLight(sd, mi, sg);
+
+            if (gRenderIndirectLighting)
+                reflectionLighting += weight * gReflectionIndirectLighting[pixelPos].xyz;
+
+            reflectionLighting += mi.getProperties(sd).emission;
+        }
+    }
+
+    float3 finalGather = float3(0.f);
     {
         TriangleHit triangleHit = hitInfo.getTriangleHit();
         VertexData v = gScene.getVertexData(triangleHit);
@@ -86,35 +129,23 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupdId: SV_Grou
         ShadingData sd = gScene.materials.prepareShadingData(v, materialID, viewDir, lod);
         let mi = gScene.materials.getMaterialInstance(sd, lod);
 
-        SampleGenerator sg = SampleGenerator(pixelPos, gFrameIndex);
-
-        float3 finalGather = float3(0.f);
-
         const float3 directLighting = evalAnalyticLight(sd, mi, sg);
-        const float3 indirectLighting = gIndirectLighting[pixelPos].xyz;
-        const float3 emissiveLighting = mi.getProperties(sd).emission;
+        const float3 diffuseIndirectLighting = gDiffuseIndirectLighting[pixelPos].xyz;
 
-        if (gRenderDirectLighting && gRenderIndirectLighting)
-        {
-            // So far, specular is not supported.
+        BSDFProperties props = mi.getProperties(sd);
+        float3 weight = props.diffuseReflectionAlbedo;
 
-            // weight = f(wi, wo) * dot(wo, n) / pdf(wo).
-            // Becuase it is lambertian,
-            // - BRDF term is albedo / PI,
-            // - pdf is 1 / PI,
-            // dot(wo, n) is already calculated when accumulating surfel radiance.
-            // so, weight is equal to albedo.
+        if (gRenderDirectLighting)
+            finalGather += directLighting;
 
-            BSDFProperties props = mi.getProperties(sd);
-            float3 weight = props.diffuseReflectionAlbedo;
-            finalGather = directLighting + weight * indirectLighting + emissiveLighting;
-        }
-        else
-        {
-            finalGather = gRenderDirectLighting ? directLighting : gRenderIndirectLighting ? indirectLighting : float3(0.f);
-            finalGather += emissiveLighting;
-        }
+        if (gRenderIndirectLighting)
+            finalGather += weight * diffuseIndirectLighting;
 
-        gOutput[pixelPos] = float4(finalGather, 1.f);
+        if (gRenderReflection)
+            finalGather += reflectionLighting;
+
+        finalGather += mi.getProperties(sd).emission;
     }
+
+    gOutput[pixelPos] = float4(finalGather, 1.f);
 }

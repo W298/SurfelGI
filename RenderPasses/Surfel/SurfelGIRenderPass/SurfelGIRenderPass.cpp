@@ -20,13 +20,29 @@ RenderPassReflection SurfelGIRenderPass::reflect(const CompileData& compileData)
     RenderPassReflection reflector;
 
     // Input
-    reflector.addInput("packedHitInfo", "packed hit info texture")
+    reflector.addInput("hitInfo", "hit info texture")
         .format(ResourceFormat::RGBA32Uint)
         .bindFlags(ResourceBindFlags::ShaderResource);
 
-    reflector.addInput("indirectLighting", "indirect lighting texture")
+    reflector.addInput("reflectionHitInfo", "reflection hit info texture")
+        .format(ResourceFormat::RGBA32Uint)
+        .bindFlags(ResourceBindFlags::ShaderResource)
+        .flags(RenderPassReflection::Field::Flags::Optional);
+
+    reflector.addInput("reflectionDirection", "reflection direction texture")
         .format(ResourceFormat::RGBA32Float)
-        .bindFlags(ResourceBindFlags::ShaderResource);
+        .bindFlags(ResourceBindFlags::ShaderResource)
+        .flags(RenderPassReflection::Field::Flags::Optional);
+
+    reflector.addInput("diffuseIndirectLighting", "diffuse indirect lighting texture")
+        .format(ResourceFormat::RGBA32Float)
+        .bindFlags(ResourceBindFlags::ShaderResource)
+        .flags(RenderPassReflection::Field::Flags::Optional);
+
+    reflector.addInput("reflectionIndirectLighting", "reflection indirect lighting texture")
+        .format(ResourceFormat::RGBA32Float)
+        .bindFlags(ResourceBindFlags::ShaderResource)
+        .flags(RenderPassReflection::Field::Flags::Optional);
 
     // Output
     reflector.addOutput("output", "output texture")
@@ -38,11 +54,15 @@ RenderPassReflection SurfelGIRenderPass::reflect(const CompileData& compileData)
 
 void SurfelGIRenderPass::execute(RenderContext* pRenderContext, const RenderData& renderData)
 {
-    const auto& pPackedHitInfo = renderData.getTexture("packedHitInfo");
-    const auto& pIndirectLighting = renderData.getTexture("indirectLighting");
+    const auto& pHitInfo = renderData.getTexture("hitInfo");
+    const auto& pReflectionHitInfo = renderData.getTexture("reflectionHitInfo");
+    const auto& pReflectionDirection = renderData.getTexture("reflectionDirection");
+    const auto& pDiffuseIndirectLighting = renderData.getTexture("diffuseIndirectLighting");
+    const auto& pReflectionIndirectLighting = renderData.getTexture("reflectionIndirectLighting");
+
     const auto& pOutput = renderData.getTexture("output");
 
-    FALCOR_ASSERT(pPackedHitInfo && pIndirectLighting && pOutput);
+    FALCOR_ASSERT(pHitInfo && pOutput);
 
     if (mpProgram)
     {
@@ -53,9 +73,15 @@ void SurfelGIRenderPass::execute(RenderContext* pRenderContext, const RenderData
         var["CB"]["gFrameIndex"] = mFrameIndex;
         var["CB"]["gRenderDirectLighting"] = mRenderDirectLighting;
         var["CB"]["gRenderIndirectLighting"] = mRenderIndirectLighting;
+        var["CB"]["gRenderReflection"] = mRenderReflection;
 
-        var["gPackedHitInfo"] = pPackedHitInfo;
-        var["gIndirectLighting"] = pIndirectLighting;
+        var["gHitInfo"] = pHitInfo;
+
+        if (pReflectionHitInfo != nullptr)              var["gReflectionHitInfo"] = pReflectionHitInfo;
+        if (pReflectionDirection != nullptr)            var["gReflectionDirection"] = pReflectionDirection;
+        if (pDiffuseIndirectLighting != nullptr)        var["gDiffuseIndirectLighting"] = pDiffuseIndirectLighting;
+        if (pReflectionIndirectLighting != nullptr)     var["gReflectionIndirectLighting"] = pReflectionIndirectLighting;
+
         var["gOutput"] = pOutput;
 
         pRenderContext->clearUAV(pOutput->getUAV().get(), float4(0));
@@ -72,6 +98,7 @@ void SurfelGIRenderPass::renderUI(Gui::Widgets& widget)
 {
     widget.checkbox("Direct Lighting", mRenderDirectLighting);
     widget.checkbox("Indirect Lighting", mRenderIndirectLighting);
+    widget.checkbox("Reflection", mRenderReflection);
 }
 
 void SurfelGIRenderPass::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
@@ -79,6 +106,7 @@ void SurfelGIRenderPass::setScene(RenderContext* pRenderContext, const ref<Scene
     mpScene = pScene;
     mRenderDirectLighting = true;
     mRenderIndirectLighting = true;
+    mRenderReflection = true;
 
     if (mpScene)
     {

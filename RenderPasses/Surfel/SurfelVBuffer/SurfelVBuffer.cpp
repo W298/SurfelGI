@@ -17,12 +17,16 @@ RenderPassReflection SurfelVBuffer::reflect(const CompileData& compileData)
 {
     RenderPassReflection reflector;
 
-    reflector.addOutput("packedHitInfo", "Packed Hit Info")
+    reflector.addOutput("reflectionHitInfo", "reflection hit info texture")
         .format(ResourceFormat::RGBA32Uint)
         .bindFlags(ResourceBindFlags::UnorderedAccess);
 
-    reflector.addOutput("depth", "Depth buffer")
-        .format(ResourceFormat::R32Float)
+    reflector.addOutput("reflectionDirection", "reflection direction texture")
+        .format(ResourceFormat::RGBA32Float)
+        .bindFlags(ResourceBindFlags::UnorderedAccess);
+
+    reflector.addOutput("instanceIDVisual", "Instance ID Visualization")
+        .format(ResourceFormat::RGBA32Float)
         .bindFlags(ResourceBindFlags::UnorderedAccess);
 
     if (math::any(mFrameDim != compileData.defaultTexDims))
@@ -40,8 +44,9 @@ void SurfelVBuffer::execute(RenderContext* pRenderContext, const RenderData& ren
 
     var["CB"]["gResolution"] = mFrameDim;
 
-    var["gPackedHitInfo"] = renderData.getTexture("packedHitInfo");
-    var["gDepth"] = renderData.getTexture("depth");
+    var["gReflectionHitInfo"] = renderData.getTexture("reflectionHitInfo");
+    var["gReflectionDirection"] = renderData.getTexture("reflectionDirection");
+    var["gInstanceIDVisual"] = renderData.getTexture("instanceIDVisual");
 
     mpScene->raytrace(pRenderContext, mRtPass.pProgram.get(), mRtPass.pVars, uint3(mFrameDim, 1));
 }
