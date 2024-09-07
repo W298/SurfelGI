@@ -96,6 +96,7 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
     if (mpScene->getRenderSettings().useEmissiveLights)
         mpScene->getLightCollection(pRenderContext);
 
+    // 01. Prepare Pass
     {
         FALCOR_PROFILE(pRenderContext, "Prepare Pass");
 
@@ -103,6 +104,7 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
         pRenderContext->copyResource(mpSurfelDirtyIndexBuffer.get(), mpSurfelValidIndexBuffer.get());
     }
 
+    // 02. Update Pass (Collect Cell Info Pass)
     {
         FALCOR_PROFILE(pRenderContext, "Update Pass (Collect Cell Info Pass)");
 
@@ -121,6 +123,7 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
         mpCollectCellInfoPass->execute(pRenderContext, uint3(kTotalSurfelLimit, 1, 1));
     }
 
+    // 02. Update Pass (Accumulate Cell Info Pass)
     {
         FALCOR_PROFILE(pRenderContext, "Update Pass (Accumulate Cell Info Pass)");
 
@@ -131,6 +134,7 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
         mpAccumulateCellInfoPass->execute(pRenderContext, uint3(mStaticParams.cellCount, 1, 1));
     }
 
+    // 02. Update Pass (Update Cell To Surfel buffer Pass)
     {
         FALCOR_PROFILE(pRenderContext, "Update Pass (Update Cell To Surfel buffer Pass)");
 
@@ -141,6 +145,7 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
         mpUpdateCellToSurfelBuffer->execute(pRenderContext, uint3(kTotalSurfelLimit, 1, 1));
     }
 
+    // If surfel is locked, evaluate pixel only.
     if (mLockSurfel)
     {
         FALCOR_PROFILE(pRenderContext, "Surfel Evaluation Pass");
@@ -161,6 +166,7 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
     }
     else
     {
+        // 03. Surfel RayTrace Pass
         {
             FALCOR_PROFILE(pRenderContext, "Surfel RayTrace Pass");
 
@@ -172,7 +178,7 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
             mpScene->raytrace(pRenderContext, mRtPass.pProgram.get(), mRtPass.pVars, uint3(kRayBudget, 1, 1));
         }
 
-        if (mFrameIndex <= mMaxFrameIndex)
+        // 04. Surfel Integrate Pass
         {
             FALCOR_PROFILE(pRenderContext, "Surfel Integrate Pass");
 
@@ -184,6 +190,7 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
             mpSurfelIntegratePass->execute(pRenderContext, uint3(kTotalSurfelLimit, 1, 1));
         }
 
+        // 05. Surfel Generation Pass
         {
             FALCOR_PROFILE(pRenderContext, "Surfel Generation Pass");
 
@@ -206,32 +213,21 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
             mpSurfelGenerationPass->execute(pRenderContext, uint3(mFrameDim, 1));
         }
 
+        // 06. Surfel Generation Pass (Reflection)
         {
-            FALCOR_PROFILE(pRenderContext, "Surfel Generation Pass 2");
+            FALCOR_PROFILE(pRenderContext, "Surfel Generation Pass (Reflection)");
 
             auto var = mpSurfelGenerationPass->getRootVar();
 
-            mpScene->setRaytracingShaderData(pRenderContext, var);
-
             var["gHitInfo"] = renderData.getTexture(kReflectionHitInfoTextureName);
             var["gOutput"] = mpReflectionOutputTexture;
-
-            var["CB"]["gResolution"] = mFrameDim;
-            var["CB"]["gFOVy"] = mFOVy;
-            var["CB"]["gFrameIndex"] = mFrameIndex;
-            var["CB"]["gChanceMultiply"] = mRuntimeParams.chanceMultiply;
-            var["CB"]["gChancePower"] = mRuntimeParams.chancePower;
-            var["CB"]["gPlacementThreshold"] = mRuntimeParams.placementThreshold;
-            var["CB"]["gRemovalThreshold"] = mRuntimeParams.removalThreshold;
-            var["CB"]["gOverlayMode"] = (uint)mRuntimeParams.overlayMode;
-            var["CB"]["gBlendingDelay"] = mRuntimeParams.blendingDelay;
-            var["CB"]["gVarianceSensitivity"] = mRuntimeParams.varianceSensitivity;
 
             pRenderContext->clearUAV(mpReflectionOutputTexture->getUAV().get(), float4(0));
             mpSurfelGenerationPass->execute(pRenderContext, uint3(mFrameDim, 1));
         }
     }
 
+    // 07. Read Back
     {
         FALCOR_PROFILE(pRenderContext, "Read Back");
 
@@ -452,7 +448,6 @@ void SurfelGI::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
     }*/
 
     mFrameIndex = 0;
-    mMaxFrameIndex = 1000000;
     mFrameDim = uint2(0, 0);
     mRenderScale = 1.f;
     mIsFrameDimChanged = true;

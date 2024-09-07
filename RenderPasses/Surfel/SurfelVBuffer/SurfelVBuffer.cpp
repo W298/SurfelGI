@@ -17,6 +17,10 @@ RenderPassReflection SurfelVBuffer::reflect(const CompileData& compileData)
 {
     RenderPassReflection reflector;
 
+    reflector.addOutput("hitInfo", "hit info texture")
+        .format(ResourceFormat::RGBA32Uint)
+        .bindFlags(ResourceBindFlags::UnorderedAccess);
+
     reflector.addOutput("reflectionHitInfo", "reflection hit info texture")
         .format(ResourceFormat::RGBA32Uint)
         .bindFlags(ResourceBindFlags::UnorderedAccess);
@@ -44,6 +48,7 @@ void SurfelVBuffer::execute(RenderContext* pRenderContext, const RenderData& ren
 
     var["CB"]["gResolution"] = mFrameDim;
 
+    var["gHitInfo"] = renderData.getTexture("hitInfo");
     var["gReflectionHitInfo"] = renderData.getTexture("reflectionHitInfo");
     var["gReflectionDirection"] = renderData.getTexture("reflectionDirection");
     var["gInstanceIDVisual"] = renderData.getTexture("instanceIDVisual");

@@ -82,7 +82,6 @@ private:
     StaticParams mTempStaticParams;
 
     uint mFrameIndex;
-    uint mMaxFrameIndex;
     uint2 mFrameDim;
     float mFOVy;
     float3 mCamPos;

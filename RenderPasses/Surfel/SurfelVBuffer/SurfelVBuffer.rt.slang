@@ -15,6 +15,7 @@ struct Payload
     uint length;
 };
 
+RWTexture2D<uint4> gHitInfo;
 RWTexture2D<uint4> gReflectionHitInfo;
 RWTexture2D<float4> gReflectionDirection;
 RWTexture2D<float4> gInstanceIDVisual;
@@ -52,14 +53,10 @@ void closeHit(inout Payload payload, BuiltInTriangleIntersectionAttributes attri
 
     VertexData v = gScene.getVertexData(triangleHit);
 
-    if (payload.length >= 1)
+    if (payload.length < 1)
     {
-        gReflectionHitInfo[pixelPos] = triangleHit.pack();
-        gReflectionDirection[pixelPos] = float4(-payload.direction, 0.f);
-        gInstanceIDVisual[pixelPos] = float4(pseudocolor(triangleHit.instanceID.index), 1.f);
-    }
-    else
-    {
+        gHitInfo[pixelPos] = triangleHit.pack();
+
         const float3 incidentRayDir = normalize(payload.direction);
         const float3 normal = normalize(v.normalW);
         const float3 reflectionRayDir = incidentRayDir - 2.f * dot(incidentRayDir, normal) * normal;
@@ -84,6 +81,16 @@ void closeHit(inout Payload payload, BuiltInTriangleIntersectionAttributes attri
             rayDesc,
             payload
         );
+
+        // Continue tracing.
+    }
+    else
+    {
+        gReflectionHitInfo[pixelPos] = triangleHit.pack();
+        gReflectionDirection[pixelPos] = float4(-payload.direction, 0.f);
+        gInstanceIDVisual[pixelPos] = float4(pseudocolor(triangleHit.instanceID.index), 1.f);
+
+        // Terminated.
     }
 }
 
