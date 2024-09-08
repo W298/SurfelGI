@@ -21,7 +21,8 @@ Texture2D<float4> gReflectionDirection;
 Texture2D<float4> gDiffuseIndirectLighting;
 Texture2D<float4> gReflectionIndirectLighting;
 
-RWTexture2D<float4> gOutput;
+RWTexture2D<float4> gReflectionLighting;
+RWTexture2D<float4> gDiffuseLighting;
 
 // [Sample ALL light sources]
 float3 evalAnalyticLight(const ShadingData sd, const IMaterialInstance mi, inout SampleGenerator sg)
@@ -79,7 +80,9 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupdId: SV_Grou
     if (!hitInfo.isValid())
     {
         const float3 ray = gScene.camera.computeRayPinhole(pixelPos, gResolution).dir;
-        gOutput[pixelPos] = float4(gScene.envMap.eval(ray), 1);
+
+        gReflectionLighting[pixelPos] = float4(0.f);
+        gDiffuseLighting[pixelPos] = float4(gScene.envMap.eval(ray), 1);
 
         return;
     }
@@ -91,11 +94,16 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupdId: SV_Grou
         HitInfo refHitInfo = HitInfo(gReflectionHitInfo[pixelPos]);
         const float3 reflectionDir = gReflectionDirection[pixelPos].xyz;
 
-        // If reflection hit is miss, draw environment map.
         if (!refHitInfo.isValid())
         {
-            const float3 refRayDir = -reflectionDir;
-            reflectionLighting = gScene.envMap.eval(refRayDir);
+            // If reflection hit is miss, and has reflection direction, draw environment map.
+            // (Check SurfelVBuffer.rt.slang for the condition)
+            if (length(reflectionDir) > 0.f)
+            {
+                const float3 refRayDir = -reflectionDir;
+                reflectionLighting = gScene.envMap.eval(refRayDir);
+            }
+            // Otherwise, doesn't need reflection lighting.
         }
         else
         {
@@ -117,9 +125,11 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupdId: SV_Grou
 
             reflectionLighting += mi.getProperties(sd).emission;
         }
+
+        gReflectionLighting[pixelPos] = float4(reflectionLighting, 1.f);
     }
 
-    float3 finalGather = float3(0.f);
+    float3 diffuseLighting = float3(0.f);
     {
         TriangleHit triangleHit = hitInfo.getTriangleHit();
         VertexData v = gScene.getVertexData(triangleHit);
@@ -136,16 +146,13 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupdId: SV_Grou
         float3 weight = props.diffuseReflectionAlbedo;
 
         if (gRenderDirectLighting)
-            finalGather += directLighting;
+            diffuseLighting += directLighting;
 
         if (gRenderIndirectLighting)
-            finalGather += weight * diffuseIndirectLighting;
+            diffuseLighting += weight * diffuseIndirectLighting;
 
-        if (gRenderReflection)
-            finalGather += reflectionLighting;
+        diffuseLighting += mi.getProperties(sd).emission;
 
-        finalGather += mi.getProperties(sd).emission;
+        gDiffuseLighting[pixelPos] = float4(diffuseLighting, 1.f);
     }
-
-    gOutput[pixelPos] = float4(finalGather, 1.f);
 }

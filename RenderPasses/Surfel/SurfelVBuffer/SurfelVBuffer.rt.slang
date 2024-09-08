@@ -25,9 +25,21 @@ void miss(inout Payload payload)
 {
     uint2 pixelPos = DispatchRaysIndex().xy;
 
-    gReflectionHitInfo[pixelPos] = {};
-    gReflectionDirection[pixelPos] = float4(-payload.direction, 0.f);
-    gInstanceIDVisual[pixelPos] = float4(0.f);
+    // If length is 0, ray is missed.
+    // Otherwise, ray has hit something and reflected ray is missed.
+    if (payload.length < 1)
+    {
+        gHitInfo[pixelPos] = {};
+        gReflectionHitInfo[pixelPos] = {};
+        gReflectionDirection[pixelPos] = float4(0.f);
+        gInstanceIDVisual[pixelPos] = float4(0.f);
+    }
+    else
+    {
+        gReflectionHitInfo[pixelPos] = {};
+        gReflectionDirection[pixelPos] = float4(-payload.direction, 0.f);
+        gInstanceIDVisual[pixelPos] = float4(0.f);
+    }
 }
 
 [shader("anyhit")]
@@ -56,6 +68,16 @@ void closeHit(inout Payload payload, BuiltInTriangleIntersectionAttributes attri
     if (payload.length < 1)
     {
         gHitInfo[pixelPos] = triangleHit.pack();
+
+        // TODO: Test - Limit reflection for floor.
+        if (gScene.getMaterialID(getGeometryInstanceID()) != 1)
+        {
+            gReflectionHitInfo[pixelPos] = {};
+            gReflectionDirection[pixelPos] = float4(0.f);
+            gInstanceIDVisual[pixelPos] = float4(0.f);
+
+            return;
+        }
 
         const float3 incidentRayDir = normalize(payload.direction);
         const float3 normal = normalize(v.normalW);

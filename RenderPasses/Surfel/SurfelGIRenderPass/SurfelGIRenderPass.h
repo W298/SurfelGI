@@ -27,14 +27,16 @@ public:
 
 private:
     ref<Scene>              mpScene;
-    ref<ComputeState>       mpState;
-    ref<Program>            mpProgram;
-    ref<ProgramVars>        mpVars;
-
     ref<SampleGenerator>    mpSampleGenerator;
+
+    ref<ComputePass>        mpLightingPass;
+    ref<ComputePass>        mpBlurringPass;
+    ref<ComputePass>        mpIntegratePass;
 
     uint                    mFrameIndex;
     bool                    mRenderDirectLighting;
     bool                    mRenderIndirectLighting;
     bool                    mRenderReflection;
+    float                   mSigmaD;
+    float                   mSigmaR;
 };

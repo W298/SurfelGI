@@ -16,7 +16,13 @@ target_sources(Surfel PRIVATE
 
     SurfelGIRenderPass/SurfelGIRenderPass.cpp
     SurfelGIRenderPass/SurfelGIRenderPass.h
-    SurfelGIRenderPass/SurfelGIRenderPass.cs.slang
+    SurfelGIRenderPass/LightingPass.cs.slang
+    SurfelGIRenderPass/BlurringPass.cs.slang
+    SurfelGIRenderPass/IntegratePass.cs.slang
+
+    BilateralFilter/BilateralFilter.cpp
+    BilateralFilter/BilateralFilter.h
+    BilateralFilter/BilateralFilter.cs.slang
 
     SurfelGI/StaticParams.slang
     SurfelGI/OverlayMode.slang

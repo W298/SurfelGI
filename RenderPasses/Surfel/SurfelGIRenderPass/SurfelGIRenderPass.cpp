@@ -7,12 +7,8 @@ SurfelGIRenderPass::SurfelGIRenderPass(ref<Device> pDevice, const Properties& pr
     if (!mpDevice->isShaderModelSupported(ShaderModel::SM6_5))
         FALCOR_THROW("SceneDebugger requires Shader Model 6.5 support.");
 
-    mpState = ComputeState::create(mpDevice);
-
     mpSampleGenerator = SampleGenerator::create(mpDevice, SAMPLE_GENERATOR_DEFAULT);
     FALCOR_ASSERT(mpSampleGenerator);
-
-    mFrameIndex = 0;
 }
 
 RenderPassReflection SurfelGIRenderPass::reflect(const CompileData& compileData)
@@ -45,7 +41,19 @@ RenderPassReflection SurfelGIRenderPass::reflect(const CompileData& compileData)
         .flags(RenderPassReflection::Field::Flags::Optional);
 
     // Output
-    reflector.addOutput("output", "output texture")
+    reflector.addOutput("reflectionLighting", "reflection lighting")
+        .format(ResourceFormat::RGBA32Float)
+        .bindFlags(ResourceBindFlags::UnorderedAccess);
+
+    reflector.addOutput("diffuseLighting", "diffuse lighting")
+        .format(ResourceFormat::RGBA32Float)
+        .bindFlags(ResourceBindFlags::UnorderedAccess);
+
+    reflector.addOutput("blurredReflectionLighting", "blurred reflection lighting")
+        .format(ResourceFormat::RGBA32Float)
+        .bindFlags(ResourceBindFlags::UnorderedAccess);
+
+    reflector.addOutput("finalResult", "final result")
         .format(ResourceFormat::RGBA32Float)
         .bindFlags(ResourceBindFlags::UnorderedAccess);
 
@@ -60,35 +68,68 @@ void SurfelGIRenderPass::execute(RenderContext* pRenderContext, const RenderData
     const auto& pDiffuseIndirectLighting = renderData.getTexture("diffuseIndirectLighting");
     const auto& pReflectionIndirectLighting = renderData.getTexture("reflectionIndirectLighting");
 
-    const auto& pOutput = renderData.getTexture("output");
+    const auto& pReflectionLighting = renderData.getTexture("reflectionLighting");
+    const auto& pDiffuseLighting = renderData.getTexture("diffuseLighting");
+    const auto& pBlurredReflectionLighting = renderData.getTexture("blurredReflectionLighting");
+    const auto& pFinalResult = renderData.getTexture("finalResult");
 
-    FALCOR_ASSERT(pHitInfo && pOutput);
-
-    if (mpProgram)
+    if (mpScene)
     {
-        auto var = mpVars->getRootVar();
-        mpScene->setRaytracingShaderData(pRenderContext, var);
+        // Lighting Pass
+        {
+            auto var = mpLightingPass->getRootVar();
+            mpScene->setRaytracingShaderData(pRenderContext, var);
 
-        var["CB"]["gResolution"] = renderData.getDefaultTextureDims();
-        var["CB"]["gFrameIndex"] = mFrameIndex;
-        var["CB"]["gRenderDirectLighting"] = mRenderDirectLighting;
-        var["CB"]["gRenderIndirectLighting"] = mRenderIndirectLighting;
-        var["CB"]["gRenderReflection"] = mRenderReflection;
+            var["CB"]["gResolution"] = renderData.getDefaultTextureDims();
+            var["CB"]["gFrameIndex"] = mFrameIndex;
+            var["CB"]["gRenderDirectLighting"] = mRenderDirectLighting;
+            var["CB"]["gRenderIndirectLighting"] = mRenderIndirectLighting;
+            var["CB"]["gRenderReflection"] = mRenderReflection;
 
-        var["gHitInfo"] = pHitInfo;
+            var["gHitInfo"] = pHitInfo;
+            var["gReflectionHitInfo"] = pReflectionHitInfo;
+            var["gReflectionDirection"] = pReflectionDirection;
+            var["gDiffuseIndirectLighting"] = pDiffuseIndirectLighting;
+            var["gReflectionIndirectLighting"] = pReflectionIndirectLighting;
 
-        if (pReflectionHitInfo != nullptr)              var["gReflectionHitInfo"] = pReflectionHitInfo;
-        if (pReflectionDirection != nullptr)            var["gReflectionDirection"] = pReflectionDirection;
-        if (pDiffuseIndirectLighting != nullptr)        var["gDiffuseIndirectLighting"] = pDiffuseIndirectLighting;
-        if (pReflectionIndirectLighting != nullptr)     var["gReflectionIndirectLighting"] = pReflectionIndirectLighting;
+            var["gReflectionLighting"] = pReflectionLighting;
+            var["gDiffuseLighting"] = pDiffuseLighting;
 
-        var["gOutput"] = pOutput;
+            pRenderContext->clearUAV(pReflectionLighting->getUAV().get(), float4(0));
+            pRenderContext->clearUAV(pDiffuseLighting->getUAV().get(), float4(0));
 
-        pRenderContext->clearUAV(pOutput->getUAV().get(), float4(0));
+            mpLightingPass->execute(pRenderContext, uint3(renderData.getDefaultTextureDims(), 1u));
+        }
 
-        uint3 threadGroupSize = mpProgram->getReflector()->getThreadGroupSize();
-        uint3 groups = div_round_up(uint3(renderData.getDefaultTextureDims(), 1), threadGroupSize);
-        pRenderContext->dispatch(mpState.get(), mpVars.get(), groups);
+        // Blurring Pass
+        {
+            auto var = mpBlurringPass->getRootVar();
+
+            var["CB"]["gResolution"] = renderData.getDefaultTextureDims();
+            var["CB"]["gSigmaD"] = mSigmaD;
+            var["CB"]["gSigmaR"] = mSigmaR;
+
+            var["gReflectionLighting"] = pReflectionLighting;
+            var["gBlurredReflectionLighting"] = pBlurredReflectionLighting;
+
+            pRenderContext->clearUAV(pBlurredReflectionLighting->getUAV().get(), float4(0));
+
+            mpBlurringPass->execute(pRenderContext, uint3(renderData.getDefaultTextureDims(), 1u));
+        }
+
+        // Integrate Pass
+        {
+            auto var = mpIntegratePass->getRootVar();
+
+            var["gReflectionHitInfo"] = pReflectionHitInfo;
+            var["gReflectionDirection"] = pReflectionDirection;
+            var["gBlurredReflectionLighting"] = pBlurredReflectionLighting;
+            var["gDiffuseLighting"] = pDiffuseLighting;
+
+            var["gFinalResult"] = pFinalResult;
+
+            mpIntegratePass->execute(pRenderContext, uint3(renderData.getDefaultTextureDims(), 1u));
+        }
     }
 
     mFrameIndex++;
@@ -99,29 +140,43 @@ void SurfelGIRenderPass::renderUI(Gui::Widgets& widget)
     widget.checkbox("Direct Lighting", mRenderDirectLighting);
     widget.checkbox("Indirect Lighting", mRenderIndirectLighting);
     widget.checkbox("Reflection", mRenderReflection);
+
+    widget.slider("Sigma D", mSigmaD, 0.f, 50.f);
+    widget.slider("Sigma R", mSigmaR, 0.f, 50.f);
 }
 
 void SurfelGIRenderPass::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
 {
     mpScene = pScene;
-    mRenderDirectLighting = true;
-    mRenderIndirectLighting = true;
-    mRenderReflection = true;
 
     if (mpScene)
     {
-        ProgramDesc desc;
-        desc.addShaderModules(mpScene->getShaderModules());
-        desc.addShaderLibrary("RenderPasses/Surfel/SurfelGIRenderPass/SurfelGIRenderPass.cs.slang")
-            .csEntry("csMain");
-        desc.addTypeConformances(mpScene->getTypeConformances());
+        mFrameIndex = 0;
+        mRenderDirectLighting = true;
+        mRenderIndirectLighting = true;
+        mRenderReflection = true;
 
-        mpProgram = Program::create(mpDevice, desc, mpScene->getSceneDefines());
-        mpProgram->addDefines(mpSampleGenerator->getDefines());
+        // Lighting Pass
+        {
+            auto defines = mpScene->getSceneDefines();
+            defines.add(mpSampleGenerator->getDefines());
 
-        mpState->setProgram(mpProgram);
+            ProgramDesc desc;
+            desc.addShaderModules(mpScene->getShaderModules());
+            desc.addShaderLibrary("RenderPasses/Surfel/SurfelGIRenderPass/LightingPass.cs.slang").csEntry("csMain");
+            desc.addTypeConformances(mpScene->getTypeConformances());
 
-        mpVars = ProgramVars::create(mpDevice, mpProgram.get());
-        mpSampleGenerator->bindShaderData(mpVars->getRootVar());
+            mpLightingPass = ComputePass::create(mpDevice, desc, defines);
+
+            mpSampleGenerator->bindShaderData(mpLightingPass->getRootVar());
+        }
+
+        // Blurring Pass
+        mpBlurringPass =
+            ComputePass::create(mpDevice, "RenderPasses/Surfel/SurfelGIRenderPass/BlurringPass.cs.slang", "csMain");
+
+        // Integrate Pass
+        mpIntegratePass =
+            ComputePass::create(mpDevice, "RenderPasses/Surfel/SurfelGIRenderPass/IntegratePass.cs.slang", "csMain");
     }
 }
