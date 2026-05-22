@@ -105,7 +105,7 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
 
         auto var = mpCollectCellInfoPass->getRootVar();
 
-        mpScene->setRaytracingShaderData(pRenderContext, var);
+        mpScene->bindShaderDataForRaytracing(pRenderContext, var["gScene"]);
 
         var["CB"]["gCameraPos"] = mCamPos;
         var["CB"]["gResolution"] = mFrameDim;
@@ -144,7 +144,7 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
 
         auto var = mpSurfelEvaluationPass->getRootVar();
 
-        mpScene->setRaytracingShaderData(pRenderContext, var);
+        mpScene->bindShaderDataForRaytracing(pRenderContext, var["gScene"]);
 
         var["CB"]["gFrameIndex"] = mFrameIndex;
         var["CB"]["gPlacementThreshold"] = mRuntimeParams.placementThreshold;
@@ -186,7 +186,7 @@ void SurfelGI::execute(RenderContext* pRenderContext, const RenderData& renderDa
 
             auto var = mpSurfelGenerationPass->getRootVar();
 
-            mpScene->setRaytracingShaderData(pRenderContext, var);
+            mpScene->bindShaderDataForRaytracing(pRenderContext, var["gScene"]);
 
             var["CB"]["gResolution"] = mFrameDim;
             var["CB"]["gFOVy"] = mFOVy;

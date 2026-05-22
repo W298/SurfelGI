@@ -47,7 +47,7 @@ void SurfelGIRenderPass::execute(RenderContext* pRenderContext, const RenderData
     if (mpProgram)
     {
         auto var = mpVars->getRootVar();
-        mpScene->setRaytracingShaderData(pRenderContext, var);
+        mpScene->bindShaderDataForRaytracing(pRenderContext, var["gScene"]);
 
         var["CB"]["gResolution"] = renderData.getDefaultTextureDims();
         var["CB"]["gFrameIndex"] = mFrameIndex;
