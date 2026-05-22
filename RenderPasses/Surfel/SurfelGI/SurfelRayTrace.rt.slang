@@ -373,7 +373,7 @@ void handleHit(TriangleHit triangleHit, inout ScatterPayload scatterPayload)
     VertexData v = gScene.getVertexData(triangleHit);
     uint materialID = gScene.getMaterialID(triangleHit.instanceID);
     let lod = ExplicitLodTextureSampler(0.f);
-    ShadingData sd = gScene.materials.prepareShadingData(v, materialID, -scatterPayload.direction, lod);
+    ShadingData sd = gScene.materials.prepareShadingData(v, materialID, -scatterPayload.direction);
     let mi = gScene.materials.getMaterialInstance(sd, lod);
 
     if (scatterPayload.currStep == 1u)

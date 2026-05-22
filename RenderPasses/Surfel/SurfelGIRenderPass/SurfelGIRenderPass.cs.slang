@@ -51,7 +51,7 @@ float3 evalAnalyticLight(const ShadingData sd, const IMaterialInstance mi, inout
             ray.tMin = 0.f;
             ray.tMax = ls.distance;
 
-            sceneRayQuery.traceRay(ray, hit, hitT, RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH, 0xff);
+            hit = sceneRayQuery.traceRay(ray, hitT, RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH, 0xff);
         }
 
         if (!hit.isValid())
@@ -83,7 +83,7 @@ void csMain(uint3 dispatchThreadId: SV_DispatchThreadID, uint3 groupdId: SV_Grou
         float3 viewDir = normalize(gScene.camera.getPosition() - v.posW);
         uint materialID = gScene.getMaterialID(triangleHit.instanceID);
         let lod = ExplicitLodTextureSampler(0.f);
-        ShadingData sd = gScene.materials.prepareShadingData(v, materialID, viewDir, lod);
+        ShadingData sd = gScene.materials.prepareShadingData(v, materialID, viewDir);
         let mi = gScene.materials.getMaterialInstance(sd, lod);
 
         SampleGenerator sg = SampleGenerator(pixelPos, gFrameIndex);
